@@ -223,12 +223,14 @@ export class AnsiChatDisplay implements ChatDisplay {
     }
 
     const prefixLength = this.getPrefixLength();
-    const idSuffix = `${DIM} #${getGuidPrefix(msg.id, prefixLength)}${RESET}`;
-    const bodyLine = color ? `${color}${colorizedBody}${RESET}${idSuffix}` : `${colorizedBody}${idSuffix}`;
+    const idLine = color
+      ? `${DIM}${color}#${getGuidPrefix(msg.id, prefixLength)}${RESET}`
+      : `${DIM}#${getGuidPrefix(msg.id, prefixLength)}${RESET}`;
+    const bodyLine = color ? `${color}${colorizedBody}${RESET}` : colorizedBody;
     const replyContext = msg.reply_to ? this.buildReplyContext(msg.reply_to, prefixLength) : '';
     const formatted = replyContext
-      ? `${speakerLine}\n${replyContext}\n${bodyLine}`
-      : `${speakerLine}\n${bodyLine}`;
+      ? `${speakerLine}\n${replyContext}\n${bodyLine}\n${idLine}`
+      : `${speakerLine}\n${bodyLine}\n${idLine}`;
 
     console.log(formatted);
     console.log();
@@ -257,12 +259,14 @@ export class AnsiChatDisplay implements ChatDisplay {
       speakerLine = `${BOLD}${speakerContent}${RESET}`;
     }
 
-    const idSuffix = `${DIM} #${extractGuidPrefix(msg.id)}${RESET}`;
-    const bodyLine = color ? `${color}${colorizedBody}${RESET}${idSuffix}` : `${colorizedBody}${idSuffix}`;
+    const idLine = color
+      ? `${DIM}${color}#${extractGuidPrefix(msg.id)}${RESET}`
+      : `${DIM}#${extractGuidPrefix(msg.id)}${RESET}`;
+    const bodyLine = color ? `${color}${colorizedBody}${RESET}` : colorizedBody;
     const replyContext = msg.reply_to ? this.buildReplyContext(msg.reply_to) : '';
     const formatted = replyContext
-      ? `${speakerLine}\n${replyContext}\n${bodyLine}`
-      : `${speakerLine}\n${bodyLine}`;
+      ? `${speakerLine}\n${replyContext}\n${bodyLine}\n${idLine}`
+      : `${speakerLine}\n${bodyLine}\n${idLine}`;
 
     console.log(formatted);
     console.log();
