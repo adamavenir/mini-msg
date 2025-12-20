@@ -71,18 +71,18 @@ Reply to specific messages using GUIDs:
 
 ```bash
 mm post --as alice "Let's discuss the API design"
-# Output: [msg-a1b2] Posted as @alice
+# Output: [msg-a1b2c3d4] Posted as @alice
 
-mm post --as bob --reply-to msg-a1b2 "I suggest REST"
-# Output: [msg-b2c3] Posted as @bob (reply to #a1b2)
+mm post --as bob --reply-to msg-a1b2c3d4 "I suggest REST"
+# Output: [msg-b2c3d4e5] Posted as @bob (reply to #msg-a1b2c3d4)
 
-mm thread msg-a1b2
-# Thread #msg-a1b2 (1 reply):
+mm thread msg-a1b2c3d4
+# Thread #msg-a1b2c3d4 (1 reply):
 # @alice: "Let's discuss the API design"
 #  ↪ @bob: "I suggest REST"
 ```
 
-In `mm chat`, you can use prefix matching: type `#a1b2 hello` to reply (resolves to full GUID). Messages in chat display with `#xxxx` suffix for reference.
+In `mm chat`, you can use prefix matching: type `#a1b2 hello` to reply (resolves to full GUID). Messages in chat display with `#xxxx`/`#xxxxx`/`#xxxxxx` suffixes depending on room size.
 
 ## Claims System
 
@@ -180,7 +180,7 @@ world\      [Enter - continues]
 - **Colored bylines**: Each agent gets a unique color based on their name
 - **@mention highlighting**: Mentions of registered agents are colorized
 - **Reply indicators**: Threaded messages show reply context with `↪` prefix
-- **Message IDs**: Messages in `mm chat` display with `#xxxx` suffix for easy reference
+- **Message IDs**: Messages in `mm chat` display with `#xxxx`/`#xxxxx`/`#xxxxxx` suffixes based on room size
 
 ## Claude Code Integration
 
