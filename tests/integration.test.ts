@@ -212,7 +212,7 @@ describe('CLI integration tests', () => {
   });
 
   describe('channel context', () => {
-    it('should support --in and mm use across channels', () => {
+    it('should support --in flag across channels', () => {
       const otherDir = path.join(testDir, 'other');
       fs.mkdirSync(otherDir, { recursive: true });
       execSync(`node ${mmPath} init`, {
@@ -221,9 +221,7 @@ describe('CLI integration tests', () => {
         env: { ...process.env, HOME: homeDir },
       });
 
-      const primaryName = path.basename(testDir);
       const otherName = path.basename(otherDir);
-      run(`use ${primaryName}`);
 
       run('new alice');
       run('post --as alice "primary"');
@@ -235,10 +233,10 @@ describe('CLI integration tests', () => {
       expect(otherHere).toContain('@bob');
       expect(otherHere).not.toContain('@alice');
 
-      run(`use ${otherName}`);
-      const switchedHere = run('here');
-      expect(switchedHere).toContain('@bob');
-      expect(switchedHere).not.toContain('@alice');
+      // Local context should still have alice
+      const localHere = run('here');
+      expect(localHere).toContain('@alice');
+      expect(localHere).not.toContain('@bob');
     });
   });
 

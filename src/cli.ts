@@ -29,7 +29,6 @@ import { pruneCommand } from './commands/prune.js';
 import { threadCommand } from './commands/thread.js';
 import { migrateCommand } from './commands/migrate.js';
 import { renameCommand } from './commands/rename.js';
-import { useCommand } from './commands/use.js';
 import { lsCommand } from './commands/ls.js';
 import { claimCommand } from './commands/claim.js';
 import { clearCommand } from './commands/clear.js';
@@ -79,7 +78,6 @@ export function main() {
   program.addCommand(threadCommand());
   program.addCommand(migrateCommand());
   program.addCommand(renameCommand());
-  program.addCommand(useCommand());
   program.addCommand(lsCommand());
   program.addCommand(claimCommand());
   program.addCommand(clearCommand());

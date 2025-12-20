@@ -145,11 +145,11 @@ mm claims [@id]              list claims (all or specific agent)
 mm clear @id [--file <path>] clear claims
 
 mm chat                      interactive mode (users)
+mm chat <channel>            chat in specific channel
 mm watch                     tail -f mode
 mm prune                     archive old messages (requires clean git)
 
 mm ls                        list registered channels
-mm use <channel>             set current channel context
 mm --in <channel> ...        operate in another channel
 
 mm nick <agent> --as <nick>  add nickname for agent

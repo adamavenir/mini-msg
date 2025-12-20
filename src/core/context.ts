@@ -64,25 +64,11 @@ export function resolveChannelContext(options?: {
     throw new Error(`Channel not found: ${channelRef}`);
   }
 
-  if (globalConfig?.current_channel) {
-    const resolved = findChannelByRef(globalConfig.current_channel, globalConfig);
-    if (!resolved) {
-      throw new Error(`Current channel not found: ${globalConfig.current_channel}`);
-    }
-    const project = resolveProjectFromPath(resolved.path);
-    const projectConfig = loadProjectConfig(project);
-    return {
-      project,
-      channelId: resolved.id,
-      channelName: resolved.name,
-      projectConfig,
-    };
-  }
-
+  // Use local directory only - no global current_channel fallback
   const localProject = discoverProject(cwd);
   const localConfig = loadProjectConfig(localProject);
   if (!localConfig?.channel_id) {
-    throw new Error('No channel context');
+    throw new Error('No channel context: local .mm/ directory has no channel_id');
   }
 
   return {

@@ -10,6 +10,7 @@ import { ReadlineChatInput } from '../chat/input.js';
 import { resolveReplyReference } from '../chat/reply.js';
 import { initProject, openDatabase } from '../core/project.js';
 import { initSchema } from '../db/schema.js';
+import { resolveChannelContext } from '../core/context.js';
 import type { Message, MessageCursor } from '../types.js';
 import type { FormattedMessage } from '../chat/types.js';
 import type Database from 'better-sqlite3';
@@ -85,14 +86,22 @@ function buildColorMap(db: Database.Database, lookbackLimit: number = 50, includ
 export function chatCommand(): Command {
   return new Command('chat')
     .description('Interactive chat mode')
+    .argument('[channel]', 'channel name or ID to chat in')
     .option('--last <n>', 'show last N messages', '20')
     .option('--show-updates', 'include system event messages')
     .option('--archived', 'include archived messages')
-    .action(async (options, cmd) => {
+    .action(async (channelArg: string | undefined, options, cmd) => {
       try {
         let context;
         try {
-          context = getContext(cmd);
+          // If channel argument provided, use it; otherwise use normal resolution
+          if (channelArg) {
+            const channelContext = resolveChannelContext({ channel: channelArg });
+            const db = openDatabase(channelContext.project);
+            context = { db, project: channelContext.project, jsonMode: cmd.optsWithGlobals().json || false };
+          } else {
+            context = getContext(cmd);
+          }
         } catch (error) {
           // Check if it's a "not initialized" error
           const message = error instanceof Error ? error.message : String(error);

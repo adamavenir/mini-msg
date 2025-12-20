@@ -87,8 +87,7 @@ bin/
 
 **Channel Context**: Resolution priority:
 1. `--in <channel>` flag (explicit)
-2. `mm use` current channel (from global config)
-3. Current directory discovery (if .mm/ exists)
+2. Current directory discovery (if .mm/ exists)
 
 **Time Queries**: `parseTimeExpression()` handles relative (`1h`, `2d`), absolute (`today`, `yesterday`), and GUID prefix (`#abc`) formats.
 
@@ -176,7 +175,7 @@ mm history alice --since 2d  # Last 2 days
 
 # Channels
 mm ls                        # List registered channels
-mm use <channel>             # Set current channel
+mm chat <channel>            # Chat in specific channel
 mm --in <channel> ...        # Operate in another channel
 
 # Nicknames

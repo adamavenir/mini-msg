@@ -72,14 +72,7 @@ describe('channel context', () => {
     expect(ctx.project.root).toBe(projectB);
   });
 
-  it('resolves current channel context when set', () => {
-    configMod.setCurrentChannel('ch-alpha111');
-    const ctx = contextMod.resolveChannelContext();
-    expect(ctx.channelId).toBe('ch-alpha111');
-    expect(ctx.project.root).toBe(projectA);
-  });
-
-  it('falls back to local project when no global config', () => {
+  it('uses local project by default (no global current_channel)', () => {
     const configPath = path.join(homeDir, '.config', 'mm', 'mm-config.json');
     if (fs.existsSync(configPath)) {
       fs.unlinkSync(configPath);

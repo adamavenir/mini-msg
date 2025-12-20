@@ -8,7 +8,6 @@ export interface GlobalConfig {
     name: string;
     path: string;
   }>;
-  current_channel?: string;
 }
 
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'mm');
@@ -51,7 +50,6 @@ export function registerChannel(
     ...existing,
     version: existing.version ?? 1,
     channels,
-    current_channel: channelId,
   };
 
   writeGlobalConfig(updated);
@@ -77,20 +75,3 @@ export function findChannelByRef(
   return null;
 }
 
-export function setCurrentChannel(channelId: string): GlobalConfig {
-  const existing = readGlobalConfig();
-  if (!existing) {
-    throw new Error('No global config found. Run `mm init` in a project first.');
-  }
-  if (!existing.channels[channelId]) {
-    throw new Error(`Channel not found: ${channelId}`);
-  }
-
-  const updated: GlobalConfig = {
-    ...existing,
-    current_channel: channelId,
-  };
-
-  writeGlobalConfig(updated);
-  return updated;
-}
