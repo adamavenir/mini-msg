@@ -7,6 +7,7 @@ import { hereCommand } from './commands/here.js';
 import { whoCommand } from './commands/who.js';
 import { postCommand } from './commands/post.js';
 import { editCommand } from './commands/edit.js';
+import { rmCommand } from './commands/rm.js';
 import { linkCommand } from './commands/link.js';
 import { unlinkCommand } from './commands/unlink.js';
 import { projectsCommand } from './commands/projects.js';
@@ -58,6 +59,7 @@ export function main() {
   program.addCommand(whoCommand());
   program.addCommand(postCommand());
   program.addCommand(editCommand());
+  program.addCommand(rmCommand());
   program.addCommand(linkCommand());
   program.addCommand(unlinkCommand());
   program.addCommand(projectsCommand());
@@ -124,11 +126,11 @@ export function main() {
 
   // Check for unknown commands before parsing
   const knownCommands = new Set([
-    'init', 'new', 'back', 'bye', 'here', 'who', 'post', 'edit',
+    'init', 'new', 'back', 'bye', 'here', 'who', 'post', 'edit', 'rm',
     'link', 'unlink', 'projects', 'config',
     'quickstart', 'qs', 'get', 'watch', 'history', 'between', 'help',
     'hook-install', 'hook-session', 'hook-prompt', 'hook-precommit', 'chat', 'filter', 'view', 'prune', 'thread', 'migrate', 'rename',
-    'use', 'ls', 'claim', 'clear', 'claims', 'status', 'nick', 'nicks', 'whoami'
+    'ls', 'claim', 'clear', 'claims', 'status', 'nick', 'nicks', 'whoami'
   ]);
 
   const firstArg = args[0];

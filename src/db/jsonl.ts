@@ -22,6 +22,14 @@ export interface MessageJsonlRecord {
   archived_at: number | null;
 }
 
+export interface MessageUpdateJsonlRecord {
+  type: 'message_update';
+  id: string;
+  body?: string;
+  edited_at?: number | null;
+  archived_at?: number | null;
+}
+
 export interface AgentJsonlRecord {
   type: 'agent';
   id: string;
@@ -127,6 +135,23 @@ export function appendMessage(projectPath: string, message: Message): void {
   touchDatabaseFile(projectPath);
 }
 
+export function appendMessageUpdate(projectPath: string, update: {
+  id: string;
+  body?: string;
+  edited_at?: number | null;
+  archived_at?: number | null;
+}): void {
+  const mmDir = resolveMmDir(projectPath);
+  const record: MessageUpdateJsonlRecord = {
+    type: 'message_update',
+    id: update.id,
+    ...update,
+  };
+
+  appendJsonLine(path.join(mmDir, MESSAGES_FILE), record);
+  touchDatabaseFile(projectPath);
+}
+
 export function appendAgent(projectPath: string, agent: Agent): void {
   const mmDir = resolveMmDir(projectPath);
   const projectConfig = readProjectConfig(projectPath);
@@ -188,7 +213,26 @@ export function updateProjectConfig(projectPath: string, updates: Partial<Projec
 
 export function readMessages(projectPath: string): MessageJsonlRecord[] {
   const mmDir = resolveMmDir(projectPath);
-  return readJsonlFile<MessageJsonlRecord>(path.join(mmDir, MESSAGES_FILE));
+  const records = readJsonlFile<MessageJsonlRecord | MessageUpdateJsonlRecord>(path.join(mmDir, MESSAGES_FILE));
+
+  // Build a map of messages, applying updates in order
+  const messageMap = new Map<string, MessageJsonlRecord>();
+
+  for (const record of records) {
+    if (record.type === 'message') {
+      messageMap.set(record.id, record);
+    } else if (record.type === 'message_update') {
+      const existing = messageMap.get(record.id);
+      if (existing) {
+        // Apply update fields
+        if (record.body !== undefined) existing.body = record.body;
+        if (record.edited_at !== undefined) existing.edited_at = record.edited_at;
+        if (record.archived_at !== undefined) existing.archived_at = record.archived_at;
+      }
+    }
+  }
+
+  return Array.from(messageMap.values());
 }
 
 export function readAgents(projectPath: string): AgentJsonlRecord[] {

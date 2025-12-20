@@ -571,6 +571,32 @@ export function getMessage(db: Database.Database, messageId: string): Message | 
 }
 
 /**
+ * Get a message by GUID prefix (for short IDs like #abc).
+ * Returns undefined if no match or multiple matches.
+ */
+export function getMessageByPrefix(db: Database.Database, prefix: string): Message | undefined {
+  // Normalize: remove msg- prefix if present
+  let normalizedPrefix = prefix;
+  if (normalizedPrefix.toLowerCase().startsWith('msg-')) {
+    normalizedPrefix = normalizedPrefix.slice(4);
+  }
+
+  const rows = db.prepare(`
+    SELECT * FROM mm_messages
+    WHERE guid LIKE ?
+    ORDER BY ts DESC
+    LIMIT 2
+  `).all(`msg-${normalizedPrefix}%`) as MessageRow[];
+
+  // Only return if exactly one match
+  if (rows.length === 1) {
+    return parseMessageRow(rows[0]);
+  }
+
+  return undefined;
+}
+
+/**
  * Edit a message.
  * Verifies ownership, updates body and edited_at, emits edit event.
  * @throws if message doesn't exist or agent doesn't own it
@@ -604,6 +630,27 @@ export function editMessage(
     mentions,
     type: 'event',
   });
+}
+
+/**
+ * Delete a message by marking it as deleted (archives it).
+ */
+export function deleteMessage(
+  db: Database.Database,
+  messageId: string
+): void {
+  const msg = getMessage(db, messageId);
+  if (!msg) {
+    throw new Error(`Message ${messageId} not found`);
+  }
+
+  const deletedAt = Math.floor(Date.now() / 1000);
+
+  // Mark as deleted by setting body to [deleted] and archiving
+  const stmt = db.prepare(
+    'UPDATE mm_messages SET body = ?, archived_at = ? WHERE guid = ?'
+  );
+  stmt.run('[deleted]', deletedAt, messageId);
 }
 
 // Config functions
