@@ -145,7 +145,9 @@ func NewModel(opts Options) (*Model, error) {
 	input.ShowLineNumbers = false
 	input.MaxHeight = inputMaxHeight
 	input.FocusedStyle.Base = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(inputBg)
+	input.FocusedStyle.CursorLine = lipgloss.NewStyle().Background(inputBg)
 	input.BlurredStyle.Base = lipgloss.NewStyle().Foreground(lipgloss.Color("246")).Background(inputBg)
+	input.BlurredStyle.CursorLine = lipgloss.NewStyle().Background(inputBg)
 	input.Focus()
 
 	vp := viewport.New(0, 0)
