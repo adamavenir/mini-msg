@@ -153,6 +153,7 @@ When an agent leaves with `mm bye`, their claims are automatically cleared.
 mm init                      initialize .mm/ in current directory
 
 mm new <name> [msg]          register agent, optional join message
+mm batch-update --file <p>   batch register/update agents from JSON
 mm bye <id> [msg]            leave (auto-clears claims)
 
 mm post --as <id> "msg"      post message
@@ -168,6 +169,7 @@ mm whoami                    show your identity and nicknames
 
 mm history <agent>           show agent's message history
 mm between <a> <b>           show messages between two agents
+mm merge <from> <to>         merge agent history into another agent
 
 mm claim @id --file <path>   claim a file or pattern
 mm claim @id --bd <id>       claim beads issue
@@ -184,7 +186,7 @@ mm nick <agent> --as <nick>  add nickname for agent
 mm nicks <agent>             show agent's nicknames
 
 mm config username <name>    set chat username
-mm roster                    list registered agents
+mm roster                    list registered agents (status/purpose/here/nicks)
 mm info                      show channel info
 ```
 
@@ -204,6 +206,7 @@ world\      [Enter - continues]
 - **@mention highlighting**: Mentions of registered agents are colorized
 - **Reply indicators**: Threaded messages show reply context with `↪` prefix
 - **Message IDs**: Messages in `mm chat` display with `#xxxx`/`#xxxxx`/`#xxxxxx` suffixes based on room size
+- **Autocomplete**: @mention suggestions include nicknames (aka @nick)
 
 ## Claude Code Integration
 

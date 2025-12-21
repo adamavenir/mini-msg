@@ -22,6 +22,7 @@ type rosterAgent struct {
 	Status       string   `json:"status"`
 	Purpose      string   `json:"purpose"`
 	Nicks        []string `json:"nicks"`
+	Here         bool     `json:"here"`
 	Registered   string   `json:"registered_at"`
 	LastSeen     string   `json:"last_seen"`
 	LeftAt       *string  `json:"left_at"`
@@ -64,8 +65,9 @@ func NewRosterCmd() *cobra.Command {
 						_ = dbConn.Close()
 						continue
 					}
+					staleHours := resolveStaleHours(dbConn)
 					projectConfig, _ := db.ReadProjectConfig(project.DBPath)
-					channelAgents, err := buildRosterAgents(dbConn, projectConfig, &channelID, &channel.Name)
+					channelAgents, err := buildRosterAgents(dbConn, projectConfig, staleHours, &channelID, &channel.Name)
 					_ = dbConn.Close()
 					if err != nil {
 						continue
@@ -79,7 +81,8 @@ func NewRosterCmd() *cobra.Command {
 				}
 				defer ctx.DB.Close()
 
-				channelAgents, err := buildRosterAgents(ctx.DB, ctx.ProjectConfig, nil, nil)
+				staleHours := resolveStaleHours(ctx.DB)
+				channelAgents, err := buildRosterAgents(ctx.DB, ctx.ProjectConfig, staleHours, nil, nil)
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
@@ -118,7 +121,7 @@ func NewRosterCmd() *cobra.Command {
 	return cmd
 }
 
-func buildRosterAgents(dbConn *sql.DB, config *db.ProjectConfig, channelID, channelName *string) ([]rosterAgent, error) {
+func buildRosterAgents(dbConn *sql.DB, config *db.ProjectConfig, staleHours int, channelID, channelName *string) ([]rosterAgent, error) {
 	agents, err := db.GetAllAgents(dbConn)
 	if err != nil {
 		return nil, err
@@ -134,12 +137,12 @@ func buildRosterAgents(dbConn *sql.DB, config *db.ProjectConfig, channelID, chan
 
 	items := make([]rosterAgent, 0, len(agents))
 	for _, agent := range agents {
-		items = append(items, toRosterAgent(agent, messageCounts, claimCounts, config, channelID, channelName))
+		items = append(items, toRosterAgent(agent, messageCounts, claimCounts, config, staleHours, channelID, channelName))
 	}
 	return items, nil
 }
 
-func toRosterAgent(agent types.Agent, messageCounts map[string]int64, claimCounts map[string]int64, config *db.ProjectConfig, channelID, channelName *string) rosterAgent {
+func toRosterAgent(agent types.Agent, messageCounts map[string]int64, claimCounts map[string]int64, config *db.ProjectConfig, staleHours int, channelID, channelName *string) rosterAgent {
 	registered := time.Unix(agent.RegisteredAt, 0).UTC().Format(time.RFC3339)
 	lastSeen := time.Unix(agent.LastSeen, 0).UTC().Format(time.RFC3339)
 	var leftAt *string
@@ -147,6 +150,7 @@ func toRosterAgent(agent types.Agent, messageCounts map[string]int64, claimCount
 		value := time.Unix(*agent.LeftAt, 0).UTC().Format(time.RFC3339)
 		leftAt = &value
 	}
+	here := agent.LeftAt == nil && !isStale(agent.LastSeen, staleHours)
 
 	return rosterAgent{
 		GUID:         agent.GUID,
@@ -154,6 +158,7 @@ func toRosterAgent(agent types.Agent, messageCounts map[string]int64, claimCount
 		Status:       normalizeOptionalValue(agent.Status),
 		Purpose:      normalizeOptionalValue(agent.Purpose),
 		Nicks:        agentNicksForGUID(config, agent.GUID),
+		Here:         here,
 		Registered:   registered,
 		LastSeen:     lastSeen,
 		LeftAt:       leftAt,
@@ -185,6 +190,7 @@ func formatRosterAgent(out io.Writer, agent rosterAgent, showChannel bool) {
 	}
 	fmt.Fprintf(out, "    status: %s\n", formatOptionalString(agent.Status))
 	fmt.Fprintf(out, "    purpose: %s\n", formatOptionalString(agent.Purpose))
+	fmt.Fprintf(out, "    here: %t\n", agent.Here)
 
 	lastSeenTs, _ := time.Parse(time.RFC3339, agent.LastSeen)
 	registeredTs, _ := time.Parse(time.RFC3339, agent.Registered)
@@ -200,4 +206,12 @@ func writeRosterEmpty(cmd *cobra.Command, jsonMode bool) error {
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), "No channels registered")
 	return nil
+}
+
+func resolveStaleHours(dbConn *sql.DB) int {
+	staleHours := 4
+	if value, err := db.GetConfig(dbConn, "stale_hours"); err == nil && value != "" {
+		staleHours = parseInt(value, staleHours)
+	}
+	return staleHours
 }
