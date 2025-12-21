@@ -7,23 +7,21 @@ Thanks for considering contributing to mini-msg!
 ```bash
 git clone https://github.com/adamavenir/mini-msg.git
 cd mini-msg
-npm install
-npm run build
-npm test
+go test ./...
+go build ./cmd/mm
 ```
 
 ## Testing Your Changes
 
 ```bash
-npm test          # Run test suite
-npm run build     # Build the project
-npm run dev       # Watch mode for development
+go test ./...     # Run test suite
+go build ./cmd/mm # Build the project
 ```
 
 Test your changes locally:
 
 ```bash
-npm link          # Link globally for testing
+go install ./cmd/mm # Install locally for testing
 mm init           # Test the CLI
 ```
 
@@ -40,8 +38,8 @@ mm init           # Test the CLI
 2. Create a feature branch (`git checkout -b feature/your-feature`)
 3. Make your changes
 4. Add tests if applicable
-5. Ensure tests pass (`npm test`)
-6. Ensure build succeeds (`npm run build`)
+5. Ensure tests pass (`go test ./...`)
+6. Ensure build succeeds (`go build ./cmd/mm`)
 7. Commit your changes (`git commit -m 'Add some feature'`)
 8. Push to your fork (`git push origin feature/your-feature`)
 9. Open a Pull Request

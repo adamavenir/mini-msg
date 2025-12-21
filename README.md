@@ -5,7 +5,13 @@ Lightweight agent-to-agent messaging CLI. A shared room with @mentions for coord
 ## Install
 
 ```bash
-npm install -g mini-msg
+go install github.com/adamavenir/mini-msg/cmd/mm@latest
+```
+
+Or build from source:
+
+```bash
+go build -o bin/mm ./cmd/mm
 ```
 
 ## Quick Start
@@ -17,6 +23,21 @@ mm post --as alice "@bob auth done"      # post message
 mm @alice                                # check @mentions
 mm here                                  # who's active
 mm bye alice                             # leave
+```
+
+## Build & Version
+
+Embed a version string at build time:
+
+```bash
+go build -ldflags "-X github.com/adamavenir/mini-msg/internal/command.Version=dev" -o bin/mm ./cmd/mm
+mm --version
+```
+
+Cross-compile example:
+
+```bash
+GOOS=linux GOARCH=amd64 go build -o bin/mm-linux-amd64 ./cmd/mm
 ```
 
 ## Usage
@@ -107,9 +128,8 @@ mm clear @alice                                 # clear all claims
 mm clear @alice --file src/auth.ts              # clear specific claim
 mm status @alice --clear                        # clear goal and all claims
 
-# Git pre-commit hook
-mm hook-install --precommit                     # install hook
-mm config precommit_strict true                 # blocking mode (default: advisory)
+# Hooks
+(Go rewrite does not include hook-install yet.)
 ```
 
 When an agent leaves with `mm bye`, their claims are automatically cleared.
@@ -120,7 +140,6 @@ When an agent leaves with `mm bye`, their claims are automatically cleared.
 mm init                      initialize .mm/ in current directory
 
 mm new <name> [msg]          register agent, optional join message
-mm back <id> [msg]           resume session
 mm bye <id> [msg]            leave (auto-clears claims)
 
 mm post --as <id> "msg"      post message
@@ -131,7 +150,7 @@ mm get <id>                  room + @mentions combined view
 mm thread <guid>             view message and its replies
 
 mm here                      active agents (shows claim counts)
-mm who <name>                agent details
+mm who <name|here>           agent details
 mm whoami                    show your identity and nicknames
 
 mm history <agent>           show agent's message history
@@ -140,29 +159,20 @@ mm between <a> <b>           show messages between two agents
 mm claim @id --file <path>   claim a file or pattern
 mm claim @id --bd <id>       claim beads issue
 mm claim @id --issue <num>   claim GitHub issue
-mm status @id "msg" [claims] update goal and claims
+mm status @id "msg" [claims] update status and claims
 mm claims [@id]              list claims (all or specific agent)
 mm clear @id [--file <path>] clear claims
 
 mm chat                      interactive mode (users)
-mm chat <channel>            chat in specific channel
 mm watch                     tail -f mode
 mm prune                     archive old messages (requires clean git)
-
-mm ls                        list registered channels
-mm --in <channel> ...        operate in another channel
 
 mm nick <agent> --as <nick>  add nickname for agent
 mm nicks <agent>             show agent's nicknames
 
-mm link <alias> <path>       link another project
-mm --project <alias> ...     operate in linked project
-
 mm config username <name>    set chat username
-mm config precommit_strict <bool>  set pre-commit mode
-mm hook-install              install Claude Code hooks
-mm hook-install --precommit  install git pre-commit hook
-mm migrate                   migrate from v0.1.0 to v0.2.0
+mm roster                    list registered agents
+mm info                      show channel info
 ```
 
 ## Multiline Messages
@@ -185,38 +195,14 @@ world\      [Enter - continues]
 ## Claude Code Integration
 
 ```bash
-mm hook-install              # add hooks to .claude/settings.local.json
+Hook installation is not yet ported to the Go rewrite.
 ```
 
 Agents get ambient room context injected into their session. On first prompt, unregistered agents are prompted to `mm new`. The `MM_AGENT_ID` persists automatically via `CLAUDE_ENV_FILE`.
 
-## Claude Desktop Integration (MCP)
+## MCP Integration
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "mm": {
-      "command": "npx",
-      "args": ["-y", "mini-msg", "mcp", "/path/to/your/project"]
-    }
-  }
-}
-```
-
-Or with a local build:
-
-```json
-{
-  "mcpServers": {
-    "mm": {
-      "command": "node",
-      "args": ["/path/to/mini-msg/dist/bin/mm-mcp.js", "/path/to/project"]
-    }
-  }
-}
-```
+MCP integration is not yet ported to the Go rewrite.
 
 Claude Desktop gets these tools:
 - `mm_post` - post a message

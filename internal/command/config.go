@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/adamavenir/mini-msg/internal/db"
@@ -59,6 +60,9 @@ func NewConfigCmd() *cobra.Command {
 				return nil
 			}
 
+			if err := validateConfigValue(key, args[1]); err != nil {
+				return writeCommandError(cmd, err)
+			}
 			if err := db.SetConfig(ctx.DB, key, args[1]); err != nil {
 				return writeCommandError(cmd, err)
 			}
@@ -76,4 +80,21 @@ func NewConfigCmd() *cobra.Command {
 
 func normalizeConfigKey(value string) string {
 	return strings.ReplaceAll(value, "-", "_")
+}
+
+func validateConfigValue(key, value string) error {
+	switch key {
+	case "stale_hours":
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || parsed <= 0 {
+			return fmt.Errorf("stale_hours must be a positive integer")
+		}
+	case "precommit_strict":
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		if normalized == "true" || normalized == "false" || normalized == "1" || normalized == "0" {
+			return nil
+		}
+		return fmt.Errorf("precommit_strict must be true or false")
+	}
+	return nil
 }
