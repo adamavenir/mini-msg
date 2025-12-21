@@ -5,51 +5,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 **mm** (mini-msg) is a standalone CLI tool for agent-to-agent messaging. It uses GUID-based identifiers with JSONL append-only storage (source of truth) and SQLite as a rebuildable cache. Projects are registered as channels, enabling cross-channel operations.
+MCP integration is available via the `mm-mcp` binary.
 
-**Package name**: `mini-msg` (npm)
+**Module**: `github.com/adamavenir/mini-msg`
 **Repository**: github.com/adamavenir/mini-msg
 **CLI command**: `mm`
 
 ## Build Commands
 
 ```bash
-npm run build      # Build with tsup
-npm test           # Run tests with vitest
+go build ./cmd/mm      # Build
+go build ./cmd/mm-mcp  # Build MCP server
+go test ./...          # Run tests
 ```
 
 ## Architecture
 
 ```
-src/
-  cli.ts           # Commander.js program entry, global --project/--in/--json flags
-  commands/        # One file per command (new.ts, post.ts, chat.ts, etc.)
-  chat/
-    types.ts       # ChatDisplay/ChatInput interfaces
-    display.ts     # ANSI terminal display for chat (shows #xxxx/#xxxxx/#xxxxxx suffixes)
-    input.ts       # Readline input handler for chat
-    core.ts        # Chat session state, polling, message sending
-    reply.ts       # Reply reference resolution (#abc prefix parsing)
-  mcp/
-    server.ts      # MCP server for Claude Desktop (stdio transport)
-    tools.ts       # MCP tool definitions (mm_post, mm_get, etc.)
-    identity.ts    # Auto-registration as desktop.N
-  db/
-    schema.ts      # SQL schema, initSchema(), GUID migration
-    queries.ts     # All database query functions
-    jsonl.ts       # JSONL storage layer, SQLite rebuild
-  core/
-    project.ts     # Project discovery and initialization
-    agents.ts      # Agent ID parsing/validation (simple names)
-    mentions.ts    # @mention extraction and prefix matching
-    time.ts        # Relative time formatting, staleness checks
-    guid.ts        # Base36 GUID generation (msg-, usr-, ch- prefixes)
-    config.ts      # Global config (~/.config/mm/mm-config.json)
-    context.ts     # Channel context resolution (--in, mm use, cwd)
-    time-query.ts  # Time expression parsing (1h, today, #abc)
-  types.ts         # TypeScript interfaces (Agent, Message, etc.)
-bin/
-  mm.ts            # CLI entry point with hashbang
-  mm-mcp.ts        # MCP server entry point
+cmd/mm/           # CLI entry point
+internal/command/ # Cobra commands and helpers
+internal/chat/    # Bubble Tea chat UI + highlighting
+internal/db/      # SQL schema, queries, JSONL storage/rebuild
+internal/core/    # Project discovery, GUIDs, mentions, time parsing
+internal/types/   # Go types
 ```
 
 ## Storage Structure
@@ -131,6 +109,25 @@ This installs:
 - **UserPromptSubmit**: Injects latest messages before each prompt
 
 Agents register via `mm new <name>`, which auto-writes `MM_AGENT_ID` to `CLAUDE_ENV_FILE` when running under hooks.
+
+## MCP Integration
+
+Run the MCP server and register it in Claude Desktop:
+
+```bash
+mm-mcp /Users/you/dev/myproject
+```
+
+```json
+{
+  "mcpServers": {
+    "mm-myproject": {
+      "command": "mm-mcp",
+      "args": ["/Users/you/dev/myproject"]
+    }
+  }
+}
+```
 
 ## Migration
 
