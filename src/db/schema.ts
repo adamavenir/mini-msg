@@ -6,8 +6,8 @@ const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS mm_agents (
   guid TEXT PRIMARY KEY,               -- e.g., "usr-x9y8z7w6"
   agent_id TEXT NOT NULL UNIQUE,       -- e.g., "alice.419", "pm.3.sub.1"
-  goal TEXT,                           -- current focus/purpose (mutable)
-  bio TEXT,                            -- static identity info (mutable)
+  status TEXT,                         -- current task/focus (mutable)
+  purpose TEXT,                        -- static identity/role info
   registered_at INTEGER NOT NULL,      -- unix timestamp
   last_seen INTEGER NOT NULL,          -- updated on post
   left_at INTEGER                      -- set by "bye", null if active
@@ -123,14 +123,27 @@ function hasPrimaryKey(columns: TableColumn[], name: string): boolean {
 function migrateSchema(db: Database.Database): void {
   const migrate = db.transaction(() => {
     const agentColumns = getTableInfo(db, 'mm_agents');
+
+    // Migration: rename goal -> status, bio -> purpose
+    if (agentColumns.length > 0 && hasColumn(agentColumns, 'goal') && !hasColumn(agentColumns, 'status')) {
+      db.exec('ALTER TABLE mm_agents RENAME COLUMN goal TO status');
+      db.exec('ALTER TABLE mm_agents RENAME COLUMN bio TO purpose');
+    }
+
+    // Legacy migration: add guid as primary key
     if (agentColumns.length > 0 && (!hasColumn(agentColumns, 'guid') || !hasPrimaryKey(agentColumns, 'guid'))) {
+      // Determine which column names exist (could be old goal/bio or new status/purpose)
+      const hasOldNames = hasColumn(agentColumns, 'goal');
+      const statusCol = hasOldNames ? 'goal' : 'status';
+      const purposeCol = hasOldNames ? 'bio' : 'purpose';
+
       const agents = db.prepare(`
-        SELECT agent_id, goal, bio, registered_at, last_seen, left_at
+        SELECT agent_id, ${statusCol} as status, ${purposeCol} as purpose, registered_at, last_seen, left_at
         FROM mm_agents
       `).all() as {
         agent_id: string;
-        goal: string | null;
-        bio: string | null;
+        status: string | null;
+        purpose: string | null;
         registered_at: number;
         last_seen: number;
         left_at: number | null;
@@ -140,8 +153,8 @@ function migrateSchema(db: Database.Database): void {
         CREATE TABLE mm_agents_new (
           guid TEXT PRIMARY KEY,
           agent_id TEXT NOT NULL UNIQUE,
-          goal TEXT,
-          bio TEXT,
+          status TEXT,
+          purpose TEXT,
           registered_at INTEGER NOT NULL,
           last_seen INTEGER NOT NULL,
           left_at INTEGER
@@ -149,7 +162,7 @@ function migrateSchema(db: Database.Database): void {
       `);
 
       const insertAgent = db.prepare(`
-        INSERT INTO mm_agents_new (guid, agent_id, goal, bio, registered_at, last_seen, left_at)
+        INSERT INTO mm_agents_new (guid, agent_id, status, purpose, registered_at, last_seen, left_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
@@ -163,8 +176,8 @@ function migrateSchema(db: Database.Database): void {
         insertAgent.run(
           guid,
           agent.agent_id,
-          agent.goal,
-          agent.bio,
+          agent.status,
+          agent.purpose,
           agent.registered_at,
           agent.last_seen,
           agent.left_at

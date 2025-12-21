@@ -37,10 +37,10 @@ export function createAgent(
 ): void {
   const guid = agent.guid ?? generateUniqueGuid(db, 'mm_agents', 'usr');
   const stmt = db.prepare(`
-    INSERT INTO mm_agents (guid, agent_id, goal, bio, registered_at, last_seen, left_at)
+    INSERT INTO mm_agents (guid, agent_id, status, purpose, registered_at, last_seen, left_at)
     VALUES (?, ?, ?, ?, ?, ?, NULL)
   `);
-  stmt.run(guid, agent.agent_id, agent.goal, agent.bio, agent.registered_at, agent.last_seen);
+  stmt.run(guid, agent.agent_id, agent.status, agent.purpose, agent.registered_at, agent.last_seen);
 }
 
 /**
@@ -50,18 +50,18 @@ export function createAgent(
 export function updateAgent(
   db: Database.Database,
   agentId: string,
-  updates: Partial<Pick<Agent, 'goal' | 'bio' | 'last_seen' | 'left_at'>>
+  updates: Partial<Pick<Agent, 'status' | 'purpose' | 'last_seen' | 'left_at'>>
 ): void {
   const fields: string[] = [];
   const values: any[] = [];
 
-  if (updates.goal !== undefined) {
-    fields.push('goal = ?');
-    values.push(updates.goal);
+  if (updates.status !== undefined) {
+    fields.push('status = ?');
+    values.push(updates.status);
   }
-  if (updates.bio !== undefined) {
-    fields.push('bio = ?');
-    values.push(updates.bio);
+  if (updates.purpose !== undefined) {
+    fields.push('purpose = ?');
+    values.push(updates.purpose);
   }
   if (updates.last_seen !== undefined) {
     fields.push('last_seen = ?');

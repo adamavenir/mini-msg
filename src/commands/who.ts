@@ -69,16 +69,16 @@ export function whoCommand(): Command {
 function displayAgent(agent: any, staleHours: number): void {
   const registeredAt = formatRelative(agent.registered_at);
   const lastSeen = formatRelative(agent.last_seen);
-  const status = agent.left_at
+  const activeStatus = agent.left_at
     ? 'left'
     : isStale(agent.last_seen, staleHours)
     ? 'stale'
     : 'active';
 
   console.log(agent.agent_id);
-  if (agent.goal) console.log(`  Goal: ${agent.goal}`);
-  if (agent.bio) console.log(`  Bio: ${agent.bio}`);
+  if (agent.status) console.log(`  Status: ${agent.status}`);
+  if (agent.purpose) console.log(`  Purpose: ${agent.purpose}`);
   console.log(`  Registered: ${registeredAt}`);
   console.log(`  Last seen: ${lastSeen}`);
-  console.log(`  Status: ${status}`);
+  console.log(`  Active: ${activeStatus}`);
 }

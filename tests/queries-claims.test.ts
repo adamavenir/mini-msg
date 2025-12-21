@@ -31,15 +31,15 @@ describe('claim query functions', () => {
     const now = Math.floor(Date.now() / 1000);
     createAgent(db, {
       agent_id: 'alice',
-      goal: null,
-      bio: null,
+      status: null,
+      purpose: null,
       registered_at: now,
       last_seen: now,
     });
     createAgent(db, {
       agent_id: 'bob',
-      goal: null,
-      bio: null,
+      status: null,
+      purpose: null,
       registered_at: now,
       last_seen: now,
     });

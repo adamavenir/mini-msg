@@ -11,8 +11,8 @@ import type { Agent } from '../types.js';
 interface RosterAgent {
   guid: string;
   agent_id: string;
-  goal: string | null;
-  bio: string | null;
+  status: string | null;
+  purpose: string | null;
   registered_at: string;
   last_seen: string;
   left_at: string | null;
@@ -45,8 +45,8 @@ function buildRosterAgent(
   return {
     guid: agent.guid,
     agent_id: agent.agent_id,
-    goal: agent.goal,
-    bio: agent.bio,
+    status: agent.status,
+    purpose: agent.purpose,
     registered_at: new Date(agent.registered_at * 1000).toISOString(),
     last_seen: new Date(agent.last_seen * 1000).toISOString(),
     left_at: agent.left_at ? new Date(agent.left_at * 1000).toISOString() : null,
@@ -58,21 +58,21 @@ function buildRosterAgent(
 }
 
 function formatAgentDisplay(agent: RosterAgent, showChannel: boolean): void {
-  const status = agent.left_at ? '(left)' : '';
+  const leftStatus = agent.left_at ? '(left)' : '';
   const claimInfo = agent.claim_count > 0
     ? ` (${agent.claim_count} claim${agent.claim_count !== 1 ? 's' : ''})`
     : '';
 
-  console.log(`  @${agent.agent_id}${status}${claimInfo}`);
+  console.log(`  @${agent.agent_id}${leftStatus}${claimInfo}`);
 
   if (showChannel && agent.channel_name) {
     console.log(`    channel: ${agent.channel_name}`);
   }
-  if (agent.goal) {
-    console.log(`    goal: ${agent.goal}`);
+  if (agent.status) {
+    console.log(`    status: ${agent.status}`);
   }
-  if (agent.bio) {
-    console.log(`    bio: ${agent.bio}`);
+  if (agent.purpose) {
+    console.log(`    purpose: ${agent.purpose}`);
   }
 
   // Parse ISO strings back to unix timestamps for formatRelative

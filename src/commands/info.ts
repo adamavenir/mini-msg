@@ -13,8 +13,8 @@ import type { Agent, ConfigEntry } from '../types.js';
 interface AgentInfo {
   guid: string;
   agent_id: string;
-  goal: string | null;
-  bio: string | null;
+  status: string | null;
+  purpose: string | null;
   registered_at: string;
   last_seen: string;
   left_at: string | null;
@@ -83,8 +83,8 @@ function getChannelInfo(dbPath: string, projectRoot: string): ChannelInfo | null
     const agentInfos: AgentInfo[] = agents.map(agent => ({
       guid: agent.guid,
       agent_id: agent.agent_id,
-      goal: agent.goal,
-      bio: agent.bio,
+      status: agent.status,
+      purpose: agent.purpose,
       registered_at: new Date(agent.registered_at * 1000).toISOString(),
       last_seen: new Date(agent.last_seen * 1000).toISOString(),
       left_at: agent.left_at ? new Date(agent.left_at * 1000).toISOString() : null,

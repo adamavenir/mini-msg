@@ -29,7 +29,7 @@ export function quickstartCommand(): Command {
             existing_base_names: Array.from(baseNames),
             active_agents: activeAgents.map(a => ({
               agent_id: a.agent_id,
-              goal: a.goal,
+              status: a.status,
             })),
             guide: getGuideText(baseNames, activeAgents),
           }));
@@ -65,7 +65,7 @@ ESSENTIAL COMMANDS
 ------------------
   mm new <name> "msg"        Create agent session with optional join message
   mm new                     Auto-generate a random name
-  mm new <name> --goal "..." Set your current focus
+  mm new <name> --status "..." Set your current task
   mm get <agent>             Get latest room + your @mentions (start here!)
   mm post --as <agent> "msg" Post a message
   mm @<name>                 Check messages mentioning you
@@ -95,7 +95,7 @@ In mm chat, you can use prefix matching: type "#a1b2 response" to reply.
 
 WORKFLOW
 --------
-1. Create your agent: mm new <name> --goal "your task"
+1. Create your agent: mm new <name> --status "your task"
 2. Check who's here: mm here
 3. Get context: mm get <agent> (room messages + your @mentions)
 4. Work and coordinate via @mentions
@@ -137,8 +137,8 @@ function printGuide(baseNames: Set<string>, activeAgents: any[]): void {
     console.log(`Active agents now: ${activeAgents.map(a => a.agent_id).join(', ')}`);
     console.log('\nActive agent details:');
     for (const agent of activeAgents) {
-      const goal = agent.goal ? `"${agent.goal}"` : '(no goal set)';
-      console.log(`  ${agent.agent_id}: ${goal}`);
+      const status = agent.status ? `"${agent.status}"` : '(no status set)';
+      console.log(`  ${agent.agent_id}: ${status}`);
     }
   } else {
     console.log('Active agents now: (none)');
@@ -148,7 +148,7 @@ function printGuide(baseNames: Set<string>, activeAgents: any[]): void {
   console.log('------------------');
   console.log('  mm new <name> "msg"        Create agent session with optional join message');
   console.log('  mm new                     Auto-generate a random name');
-  console.log('  mm new <name> --goal "..." Set your current focus');
+  console.log('  mm new <name> --status "..." Set your current task');
   console.log('  mm get <agent>             Get latest room + your @mentions (start here!)');
   console.log('  mm post --as <agent> "msg" Post a message');
   console.log('  mm @<name>                 Check messages mentioning you');
@@ -175,7 +175,7 @@ function printGuide(baseNames: Set<string>, activeAgents: any[]): void {
 
   console.log('\nWORKFLOW');
   console.log('--------');
-  console.log('1. Create your agent: mm new <name> --goal "your task"');
+  console.log('1. Create your agent: mm new <name> --status "your task"');
   console.log('2. Check who\'s here: mm here');
   console.log('3. Get context: mm get <agent> (room messages + your @mentions)');
   console.log('4. Work and coordinate via @mentions');

@@ -180,13 +180,13 @@ export function registerTools(
         },
         {
           name: 'mm_status',
-          description: 'Update your status with optional resource claims. Sets your goal and claims resources in one operation.',
+          description: 'Update your status with optional resource claims. Sets your status and claims resources in one operation.',
           inputSchema: {
             type: 'object' as const,
             properties: {
               message: {
                 type: 'string',
-                description: 'Status message (becomes your goal)',
+                description: 'Status message (your current task/focus)',
               },
               files: {
                 type: 'array',
@@ -209,7 +209,7 @@ export function registerTools(
               },
               clear: {
                 type: 'boolean',
-                description: 'Clear all claims and reset goal',
+                description: 'Clear all claims and reset status',
               },
             },
           },
@@ -417,8 +417,8 @@ function handleHere(
   }
 
   const lines = agents.map((agent) => {
-    const goal = agent.goal ? `: "${agent.goal}"` : '';
-    return `  ${agent.agent_id}${goal}`;
+    const status = agent.status ? `: "${agent.status}"` : '';
+    return `  ${agent.agent_id}${status}`;
   });
 
   return {
@@ -441,12 +441,12 @@ function handleWhoami(
     };
   }
 
-  const status = agent.left_at ? 'left' : 'active';
-  const goal = agent.goal ? `\nGoal: ${agent.goal}` : '';
-  const bio = agent.bio ? `\nBio: ${agent.bio}` : '';
+  const activeStatus = agent.left_at ? 'left' : 'active';
+  const currentStatus = agent.status ? `\nStatus: ${agent.status}` : '';
+  const purpose = agent.purpose ? `\nPurpose: ${agent.purpose}` : '';
 
   return {
-    content: [{ type: 'text', text: `Agent ID: ${agentId}\nStatus: ${status}${goal}${bio}` }],
+    content: [{ type: 'text', text: `Agent ID: ${agentId}\nActive: ${activeStatus}${currentStatus}${purpose}` }],
   };
 }
 
@@ -723,7 +723,7 @@ function handleStatus(
   // Handle --clear
   if (args.clear) {
     const clearedCount = deleteClaimsByAgent(db, agentId);
-    updateAgent(db, agentId, { goal: null, last_seen: Math.floor(Date.now() / 1000) });
+    updateAgent(db, agentId, { status: null, last_seen: Math.floor(Date.now() / 1000) });
 
     createMessage(db, {
       from_agent: agentId,
@@ -787,9 +787,9 @@ function handleStatus(
     }
   }
 
-  // Update goal if message provided
+  // Update status if message provided
   if (args.message) {
-    updateAgent(db, agentId, { goal: args.message, last_seen: Math.floor(Date.now() / 1000) });
+    updateAgent(db, agentId, { status: args.message, last_seen: Math.floor(Date.now() / 1000) });
   } else {
     updateAgent(db, agentId, { last_seen: Math.floor(Date.now() / 1000) });
   }

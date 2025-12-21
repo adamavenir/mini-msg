@@ -14,8 +14,8 @@ describe('resolveReplyReference', () => {
     const now = Math.floor(Date.now() / 1000);
     createAgent(db, {
       agent_id: 'alice.1',
-      goal: null,
-      bio: null,
+      status: null,
+      purpose: null,
       registered_at: now,
       last_seen: now,
     });

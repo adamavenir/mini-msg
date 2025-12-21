@@ -10,8 +10,8 @@ export type MessageType = 'user' | 'agent';
 export interface Agent {
   guid: string;               // e.g., "usr-x9y8z7w6"
   agent_id: string;           // e.g., "alice.419", "pm.3.sub.1"
-  goal: string | null;        // current focus/purpose
-  bio: string | null;         // static identity info
+  status: string | null;      // current task/focus (mutable)
+  purpose: string | null;     // static identity/role info
   registered_at: number;      // unix timestamp
   last_seen: number;          // unix timestamp, updated on activity
   left_at: number | null;     // unix timestamp, null if active

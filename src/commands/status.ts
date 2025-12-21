@@ -40,13 +40,13 @@ export function statusCommand(): Command {
   return new Command('status')
     .description('Update status with optional claims')
     .argument('<agent>', 'agent name (e.g., @alice)')
-    .argument('[message]', 'status message (becomes goal)')
+    .argument('[message]', 'status message')
     .option('--file <path>', 'claim a single file')
     .option('--files <patterns>', 'claim multiple files (comma-separated globs)')
     .option('--bd <id>', 'claim a beads issue')
     .option('--issue <id>', 'claim a GitHub issue')
     .option('--ttl <duration>', 'expiration time for claims (e.g., 2h, 30m, 1d)')
-    .option('--clear', 'clear all claims and reset goal')
+    .option('--clear', 'clear all claims and reset status')
     .action((agentArg: string, message: string | undefined, options, cmd) => {
       try {
         const { db, jsonMode, projectConfig } = getContext(cmd);
@@ -62,7 +62,7 @@ export function statusCommand(): Command {
         if (options.clear) {
           const existingClaims = getClaimsByAgent(db, agentId);
           const clearedCount = deleteClaimsByAgent(db, agentId);
-          updateAgent(db, agentId, { goal: null, last_seen: Math.floor(Date.now() / 1000) });
+          updateAgent(db, agentId, { status: null, last_seen: Math.floor(Date.now() / 1000) });
 
           // Post message about clearing status
           createMessage(db, {
@@ -132,9 +132,9 @@ export function statusCommand(): Command {
           created.push(claim);
         }
 
-        // Update goal if message provided
+        // Update status if message provided
         if (message) {
-          updateAgent(db, agentId, { goal: message, last_seen: Math.floor(Date.now() / 1000) });
+          updateAgent(db, agentId, { status: message, last_seen: Math.floor(Date.now() / 1000) });
         } else {
           updateAgent(db, agentId, { last_seen: Math.floor(Date.now() / 1000) });
         }
@@ -161,7 +161,7 @@ export function statusCommand(): Command {
         if (jsonMode) {
           console.log(JSON.stringify({
             agent_id: agentId,
-            goal: message ?? null,
+            status: message ?? null,
             claims: created,
             expires_at: expiresAt,
           }));

@@ -38,7 +38,7 @@ export function hereCommand(): Command {
             agents: agents.map(agent => ({
               agent_id: agent.guid,
               display_name: agent.agent_id,
-              goal: agent.goal,
+              status: agent.status,
               last_active: new Date(agent.last_seen * 1000).toISOString(),
               message_count: messageCounts.get(agent.agent_id) || 0,
               claim_count: claimCounts.get(agent.agent_id) || 0,
@@ -55,8 +55,8 @@ export function hereCommand(): Command {
               const lastSeen = formatRelative(agent.last_seen);
               const claimCount = claimCounts.get(agent.agent_id) || 0;
               const claimInfo = claimCount > 0 ? ` (${claimCount} claim${claimCount !== 1 ? 's' : ''})` : '';
-              const goal = agent.goal ? ` - ${agent.goal}` : '';
-              console.log(`  @${agent.agent_id}${claimInfo}${goal}`);
+              const status = agent.status ? ` - ${agent.status}` : '';
+              console.log(`  @${agent.agent_id}${claimInfo}${status}`);
               console.log(`    last seen: ${lastSeen}`);
             }
           }

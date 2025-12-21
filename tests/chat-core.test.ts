@@ -54,8 +54,8 @@ describe('Chat Core', () => {
     test('returns new messages and updates lastMessageCursor', () => {
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: Date.now() / 1000,
         last_seen: Date.now() / 1000,
       });
@@ -92,8 +92,8 @@ describe('Chat Core', () => {
     test('returns only messages after lastMessageCursor', () => {
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: Date.now() / 1000,
         last_seen: Date.now() / 1000,
       });
@@ -130,8 +130,8 @@ describe('Chat Core', () => {
     test('sequential polls return only new messages', () => {
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: Date.now() / 1000,
         last_seen: Date.now() / 1000,
       });
@@ -174,8 +174,8 @@ describe('Chat Core', () => {
     test('creates message with type=user', () => {
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: Date.now() / 1000,
         last_seen: Date.now() / 1000,
       });
@@ -198,8 +198,8 @@ describe('Chat Core', () => {
     test('extracts mentions from body', () => {
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: Date.now() / 1000,
         last_seen: Date.now() / 1000,
       });
@@ -218,8 +218,8 @@ describe('Chat Core', () => {
     test('returns created message for immediate display', () => {
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: Date.now() / 1000,
         last_seen: Date.now() / 1000,
       });

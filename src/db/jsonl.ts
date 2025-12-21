@@ -37,10 +37,13 @@ export interface AgentJsonlRecord {
   global_name?: string;
   home_channel?: string | null;
   created_at?: string;
-  status?: 'active' | 'inactive';
+  active_status?: 'active' | 'inactive';
   agent_id: string;
-  goal: string | null;
-  bio: string | null;
+  status: string | null;      // current task/focus
+  purpose: string | null;     // static identity/role
+  // Legacy fields for backwards compatibility when reading
+  goal?: string | null;
+  bio?: string | null;
   registered_at: number;
   last_seen: number;
   left_at: number | null;
@@ -160,7 +163,7 @@ export function appendAgent(projectPath: string, agent: Agent): void {
   const name = agent.agent_id;
   const globalName = channelName ? `${channelName}-${name}` : name;
   const createdAt = new Date(agent.registered_at * 1000).toISOString();
-  const status = agent.left_at ? 'inactive' : 'active';
+  const activeStatus = agent.left_at ? 'inactive' : 'active';
   const record: AgentJsonlRecord = {
     type: 'agent',
     id: agent.guid,
@@ -168,10 +171,10 @@ export function appendAgent(projectPath: string, agent: Agent): void {
     global_name: globalName,
     home_channel: channelId,
     created_at: createdAt,
-    status,
+    active_status: activeStatus,
     agent_id: agent.agent_id,
-    goal: agent.goal,
-    bio: agent.bio,
+    status: agent.status,
+    purpose: agent.purpose,
     registered_at: agent.registered_at,
     last_seen: agent.last_seen,
     left_at: agent.left_at,
@@ -272,16 +275,19 @@ export function rebuildDatabaseFromJsonl(db: Database.Database, projectPath: str
 
     const insertAgent = db.prepare(`
       INSERT OR REPLACE INTO mm_agents (
-        guid, agent_id, goal, bio, registered_at, last_seen, left_at
+        guid, agent_id, status, purpose, registered_at, last_seen, left_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const agent of agents) {
+      // Support both new (status/purpose) and legacy (goal/bio) field names
+      const status = agent.status ?? agent.goal ?? null;
+      const purpose = agent.purpose ?? agent.bio ?? null;
       insertAgent.run(
         agent.id,
         agent.agent_id,
-        agent.goal ?? null,
-        agent.bio ?? null,
+        status,
+        purpose,
         agent.registered_at,
         agent.last_seen,
         agent.left_at ?? null

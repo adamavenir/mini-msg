@@ -66,7 +66,7 @@ describe('CLI integration tests', () => {
 
   describe('agent lifecycle', () => {
     it('should create agent with simple name', () => {
-      const output = run('new alice --goal "testing"');
+      const output = run('new alice --status "testing"');
       expect(output).toContain('@alice');
       expect(output).toContain('testing');
     });
@@ -117,7 +117,7 @@ describe('CLI integration tests', () => {
     });
 
     it('should show agent details with who', () => {
-      run('new alice --goal "testing" --bio "test agent"');
+      run('new alice --status "testing" --purpose "test agent"');
       const output = run('who alice');
       expect(output).toContain('alice');
       expect(output).toContain('testing');
@@ -137,8 +137,8 @@ describe('CLI integration tests', () => {
 
   describe('messaging', () => {
     beforeEach(() => {
-      run('new alice --goal "sender"');
-      run('new bob --goal "receiver"');
+      run('new alice --status "sender"');
+      run('new bob --status "receiver"');
     });
 
     it('should post and display messages', () => {
@@ -184,8 +184,8 @@ describe('CLI integration tests', () => {
 
   describe('presence tracking', () => {
     it('should list active agents', () => {
-      run('new alice --goal "active agent"');
-      run('new bob --goal "also active"');
+      run('new alice --status "active agent"');
+      run('new bob --status "also active"');
       const output = run('here');
       expect(output).toContain('@alice');
       expect(output).toContain('@bob');
@@ -368,7 +368,7 @@ describe('CLI integration tests', () => {
       run('new alice');
     });
 
-    it('should update goal with status message', () => {
+    it('should update status with status message', () => {
       run('status alice "working on auth"');
       const whoOutput = run('who alice');
       expect(whoOutput).toContain('working on auth');
@@ -408,19 +408,19 @@ describe('CLI integration tests', () => {
 
   describe('JSON output mode', () => {
     it('should output JSON with --json flag', () => {
-      run('new alice --goal "test"');
+      run('new alice --status "test"');
       const output = run('--json here');
       const parsed = JSON.parse(output);
       expect(Array.isArray(parsed.agents)).toBe(true);
       expect(parsed.agents[0].display_name).toBe('alice');
       expect(parsed.agents[0].agent_id).toMatch(/^usr-/);
-      expect(parsed.agents[0].goal).toBe('test');
+      expect(parsed.agents[0].status).toBe('test');
       expect(parsed.total).toBe(1);
     });
 
     it('should output JSON with @mention shorthand and --json flag', () => {
-      run('new alice --goal "sender"');
-      run('new bob --goal "receiver"');
+      run('new alice --status "sender"');
+      run('new bob --status "receiver"');
       run('post --as alice "@bob hey there"');
       const output = run('@bob --json');
       const parsed = JSON.parse(output);

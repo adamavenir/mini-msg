@@ -77,8 +77,8 @@ export function newCommand(): Command {
     .description('Create new agent session')
     .argument('[name]', 'agent name (generates random if omitted)')
     .argument('[message]', 'optional join message to post')
-    .option('--goal <goal>', 'agent goal/focus')
-    .option('--bio <bio>', 'agent bio/identity')
+    .option('--status <status>', 'current task/focus')
+    .option('--purpose <purpose>', 'agent role/identity')
     .action(async (name: string | undefined, message: string | undefined, options, cmd) => {
       try {
         const { db, project, jsonMode } = getContext(cmd);
@@ -129,8 +129,8 @@ export function newCommand(): Command {
           updateAgent(db, agentId, {
             last_seen: now,
             left_at: null,
-            goal: options.goal || existingAgent.goal,
-            bio: options.bio || existingAgent.bio,
+            status: options.status || existingAgent.status,
+            purpose: options.purpose || existingAgent.purpose,
           });
         }
 
@@ -158,8 +158,8 @@ export function newCommand(): Command {
           createAgent(db, {
             guid: agentGuid,
             agent_id: agentId,
-            goal: options.goal || null,
-            bio: options.bio || null,
+            status: options.status || null,
+            purpose: options.purpose || null,
             registered_at: now,
             last_seen: now,
           });
@@ -218,8 +218,8 @@ export function newCommand(): Command {
           } else {
             console.log(`Joined as @${agentId}`);
           }
-          if (options.goal) console.log(`  Goal: ${options.goal}`);
-          if (options.bio) console.log(`  Bio: ${options.bio}`);
+          if (options.status) console.log(`  Status: ${options.status}`);
+          if (options.purpose) console.log(`  Purpose: ${options.purpose}`);
           console.log(`  Posted: [${postedMessage.id}] ${joinMessage}`);
           if (wroteEnv) {
             console.log(`  Registered with Claude hooks`);

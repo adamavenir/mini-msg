@@ -90,8 +90,8 @@ export function getOrCreateMcpAgent(db: Database.Database): string {
   // Create the agent
   createAgent(db, {
     agent_id: agentId,
-    goal: 'Claude Desktop MCP session',
-    bio: null,
+    status: 'Claude Desktop MCP session',
+    purpose: null,
     registered_at: now,
     last_seen: now,
   });

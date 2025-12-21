@@ -97,14 +97,16 @@ describe('schema', () => {
 
     expect(columnNames).toContain('guid');
     expect(columnNames).toContain('agent_id');
-    expect(columnNames).toContain('goal');
-    expect(columnNames).toContain('bio');
+    expect(columnNames).toContain('status');
+    expect(columnNames).toContain('purpose');
     expect(columnNames).toContain('registered_at');
     expect(columnNames).toContain('last_seen');
     expect(columnNames).toContain('left_at');
     expect(columnNames).not.toContain('id');
     expect(columnNames).not.toContain('short_id');
     expect(columnNames).not.toContain('display_id');
+    expect(columnNames).not.toContain('goal');
+    expect(columnNames).not.toContain('bio');
     expect(guidCol?.pk).toBe(1);
   });
 

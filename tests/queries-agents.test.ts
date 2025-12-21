@@ -37,8 +37,8 @@ describe('agent query functions', () => {
       const now = Math.floor(Date.now() / 1000);
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: 'testing',
-        bio: 'test agent',
+        status: 'testing',
+        purpose: 'test agent',
         registered_at: now,
         last_seen: now,
       });
@@ -46,8 +46,8 @@ describe('agent query functions', () => {
       const agent = getAgent(db, 'alice.1');
       expect(agent).toBeDefined();
       expect(agent?.agent_id).toBe('alice.1');
-      expect(agent?.goal).toBe('testing');
-      expect(agent?.bio).toBe('test agent');
+      expect(agent?.status).toBe('testing');
+      expect(agent?.purpose).toBe('test agent');
       expect(agent?.left_at).toBeNull();
     });
 
@@ -55,8 +55,8 @@ describe('agent query functions', () => {
       const now = Math.floor(Date.now() / 1000);
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: 'testing',
-        bio: 'test agent',
+        status: 'testing',
+        purpose: 'test agent',
         registered_at: now,
         last_seen: now,
       });
@@ -64,8 +64,8 @@ describe('agent query functions', () => {
       expect(() => {
         createAgent(db, {
           agent_id: 'alice.1',
-          goal: 'duplicate',
-          bio: 'duplicate',
+          status: 'duplicate',
+          purpose: 'duplicate',
           registered_at: now,
           last_seen: now,
         });
@@ -83,8 +83,8 @@ describe('agent query functions', () => {
       const now = Math.floor(Date.now() / 1000);
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: 'testing',
-        bio: 'test agent',
+        status: 'testing',
+        purpose: 'test agent',
         registered_at: now,
         last_seen: now,
       });
@@ -100,29 +100,29 @@ describe('agent query functions', () => {
       // Create test agents
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
       createAgent(db, {
         agent_id: 'alice.419',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
       createAgent(db, {
         agent_id: 'alice.frontend.3',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
       createAgent(db, {
         agent_id: 'bob.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
@@ -159,31 +159,31 @@ describe('agent query functions', () => {
       const now = Math.floor(Date.now() / 1000);
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: 'original goal',
-        bio: 'original bio',
+        status: 'original status',
+        purpose: 'original purpose',
         registered_at: now,
         last_seen: now,
       });
     });
 
-    it('should update goal', () => {
-      updateAgent(db, 'alice.1', { goal: 'new goal' });
+    it('should update status', () => {
+      updateAgent(db, 'alice.1', { status: 'new status' });
       const agent = getAgent(db, 'alice.1');
-      expect(agent?.goal).toBe('new goal');
-      expect(agent?.bio).toBe('original bio');
+      expect(agent?.status).toBe('new status');
+      expect(agent?.purpose).toBe('original purpose');
     });
 
     it('should update multiple fields', () => {
       const newTime = Math.floor(Date.now() / 1000) + 100;
       updateAgent(db, 'alice.1', {
-        goal: 'new goal',
-        bio: 'new bio',
+        status: 'new status',
+        purpose: 'new purpose',
         last_seen: newTime,
       });
 
       const agent = getAgent(db, 'alice.1');
-      expect(agent?.goal).toBe('new goal');
-      expect(agent?.bio).toBe('new bio');
+      expect(agent?.status).toBe('new status');
+      expect(agent?.purpose).toBe('new purpose');
       expect(agent?.last_seen).toBe(newTime);
     });
 
@@ -213,8 +213,8 @@ describe('agent query functions', () => {
       // Active agent (seen 1 hour ago)
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: oneHourAgo,
       });
@@ -222,8 +222,8 @@ describe('agent query functions', () => {
       // Stale agent (seen 5 hours ago)
       createAgent(db, {
         agent_id: 'bob.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: fiveHoursAgo,
       });
@@ -231,8 +231,8 @@ describe('agent query functions', () => {
       // Left agent (recent but left)
       createAgent(db, {
         agent_id: 'charlie.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
@@ -249,8 +249,8 @@ describe('agent query functions', () => {
 
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: longAgo,
       });
@@ -267,24 +267,24 @@ describe('agent query functions', () => {
 
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
 
       createAgent(db, {
         agent_id: 'bob.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: longAgo,
       });
 
       createAgent(db, {
         agent_id: 'charlie.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
@@ -306,24 +306,24 @@ describe('agent query functions', () => {
 
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
 
       createAgent(db, {
         agent_id: 'alice.419',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
 
       createAgent(db, {
         agent_id: 'alice.5',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
@@ -337,16 +337,16 @@ describe('agent query functions', () => {
 
       createAgent(db, {
         agent_id: 'alice.frontend.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
 
       createAgent(db, {
         agent_id: 'alice.frontend.10',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
@@ -360,16 +360,16 @@ describe('agent query functions', () => {
 
       createAgent(db, {
         agent_id: 'alice.1',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });
 
       createAgent(db, {
         agent_id: 'alice.frontend.5',
-        goal: null,
-        bio: null,
+        status: null,
+        purpose: null,
         registered_at: now,
         last_seen: now,
       });

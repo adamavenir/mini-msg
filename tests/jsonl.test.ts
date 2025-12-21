@@ -50,8 +50,8 @@ describe('jsonl storage', () => {
     const agent: Agent = {
       guid: 'usr-abc12345',
       agent_id: 'alice.1',
-      goal: 'test',
-      bio: null,
+      status: 'test',
+      purpose: null,
       registered_at: 100,
       last_seen: 120,
       left_at: null,
