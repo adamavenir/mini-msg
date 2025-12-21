@@ -37,6 +37,7 @@ import { claimsCommand } from './commands/claims.js';
 import { statusCommand } from './commands/status.js';
 import { nickCommand, nicksCommand, whoamiCommand } from './commands/nick.js';
 import { rosterCommand } from './commands/roster.js';
+import { infoCommand } from './commands/info.js';
 
 const VERSION = '0.2.0';
 
@@ -90,6 +91,7 @@ export function main() {
   program.addCommand(nicksCommand());
   program.addCommand(whoamiCommand());
   program.addCommand(rosterCommand());
+  program.addCommand(infoCommand());
 
   // Check for @mention shorthand (e.g., mm @alice)
   const args = process.argv.slice(2);
@@ -132,7 +134,7 @@ export function main() {
     'link', 'unlink', 'projects', 'config',
     'quickstart', 'qs', 'get', 'watch', 'history', 'between', 'help',
     'hook-install', 'hook-session', 'hook-prompt', 'hook-precommit', 'chat', 'filter', 'view', 'prune', 'thread', 'migrate', 'rename',
-    'ls', 'claim', 'clear', 'claims', 'status', 'nick', 'nicks', 'whoami', 'roster'
+    'ls', 'claim', 'clear', 'claims', 'status', 'nick', 'nicks', 'whoami', 'roster', 'info'
   ]);
 
   const firstArg = args[0];
