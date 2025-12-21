@@ -596,7 +596,7 @@ func (m *Model) renderMessages() string {
 func (m *Model) formatMessage(msg types.Message, prefixLength int) string {
 	sender := m.renderSender(msg)
 	meta := lipgloss.NewStyle().Foreground(metaColor).Render(fmt.Sprintf("#%s %s", m.projectName, core.GetGUIDPrefix(msg.ID, prefixLength)))
-	body := msg.Body
+	body := highlightCodeBlocks(msg.Body)
 
 	lines := []string{}
 	if msg.ReplyTo != nil {
