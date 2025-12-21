@@ -38,7 +38,10 @@ internal/types/   # Go types
   messages.jsonl      # Append-only message log (source of truth)
   agents.jsonl        # Append-only agent log (source of truth)
   history.jsonl       # Archived messages (from mm prune)
+  .gitignore          # Ignores *.db files
   mm.db               # SQLite cache (rebuildable from JSONL)
+  mm.db-wal           # SQLite write-ahead log (gitignored)
+  mm.db-shm           # SQLite shared memory (gitignored)
 
 ~/.config/mm/
   mm-config.json      # Global channel registry
@@ -46,12 +49,12 @@ internal/types/   # Go types
 
 ## Key Patterns
 
-**GUIDs**: All entities use 8-character lowercase alphanumeric GUIDs with prefixes:
+**GUIDs**: All entities use 8-character base36 GUIDs with prefixes:
 - Messages: `msg-a1b2c3d4`
 - Agents: `usr-x9y8z7w6`
 - Channels: `ch-mmdev12`
 
-**JSONL Storage**: Append-only `messages.jsonl` and `agents.jsonl` are the source of truth. SQLite is a rebuildable cache. Use `rebuildDatabaseFromJsonl()` to reconstruct.
+**JSONL Storage**: Append-only `messages.jsonl` and `agents.jsonl` are the source of truth. Edits/deletes append `message_update` records. SQLite is a rebuildable cache. Use `RebuildDatabaseFromJSONL()` to reconstruct.
 
 **Agent IDs**: Names like `alice`, `eager-beaver`, `alice.frontend`. Names must start with a lowercase letter and can contain lowercase letters, numbers, hyphens, and dots (e.g., `alice`, `frontend-dev`, `alice.frontend`, `pm.3.sub`). Use `mm new <name>` to register, or `mm new` for random name generation.
 
@@ -59,17 +62,17 @@ internal/types/   # Go types
 
 **Threading**: Messages can reply to other messages via `reply_to` field (GUID). Use `--reply-to <guid>` when posting. In chat, prefix matching is supported: type `#abc hello` to reply (resolves to full GUID). View threads with `mm thread <guid>`.
 
-**Message types**: Messages have a `type` field: `'agent'` (default) or `'user'`. User messages come from `mm chat`.
+**Message types**: Messages have a `type` field: `'agent'`, `'user'`, or `'event'`. User messages come from `mm chat`.
 
-**Database**: Uses `better-sqlite3` (synchronous). Tables are prefixed `mm_`. Primary keys are GUIDs (`guid TEXT PRIMARY KEY`).
+**Database**: Uses `modernc.org/sqlite` (pure Go). Tables are prefixed `mm_`. Primary keys are GUIDs (`guid TEXT PRIMARY KEY`).
 
 **Channel Context**: Resolution priority:
-1. `--in <channel>` flag (explicit)
+1. `--in <channel>` flag (matches channel ID or name from global config)
 2. Current directory discovery (if .mm/ exists)
 
-**Time Queries**: `parseTimeExpression()` handles relative (`1h`, `2d`), absolute (`today`, `yesterday`), and GUID prefix (`#abc`) formats.
+**Time Queries**: `ParseTimeExpression()` handles relative (`1h`, `2d`), absolute (`today`, `yesterday`), and GUID prefix (`#abc`) formats.
 
-**Project discovery**: `discoverProject()` walks up from cwd looking for `.mm/` directory. Initialize with `mm init`. Running `mm chat` in an uninitialized directory prompts to init.
+**Project discovery**: `DiscoverProject()` walks up from cwd looking for `.mm/` directory. Initialize with `mm init`. Running `mm chat` in an uninitialized directory prompts to init.
 
 ## Claims System
 
@@ -197,7 +200,7 @@ mm watch                     # Tail messages
 mm prune                     # Archive old messages
 
 # JSON output
-mm get --last 10 --json      # Any read command supports --json
+mm get --last 10 --json      # Most read commands support --json (chat does not)
 
 # Migration
 mm migrate                   # Migrate from v0.1.0 to v0.2.0
