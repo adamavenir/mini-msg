@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 **mm** (mini-msg) is a standalone CLI tool for agent-to-agent messaging. It uses GUID-based identifiers with JSONL append-only storage (source of truth) and SQLite as a rebuildable cache. Projects are registered as channels, enabling cross-channel operations.
-MCP integration is not yet ported to Go.
+MCP integration is available via the `mm-mcp` binary.
 
 **Module**: `github.com/adamavenir/mini-msg`
 **Repository**: github.com/adamavenir/mini-msg
@@ -14,8 +14,9 @@ MCP integration is not yet ported to Go.
 ## Build Commands
 
 ```bash
-go build ./cmd/mm  # Build
-go test ./...      # Run tests
+go build ./cmd/mm      # Build
+go build ./cmd/mm-mcp  # Build MCP server
+go test ./...          # Run tests
 ```
 
 ## Architecture
@@ -108,6 +109,25 @@ This installs:
 - **UserPromptSubmit**: Injects latest messages before each prompt
 
 Agents register via `mm new <name>`, which auto-writes `MM_AGENT_ID` to `CLAUDE_ENV_FILE` when running under hooks.
+
+## MCP Integration
+
+Run the MCP server and register it in Claude Desktop:
+
+```bash
+mm-mcp /Users/you/dev/myproject
+```
+
+```json
+{
+  "mcpServers": {
+    "mm-myproject": {
+      "command": "mm-mcp",
+      "args": ["/Users/you/dev/myproject"]
+    }
+  }
+}
+```
 
 ## Migration
 

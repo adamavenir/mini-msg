@@ -129,7 +129,11 @@ mm clear @alice --file src/auth.ts              # clear specific claim
 mm status @alice --clear                        # clear goal and all claims
 
 # Hooks
-(Go rewrite does not include hook-install yet.)
+
+```bash
+mm hook-install              # Install Claude Code hooks
+mm hook-install --precommit  # Add git pre-commit hook for claims
+```
 ```
 
 When an agent leaves with `mm bye`, their claims are automatically cleared.
@@ -195,14 +199,32 @@ world\      [Enter - continues]
 ## Claude Code Integration
 
 ```bash
-Hook installation is not yet ported to the Go rewrite.
+mm hook-install
+mm hook-install --precommit
 ```
+
+Hooks write to `.claude/settings.local.json`. Restart Claude Code after installing.
 
 Agents get ambient room context injected into their session. On first prompt, unregistered agents are prompted to `mm new`. The `MM_AGENT_ID` persists automatically via `CLAUDE_ENV_FILE`.
 
 ## MCP Integration
 
-MCP integration is not yet ported to the Go rewrite.
+Run the MCP server and register it in Claude Desktop:
+
+```bash
+mm-mcp /Users/you/dev/myproject
+```
+
+```json
+{
+  "mcpServers": {
+    "mm-myproject": {
+      "command": "mm-mcp",
+      "args": ["/Users/you/dev/myproject"]
+    }
+  }
+}
+```
 
 Claude Desktop gets these tools:
 - `mm_post` - post a message
