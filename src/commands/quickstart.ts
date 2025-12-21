@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { getContext, handleError } from './shared.js';
-import { getAllAgents, getActiveAgents, getConfig } from '../db/queries.js';
+import { getActiveAgents, getActiveUsers, getConfig } from '../db/queries.js';
 
 export function quickstartCommand(): Command {
   return new Command('quickstart')
@@ -11,30 +11,20 @@ export function quickstartCommand(): Command {
         const { db, jsonMode } = getContext(cmd);
         const staleHours = parseInt(getConfig(db, 'stale_hours') || '4', 10);
 
-        // Gather context about existing agents
-        const allAgents = getAllAgents(db);
         const activeAgents = getActiveAgents(db, staleHours);
-
-        // Find unique base names in use
-        const baseNames = new Set<string>();
-        for (const agent of allAgents) {
-          const dotIndex = agent.agent_id.lastIndexOf('.');
-          if (dotIndex > 0) {
-            baseNames.add(agent.agent_id.substring(0, dotIndex));
-          }
-        }
+        const activeUsers = getActiveUsers(db, staleHours);
 
         if (jsonMode) {
           console.log(JSON.stringify({
-            existing_base_names: Array.from(baseNames),
             active_agents: activeAgents.map(a => ({
               agent_id: a.agent_id,
               status: a.status,
             })),
-            guide: getGuideText(baseNames, activeAgents),
+            active_users: activeUsers,
+            guide: getGuideText(activeAgents, activeUsers),
           }));
         } else {
-          printGuide(baseNames, activeAgents);
+          printGuide(activeAgents, activeUsers);
         }
 
         db.close();
@@ -44,7 +34,7 @@ export function quickstartCommand(): Command {
     });
 }
 
-function getGuideText(baseNames: Set<string>, activeAgents: any[]): string {
+function getGuideText(activeAgents: any[], activeUsers: string[]): string {
   return `
 MM QUICKSTART FOR AGENTS
 
@@ -58,8 +48,8 @@ Choose a simple, descriptive name for your role:
   - Examples: "reviewer", "frontend", "pm", "alice", "eager-beaver"
   - Or run "mm new" without a name to auto-generate one
 
-Names already in use: ${baseNames.size > 0 ? Array.from(baseNames).join(', ') : '(none yet)'}
-Active agents now: ${activeAgents.length > 0 ? activeAgents.map(a => a.agent_id).join(', ') : '(none)'}
+Active agents: ${activeAgents.length > 0 ? activeAgents.map(a => a.agent_id).join(', ') : '(none)'}
+Active users: ${activeUsers.length > 0 ? activeUsers.join(', ') : '(none)'}
 
 ESSENTIAL COMMANDS
 ------------------
@@ -113,7 +103,7 @@ This keeps you informed without extra commands.
 `.trim();
 }
 
-function printGuide(baseNames: Set<string>, activeAgents: any[]): void {
+function printGuide(activeAgents: any[], activeUsers: string[]): void {
   console.log('MM QUICKSTART FOR AGENTS');
   console.log('=========================\n');
 
@@ -127,21 +117,20 @@ function printGuide(baseNames: Set<string>, activeAgents: any[]): void {
   console.log('  - Examples: "reviewer", "frontend", "pm", "alice", "eager-beaver"');
   console.log('  - Or run "mm new" without a name to auto-generate one\n');
 
-  if (baseNames.size > 0) {
-    console.log(`Names already in use: ${Array.from(baseNames).join(', ')}`);
-  } else {
-    console.log('Names already in use: (none yet - you\'re first!)');
-  }
-
   if (activeAgents.length > 0) {
-    console.log(`Active agents now: ${activeAgents.map(a => a.agent_id).join(', ')}`);
-    console.log('\nActive agent details:');
+    console.log(`Active agents: ${activeAgents.map(a => a.agent_id).join(', ')}`);
     for (const agent of activeAgents) {
       const status = agent.status ? `"${agent.status}"` : '(no status set)';
       console.log(`  ${agent.agent_id}: ${status}`);
     }
   } else {
-    console.log('Active agents now: (none)');
+    console.log('Active agents: (none)');
+  }
+
+  if (activeUsers.length > 0) {
+    console.log(`Active users: ${activeUsers.join(', ')}`);
+  } else {
+    console.log('Active users: (none)');
   }
 
   console.log('\nESSENTIAL COMMANDS');
