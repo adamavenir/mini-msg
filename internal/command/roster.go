@@ -17,17 +17,18 @@ import (
 )
 
 type rosterAgent struct {
-	GUID         string  `json:"guid"`
-	AgentID      string  `json:"agent_id"`
-	Status       *string `json:"status"`
-	Purpose      *string `json:"purpose"`
-	Registered   string  `json:"registered_at"`
-	LastSeen     string  `json:"last_seen"`
-	LeftAt       *string `json:"left_at"`
-	MessageCount int64   `json:"message_count"`
-	ClaimCount   int64   `json:"claim_count"`
-	ChannelID    *string `json:"channel_id,omitempty"`
-	ChannelName  *string `json:"channel_name,omitempty"`
+	GUID         string   `json:"guid"`
+	AgentID      string   `json:"agent_id"`
+	Status       string   `json:"status"`
+	Purpose      string   `json:"purpose"`
+	Nicks        []string `json:"nicks"`
+	Registered   string   `json:"registered_at"`
+	LastSeen     string   `json:"last_seen"`
+	LeftAt       *string  `json:"left_at"`
+	MessageCount int64    `json:"message_count"`
+	ClaimCount   int64    `json:"claim_count"`
+	ChannelID    *string  `json:"channel_id,omitempty"`
+	ChannelName  *string  `json:"channel_name,omitempty"`
 }
 
 // NewRosterCmd creates the roster command.
@@ -63,7 +64,8 @@ func NewRosterCmd() *cobra.Command {
 						_ = dbConn.Close()
 						continue
 					}
-					channelAgents, err := buildRosterAgents(dbConn, &channelID, &channel.Name)
+					projectConfig, _ := db.ReadProjectConfig(project.DBPath)
+					channelAgents, err := buildRosterAgents(dbConn, projectConfig, &channelID, &channel.Name)
 					_ = dbConn.Close()
 					if err != nil {
 						continue
@@ -77,7 +79,7 @@ func NewRosterCmd() *cobra.Command {
 				}
 				defer ctx.DB.Close()
 
-				channelAgents, err := buildRosterAgents(ctx.DB, nil, nil)
+				channelAgents, err := buildRosterAgents(ctx.DB, ctx.ProjectConfig, nil, nil)
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
@@ -116,7 +118,7 @@ func NewRosterCmd() *cobra.Command {
 	return cmd
 }
 
-func buildRosterAgents(dbConn *sql.DB, channelID, channelName *string) ([]rosterAgent, error) {
+func buildRosterAgents(dbConn *sql.DB, config *db.ProjectConfig, channelID, channelName *string) ([]rosterAgent, error) {
 	agents, err := db.GetAllAgents(dbConn)
 	if err != nil {
 		return nil, err
@@ -132,12 +134,12 @@ func buildRosterAgents(dbConn *sql.DB, channelID, channelName *string) ([]roster
 
 	items := make([]rosterAgent, 0, len(agents))
 	for _, agent := range agents {
-		items = append(items, toRosterAgent(agent, messageCounts, claimCounts, channelID, channelName))
+		items = append(items, toRosterAgent(agent, messageCounts, claimCounts, config, channelID, channelName))
 	}
 	return items, nil
 }
 
-func toRosterAgent(agent types.Agent, messageCounts map[string]int64, claimCounts map[string]int64, channelID, channelName *string) rosterAgent {
+func toRosterAgent(agent types.Agent, messageCounts map[string]int64, claimCounts map[string]int64, config *db.ProjectConfig, channelID, channelName *string) rosterAgent {
 	registered := time.Unix(agent.RegisteredAt, 0).UTC().Format(time.RFC3339)
 	lastSeen := time.Unix(agent.LastSeen, 0).UTC().Format(time.RFC3339)
 	var leftAt *string
@@ -149,8 +151,9 @@ func toRosterAgent(agent types.Agent, messageCounts map[string]int64, claimCount
 	return rosterAgent{
 		GUID:         agent.GUID,
 		AgentID:      agent.AgentID,
-		Status:       agent.Status,
-		Purpose:      agent.Purpose,
+		Status:       normalizeOptionalValue(agent.Status),
+		Purpose:      normalizeOptionalValue(agent.Purpose),
+		Nicks:        agentNicksForGUID(config, agent.GUID),
 		Registered:   registered,
 		LastSeen:     lastSeen,
 		LeftAt:       leftAt,
@@ -175,16 +178,13 @@ func formatRosterAgent(out io.Writer, agent rosterAgent, showChannel bool) {
 		claimInfo = fmt.Sprintf(" (%d claim%s)", agent.ClaimCount, plural)
 	}
 
-	fmt.Fprintf(out, "  @%s%s%s\n", agent.AgentID, leftStatus, claimInfo)
+	label := formatAgentLabel(agent.AgentID, agent.Nicks)
+	fmt.Fprintf(out, "  %s%s%s\n", label, leftStatus, claimInfo)
 	if showChannel && agent.ChannelName != nil {
 		fmt.Fprintf(out, "    channel: %s\n", *agent.ChannelName)
 	}
-	if agent.Status != nil && *agent.Status != "" {
-		fmt.Fprintf(out, "    status: %s\n", *agent.Status)
-	}
-	if agent.Purpose != nil && *agent.Purpose != "" {
-		fmt.Fprintf(out, "    purpose: %s\n", *agent.Purpose)
-	}
+	fmt.Fprintf(out, "    status: %s\n", formatOptionalString(agent.Status))
+	fmt.Fprintf(out, "    purpose: %s\n", formatOptionalString(agent.Purpose))
 
 	lastSeenTs, _ := time.Parse(time.RFC3339, agent.LastSeen)
 	registeredTs, _ := time.Parse(time.RFC3339, agent.Registered)

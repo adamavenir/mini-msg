@@ -309,6 +309,88 @@ func RenameAgent(db *sql.DB, oldID, newID string) error {
 	return UpdateClaimsAgentID(db, oldID, newID)
 }
 
+// MergeAgentHistory reassigns message history and claims from one agent to another.
+func MergeAgentHistory(db *sql.DB, fromID, toID string) (int64, error) {
+	if fromID == "" || toID == "" {
+		return 0, fmt.Errorf("agent ids are required")
+	}
+	if fromID == toID {
+		return 0, fmt.Errorf("cannot merge an agent into itself")
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	updated, err := mergeAgentHistoryWith(tx, fromID, toID)
+	if err != nil {
+		_ = tx.Rollback()
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return updated, nil
+}
+
+func mergeAgentHistoryWith(tx *sql.Tx, fromID, toID string) (int64, error) {
+	result, err := tx.Exec("UPDATE mm_messages SET from_agent = ? WHERE from_agent = ?", toID, fromID)
+	if err != nil {
+		return 0, err
+	}
+	messageCount, _ := result.RowsAffected()
+
+	rows, err := tx.Query(`
+		SELECT guid, mentions FROM mm_messages
+		WHERE mentions LIKE ?
+	`, fmt.Sprintf("%%\"%s\"%%", fromID))
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var guid string
+		var mentionsJSON string
+		if err := rows.Scan(&guid, &mentionsJSON); err != nil {
+			return 0, err
+		}
+
+		var mentions []string
+		if err := json.Unmarshal([]byte(mentionsJSON), &mentions); err != nil {
+			return 0, err
+		}
+
+		updated := false
+		for i, mention := range mentions {
+			if mention == fromID {
+				mentions[i] = toID
+				updated = true
+			}
+		}
+		if !updated {
+			continue
+		}
+		mentions = dedupeStrings(mentions)
+		updatedJSON, err := json.Marshal(mentions)
+		if err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec("UPDATE mm_messages SET mentions = ? WHERE guid = ?", string(updatedJSON), guid); err != nil {
+			return 0, err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	if _, err := tx.Exec("UPDATE mm_claims SET agent_id = ? WHERE agent_id = ?", toID, fromID); err != nil {
+		return 0, err
+	}
+
+	return messageCount, nil
+}
+
 // GetMaxVersion returns the highest version for a base name.
 func GetMaxVersion(db *sql.DB, base string) (int, error) {
 	pattern := fmt.Sprintf("%s.[0-9]*", base)
@@ -1375,6 +1457,19 @@ func (row claimRow) toClaim() types.Claim {
 		CreatedAt: row.CreatedAt,
 		ExpiresAt: nullIntPtr(row.ExpiresAt),
 	}
+}
+
+func dedupeStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func nullStringPtr(value sql.NullString) *string {

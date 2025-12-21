@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/adamavenir/mini-msg/internal/db"
 )
 
 func formatRelative(ts int64) string {
@@ -135,4 +137,61 @@ func parseInt(value string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func normalizeOptionalValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func formatOptionalValue(value *string) string {
+	if value == nil || *value == "" {
+		return "--"
+	}
+	return *value
+}
+
+func formatOptionalString(value string) string {
+	if value == "" {
+		return "--"
+	}
+	return value
+}
+
+func agentNicksForGUID(config *db.ProjectConfig, guid string) []string {
+	if config == nil || len(config.KnownAgents) == 0 {
+		return []string{}
+	}
+	entry, ok := config.KnownAgents[guid]
+	if !ok || len(entry.Nicks) == 0 {
+		return []string{}
+	}
+	nicks := make([]string, 0, len(entry.Nicks))
+	for _, nick := range entry.Nicks {
+		nick = strings.TrimSpace(nick)
+		if nick == "" {
+			continue
+		}
+		nicks = append(nicks, nick)
+	}
+	return nicks
+}
+
+func formatAgentLabel(agentID string, nicks []string) string {
+	if len(nicks) == 0 {
+		return "@" + agentID
+	}
+	formatted := make([]string, 0, len(nicks))
+	for _, nick := range nicks {
+		if nick == "" {
+			continue
+		}
+		formatted = append(formatted, "@"+nick)
+	}
+	if len(formatted) == 0 {
+		return "@" + agentID
+	}
+	return fmt.Sprintf("@%s (aka %s)", agentID, strings.Join(formatted, ", "))
 }

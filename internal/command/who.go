@@ -33,7 +33,11 @@ func NewWhoCmd() *cobra.Command {
 					return writeCommandError(cmd, err)
 				}
 				if ctx.JSONMode {
-					return json.NewEncoder(cmd.OutOrStdout()).Encode(agents)
+					payload := make([]agentDetails, 0, len(agents))
+					for _, agent := range agents {
+						payload = append(payload, toAgentDetails(agent))
+					}
+					return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 				}
 				out := cmd.OutOrStdout()
 				if len(agents) == 0 {
@@ -52,7 +56,7 @@ func NewWhoCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 			if ctx.JSONMode {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(agent)
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(toAgentDetails(*agent))
 			}
 			staleHours := 4
 			if value, err := db.GetConfig(ctx.DB, "stale_hours"); err == nil && value != "" {
@@ -66,6 +70,28 @@ func NewWhoCmd() *cobra.Command {
 	return cmd
 }
 
+type agentDetails struct {
+	GUID         string `json:"guid"`
+	AgentID      string `json:"agent_id"`
+	Status       string `json:"status"`
+	Purpose      string `json:"purpose"`
+	RegisteredAt int64  `json:"registered_at"`
+	LastSeen     int64  `json:"last_seen"`
+	LeftAt       *int64 `json:"left_at,omitempty"`
+}
+
+func toAgentDetails(agent types.Agent) agentDetails {
+	return agentDetails{
+		GUID:         agent.GUID,
+		AgentID:      agent.AgentID,
+		Status:       normalizeOptionalValue(agent.Status),
+		Purpose:      normalizeOptionalValue(agent.Purpose),
+		RegisteredAt: agent.RegisteredAt,
+		LastSeen:     agent.LastSeen,
+		LeftAt:       agent.LeftAt,
+	}
+}
+
 func displayAgent(out io.Writer, agent types.Agent, staleHours int) {
 	registeredAt := formatRelative(agent.RegisteredAt)
 	lastSeen := formatRelative(agent.LastSeen)
@@ -77,12 +103,8 @@ func displayAgent(out io.Writer, agent types.Agent, staleHours int) {
 	}
 
 	fmt.Fprintln(out, agent.AgentID)
-	if agent.Status != nil && *agent.Status != "" {
-		fmt.Fprintf(out, "  Status: %s\n", *agent.Status)
-	}
-	if agent.Purpose != nil && *agent.Purpose != "" {
-		fmt.Fprintf(out, "  Purpose: %s\n", *agent.Purpose)
-	}
+	fmt.Fprintf(out, "  Status: %s\n", formatOptionalValue(agent.Status))
+	fmt.Fprintf(out, "  Purpose: %s\n", formatOptionalValue(agent.Purpose))
 	fmt.Fprintf(out, "  Registered: %s\n", registeredAt)
 	fmt.Fprintf(out, "  Last seen: %s\n", lastSeen)
 	fmt.Fprintf(out, "  Active: %s\n", activeStatus)

@@ -16,15 +16,16 @@ import (
 )
 
 type agentInfo struct {
-	GUID         string  `json:"guid"`
-	AgentID      string  `json:"agent_id"`
-	Status       *string `json:"status"`
-	Purpose      *string `json:"purpose"`
-	RegisteredAt string  `json:"registered_at"`
-	LastSeen     string  `json:"last_seen"`
-	LeftAt       *string `json:"left_at"`
-	MessageCount int64   `json:"message_count"`
-	ClaimCount   int64   `json:"claim_count"`
+	GUID         string   `json:"guid"`
+	AgentID      string   `json:"agent_id"`
+	Status       string   `json:"status"`
+	Purpose      string   `json:"purpose"`
+	Nicks        []string `json:"nicks"`
+	RegisteredAt string   `json:"registered_at"`
+	LastSeen     string   `json:"last_seen"`
+	LeftAt       *string  `json:"left_at"`
+	MessageCount int64    `json:"message_count"`
+	ClaimCount   int64    `json:"claim_count"`
 }
 
 type channelInfo struct {
@@ -175,7 +176,7 @@ func getChannelInfo(projectRoot string) channelInfo {
 
 	infos := make([]agentInfo, 0, len(agents))
 	for _, agent := range agents {
-		infos = append(infos, toAgentInfo(agent, messageCounts, claimCounts))
+		infos = append(infos, toAgentInfo(agent, messageCounts, claimCounts, projectConfig))
 	}
 
 	sort.Slice(infos, func(i, j int) bool {
@@ -199,7 +200,7 @@ func getChannelInfo(projectRoot string) channelInfo {
 	return info
 }
 
-func toAgentInfo(agent types.Agent, messageCounts map[string]int64, claimCounts map[string]int64) agentInfo {
+func toAgentInfo(agent types.Agent, messageCounts map[string]int64, claimCounts map[string]int64, config *db.ProjectConfig) agentInfo {
 	registered := time.Unix(agent.RegisteredAt, 0).UTC().Format(time.RFC3339)
 	lastSeen := time.Unix(agent.LastSeen, 0).UTC().Format(time.RFC3339)
 	var leftAt *string
@@ -210,8 +211,9 @@ func toAgentInfo(agent types.Agent, messageCounts map[string]int64, claimCounts 
 	return agentInfo{
 		GUID:         agent.GUID,
 		AgentID:      agent.AgentID,
-		Status:       agent.Status,
-		Purpose:      agent.Purpose,
+		Status:       normalizeOptionalValue(agent.Status),
+		Purpose:      normalizeOptionalValue(agent.Purpose),
+		Nicks:        agentNicksForGUID(config, agent.GUID),
 		RegisteredAt: registered,
 		LastSeen:     lastSeen,
 		LeftAt:       leftAt,
@@ -278,7 +280,12 @@ func formatChannelInfo(out io.Writer, info channelInfo, showPath bool) {
 			if err != nil {
 				continue
 			}
-			fmt.Fprintf(out, "    @%s%s - %d msgs, last seen %s\n", agent.AgentID, status, agent.MessageCount, formatRelative(lastTs.Unix()))
+			label := formatAgentLabel(agent.AgentID, agent.Nicks)
+			fmt.Fprintf(out, "    %s%s\n", label, status)
+			fmt.Fprintf(out, "      status: %s\n", formatOptionalString(agent.Status))
+			fmt.Fprintf(out, "      purpose: %s\n", formatOptionalString(agent.Purpose))
+			fmt.Fprintf(out, "      last seen: %s\n", formatRelative(lastTs.Unix()))
+			fmt.Fprintf(out, "      messages: %d\n", agent.MessageCount)
 		}
 	}
 }
