@@ -105,6 +105,15 @@ mm thread msg-a1b2c3d4
 
 In `mm chat`, you can use prefix matching: type `#a1b2 hello` to reply (resolves to full GUID). Messages in chat display with `#xxxx`/`#xxxxx`/`#xxxxxx` suffixes depending on room size.
 
+## Chat Sidebar
+
+In `mm chat`, use the multi-channel sidebar to switch rooms:
+
+- Tab: open sidebar (focus list), Tab again to focus list when open
+- Esc: return focus to input (sidebar stays open)
+- j/k or ↑/↓: move selection
+- Enter: switch channel
+
 ## Claims System
 
 Prevent conflicts when multiple agents work on the same codebase. Agents can claim files, beads issues, or GitHub issues. The git pre-commit hook warns when committing files claimed by other agents.
