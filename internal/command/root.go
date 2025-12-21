@@ -2,6 +2,7 @@ package command
 
 import (
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -35,14 +36,83 @@ func NewRootCmd(version string) *cobra.Command {
 	cmd.AddCommand(
 		NewInitCmd(),
 		NewNewCmd(),
+		NewByeCmd(),
+		NewHereCmd(),
+		NewWhoCmd(),
+		NewWhoamiCmd(),
+		NewNickCmd(),
+		NewNicksCmd(),
 		NewPostCmd(),
+		NewClaimCmd(),
+		NewClaimsCmd(),
+		NewClearCmd(),
+		NewStatusCmd(),
 		NewGetCmd(),
+		NewMentionsCmd(),
+		NewHistoryCmd(),
+		NewBetweenCmd(),
+		NewThreadCmd(),
 		NewChatCmd(),
+		NewWatchCmd(),
+		NewPruneCmd(),
+		NewConfigCmd(),
+		NewRosterCmd(),
+		NewInfoCmd(),
 	)
 
 	return cmd
 }
 
 func Execute() error {
+	os.Args = rewriteMentionArgs(os.Args)
 	return NewRootCmd(Version).Execute()
+}
+
+func rewriteMentionArgs(args []string) []string {
+	if len(args) < 2 {
+		return args
+	}
+	idx := findFirstNonFlagArg(args[1:])
+	if idx == -1 {
+		return args
+	}
+	fullIdx := idx + 1
+	if fullIdx >= len(args) {
+		return args
+	}
+	if !strings.HasPrefix(args[fullIdx], "@") {
+		return args
+	}
+	updated := make([]string, 0, len(args)+1)
+	updated = append(updated, args[:fullIdx]...)
+	updated = append(updated, "mentions")
+	updated = append(updated, args[fullIdx:]...)
+	return updated
+}
+
+func findFirstNonFlagArg(args []string) int {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			if i+1 < len(args) {
+				return i + 1
+			}
+			return -1
+		}
+		if strings.HasPrefix(arg, "--") {
+			if strings.HasPrefix(arg, "--project=") || strings.HasPrefix(arg, "--in=") {
+				continue
+			}
+			if arg == "--project" || arg == "--in" {
+				i++
+				continue
+			}
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		return i
+	}
+	return -1
 }
