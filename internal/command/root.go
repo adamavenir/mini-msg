@@ -36,6 +36,7 @@ func NewRootCmd(version string) *cobra.Command {
 	cmd.AddCommand(
 		NewInitCmd(),
 		NewNewCmd(),
+		NewBackCmd(),
 		NewByeCmd(),
 		NewHereCmd(),
 		NewWhoCmd(),
@@ -43,6 +44,8 @@ func NewRootCmd(version string) *cobra.Command {
 		NewNickCmd(),
 		NewNicksCmd(),
 		NewPostCmd(),
+		NewEditCmd(),
+		NewRmCmd(),
 		NewClaimCmd(),
 		NewClaimsCmd(),
 		NewClearCmd(),
