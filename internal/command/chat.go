@@ -88,6 +88,7 @@ func NewChatCmd() *cobra.Command {
 			options := chat.Options{
 				DB:              ctx.DB,
 				ProjectName:     GetProjectName(ctx.Project.Root),
+				ProjectRoot:     ctx.Project.Root,
 				ProjectDBPath:   ctx.Project.DBPath,
 				Username:        username,
 				Last:            last,

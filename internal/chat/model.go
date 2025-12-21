@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"hash/fnv"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -40,6 +42,7 @@ var (
 type Options struct {
 	DB              *sql.DB
 	ProjectName     string
+	ProjectRoot     string
 	ProjectDBPath   string
 	Username        string
 	Last            int
@@ -55,6 +58,7 @@ func Run(opts Options) error {
 	}
 	program := tea.NewProgram(model)
 	_, err = program.Run()
+	model.Close()
 	return err
 }
 
@@ -62,6 +66,7 @@ func Run(opts Options) error {
 type Model struct {
 	db              *sql.DB
 	projectName     string
+	projectRoot     string
 	projectDBPath   string
 	username        string
 	showUpdates     bool
@@ -82,6 +87,10 @@ type Model struct {
 	suggestionKind  suggestionKind
 	lastInputValue  string
 	lastInputPos    int
+	channels        []channelEntry
+	channelIndex    int
+	sidebarOpen     bool
+	sidebarFocus    bool
 }
 
 type pollMsg struct {
@@ -105,11 +114,19 @@ type suggestionItem struct {
 	Insert  string
 }
 
+type channelEntry struct {
+	ID   string
+	Name string
+	Path string
+}
+
 // NewModel creates a chat model with recent messages loaded.
 func NewModel(opts Options) (*Model, error) {
 	if opts.Last <= 0 {
 		opts.Last = 20
 	}
+
+	channels, channelIndex := loadChannels(opts.ProjectRoot)
 
 	colorMap, err := buildColorMap(opts.DB, 50, opts.IncludeArchived)
 	if err != nil {
@@ -145,6 +162,7 @@ func NewModel(opts Options) (*Model, error) {
 	model := &Model{
 		db:              opts.DB,
 		projectName:     opts.ProjectName,
+		projectRoot:     opts.ProjectRoot,
 		projectDBPath:   opts.ProjectDBPath,
 		username:        opts.Username,
 		showUpdates:     opts.ShowUpdates,
@@ -157,6 +175,8 @@ func NewModel(opts Options) (*Model, error) {
 		messageCount:    count,
 		lastLimit:       opts.Last,
 		colorMap:        colorMap,
+		channels:        channels,
+		channelIndex:    channelIndex,
 	}
 
 	model.refreshViewport(true)
@@ -165,6 +185,12 @@ func NewModel(opts Options) (*Model, error) {
 
 func (m *Model) Init() tea.Cmd {
 	return m.pollCmd()
+}
+
+func (m *Model) Close() {
+	if m.db != nil {
+		_ = m.db.Close()
+	}
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -176,6 +202,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		if handled, cmd := m.handleSuggestionKeys(msg); handled {
+			return m, cmd
+		}
+		if handled, cmd := m.handleSidebarKeys(msg); handled {
 			return m, cmd
 		}
 		if msg.Type == tea.KeyUp && m.input.Value() == "" {
@@ -199,14 +228,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 			return m, m.handleSubmit(value)
+		case tea.KeyTab:
+			m.toggleSidebar()
+			return m, nil
 		case tea.KeyPgUp, tea.KeyPgDown, tea.KeyHome, tea.KeyEnd:
 			var cmd tea.Cmd
 			m.viewport, cmd = m.viewport.Update(msg)
 			return m, cmd
 		}
 		var cmd tea.Cmd
-		m.input, cmd = m.input.Update(msg)
-		m.refreshSuggestions()
+		if !m.sidebarFocus {
+			m.input, cmd = m.input.Update(msg)
+			m.refreshSuggestions()
+		}
 		return m, cmd
 	case pollMsg:
 		if len(msg.messages) > 0 {
@@ -248,10 +282,14 @@ func (m *Model) View() string {
 		lines = append(lines, suggestions)
 	}
 	lines = append(lines, statusLine, m.input.View())
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		lines...,
-	)
+
+	main := lipgloss.JoinVertical(lipgloss.Left, lines...)
+	if !m.sidebarOpen {
+		return main
+	}
+
+	sidebar := m.renderSidebar()
+	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, main)
 }
 
 func (m *Model) handleSubmit(text string) tea.Cmd {
@@ -417,12 +455,151 @@ func (m *Model) renderSuggestions() string {
 			style = selectedStyle
 		}
 		line := prefix + suggestion.Display
-		if m.width > 0 {
-			line = truncateLine(line, m.width)
+		if m.mainWidth() > 0 {
+			line = truncateLine(line, m.mainWidth())
 		}
 		lines = append(lines, style.Render(line))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func (m *Model) renderSidebar() string {
+	width := m.sidebarWidth()
+	if width <= 0 {
+		return ""
+	}
+
+	headerStyle := lipgloss.NewStyle().Foreground(userColor).Bold(true)
+	itemStyle := lipgloss.NewStyle().Foreground(metaColor)
+	activeStyle := lipgloss.NewStyle().Foreground(userColor).Bold(true)
+	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("236")).Bold(true)
+
+	lines := []string{headerStyle.Render(" Channels ")}
+	if len(m.channels) == 0 {
+		lines = append(lines, itemStyle.Render(" (none)"))
+	} else {
+		for i, ch := range m.channels {
+			label := formatChannelLabel(ch)
+			line := label
+			if width > 0 {
+				line = truncateLine(label, width-1)
+			}
+
+			style := itemStyle
+			if samePath(ch.Path, m.projectRoot) {
+				style = activeStyle
+			}
+			if i == m.channelIndex && m.sidebarFocus {
+				style = selectedStyle
+			}
+			lines = append(lines, style.Render(" "+line))
+		}
+	}
+
+	content := strings.Join(lines, "\n")
+	return lipgloss.NewStyle().
+		Width(width).
+		Padding(0, 1).
+		BorderRight(true).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(metaColor).
+		Render(content)
+}
+
+func (m *Model) sidebarWidth() int {
+	if !m.sidebarOpen {
+		return 0
+	}
+	maxLen := len("Channels")
+	for _, ch := range m.channels {
+		label := formatChannelLabel(ch)
+		if len(label) > maxLen {
+			maxLen = len(label)
+		}
+	}
+	width := maxLen + 4
+	if width < 16 {
+		width = 16
+	}
+	maxWidth := m.width / 2
+	if maxWidth > 0 && width > maxWidth {
+		width = maxWidth
+	}
+	return width
+}
+
+func (m *Model) mainWidth() int {
+	if m.width == 0 {
+		return 0
+	}
+	width := m.width
+	if m.sidebarOpen {
+		width -= m.sidebarWidth()
+	}
+	if width < 1 {
+		width = 1
+	}
+	return width
+}
+
+func (m *Model) toggleSidebar() {
+	if !m.sidebarOpen {
+		m.sidebarOpen = true
+		m.sidebarFocus = true
+		m.clearSuggestions()
+		m.resize()
+		return
+	}
+
+	if !m.sidebarFocus {
+		m.sidebarFocus = true
+		m.clearSuggestions()
+		m.resize()
+		return
+	}
+
+	m.sidebarOpen = false
+	m.sidebarFocus = false
+	m.resize()
+}
+
+func (m *Model) handleSidebarKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
+	if !m.sidebarOpen {
+		return false, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.sidebarFocus = false
+		m.resize()
+		return true, nil
+	}
+
+	if !m.sidebarFocus {
+		return false, nil
+	}
+
+	switch msg.String() {
+	case "j":
+		m.moveChannelSelection(1)
+		return true, nil
+	case "k":
+		m.moveChannelSelection(-1)
+		return true, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyUp:
+		m.moveChannelSelection(-1)
+		return true, nil
+	case tea.KeyDown:
+		m.moveChannelSelection(1)
+		return true, nil
+	case tea.KeyEnter:
+		return true, m.selectChannelCmd()
+	}
+
+	return false, nil
 }
 
 func (m *Model) applySuggestion(item suggestionItem) {
@@ -734,12 +911,12 @@ func (m *Model) resize() {
 	inputHeight := lipgloss.Height(m.input.View())
 	statusHeight := 1
 	suggestionHeight := m.suggestionHeight()
-	m.viewport.Width = m.width
+	m.viewport.Width = m.mainWidth()
 	m.viewport.Height = m.height - inputHeight - statusHeight - suggestionHeight
 	if m.viewport.Height < 1 {
 		m.viewport.Height = 1
 	}
-	m.input.Width = m.width
+	m.input.Width = m.mainWidth()
 	m.refreshViewport(false)
 }
 
@@ -846,6 +1023,126 @@ func truncateLine(value string, maxLen int) string {
 		return string(runes[:maxLen])
 	}
 	return string(runes[:maxLen-3]) + "..."
+}
+
+func loadChannels(currentRoot string) ([]channelEntry, int) {
+	config, err := core.ReadGlobalConfig()
+	if err != nil || config == nil || len(config.Channels) == 0 {
+		return nil, 0
+	}
+
+	entries := make([]channelEntry, 0, len(config.Channels))
+	for id, ref := range config.Channels {
+		entries = append(entries, channelEntry{ID: id, Name: ref.Name, Path: ref.Path})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		left := strings.ToLower(entries[i].Name)
+		right := strings.ToLower(entries[j].Name)
+		if left == "" {
+			left = strings.ToLower(entries[i].ID)
+		}
+		if right == "" {
+			right = strings.ToLower(entries[j].ID)
+		}
+		return left < right
+	})
+
+	index := 0
+	for i, entry := range entries {
+		if samePath(entry.Path, currentRoot) {
+			index = i
+			break
+		}
+	}
+	return entries, index
+}
+
+func formatChannelLabel(entry channelEntry) string {
+	name := entry.Name
+	if name == "" {
+		name = entry.ID
+	}
+	return "#" + name
+}
+
+func samePath(left, right string) bool {
+	normalizedLeft, errLeft := filepath.Abs(left)
+	normalizedRight, errRight := filepath.Abs(right)
+	if errLeft == nil && errRight == nil {
+		return normalizedLeft == normalizedRight
+	}
+	return left == right
+}
+
+func (m *Model) moveChannelSelection(delta int) {
+	if len(m.channels) == 0 {
+		return
+	}
+	index := m.channelIndex + delta
+	if index < 0 {
+		index = len(m.channels) - 1
+	} else if index >= len(m.channels) {
+		index = 0
+	}
+	m.channelIndex = index
+}
+
+func (m *Model) selectChannelCmd() tea.Cmd {
+	if len(m.channels) == 0 {
+		return nil
+	}
+	entry := m.channels[m.channelIndex]
+	if samePath(entry.Path, m.projectRoot) {
+		m.sidebarFocus = false
+		m.sidebarOpen = false
+		m.resize()
+		return nil
+	}
+	if err := m.switchChannel(entry); err != nil {
+		m.status = err.Error()
+		return nil
+	}
+	m.sidebarFocus = false
+	m.sidebarOpen = false
+	m.resize()
+	return m.pollCmd()
+}
+
+func (m *Model) switchChannel(entry channelEntry) error {
+	project, err := projectFromRoot(entry.Path)
+	if err != nil {
+		return err
+	}
+	dbConn, err := db.OpenDatabase(project)
+	if err != nil {
+		return err
+	}
+	if err := db.InitSchema(dbConn); err != nil {
+		_ = dbConn.Close()
+		return err
+	}
+
+	if m.db != nil {
+		_ = m.db.Close()
+	}
+	m.db = dbConn
+	m.projectRoot = project.Root
+	m.projectDBPath = project.DBPath
+	m.projectName = filepath.Base(project.Root)
+
+	if err := m.reloadMessages(); err != nil {
+		return err
+	}
+	m.status = fmt.Sprintf("Switched to %s", formatChannelLabel(entry))
+	return nil
+}
+
+func projectFromRoot(rootPath string) (core.Project, error) {
+	dbPath := filepath.Join(rootPath, ".mm", "mm.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		return core.Project{}, fmt.Errorf("channel database not found at %s", dbPath)
+	}
+	return core.Project{Root: rootPath, DBPath: dbPath}, nil
 }
 
 func isAlphaNum(r rune) bool {
