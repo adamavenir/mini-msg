@@ -93,7 +93,7 @@ func NewClaimsCmd() *cobra.Command {
 					if claim.Reason != nil && *claim.Reason != "" {
 						reason = " - " + *claim.Reason
 					}
-					fmt.Fprintf(out, "    %s%s (%s ago)%s%s\n", typePrefix, claim.Pattern, age, expiry, reason)
+					fmt.Fprintf(out, "    %s%s (%s)%s%s\n", typePrefix, claim.Pattern, age, expiry, reason)
 				}
 			}
 

@@ -65,7 +65,7 @@ export function claimsCommand(): Command {
                   }
                 }
                 const reason = claim.reason ? ` - ${claim.reason}` : '';
-                console.log(`    ${typePrefix}${claim.pattern} (${age} ago)${expiry}${reason}`);
+                console.log(`    ${typePrefix}${claim.pattern} (${age})${expiry}${reason}`);
               }
             }
           }
