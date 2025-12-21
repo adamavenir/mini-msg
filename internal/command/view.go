@@ -39,6 +39,13 @@ func NewViewCmd() *cobra.Command {
 				return nil
 			}
 
+			color := getAgentColor(msg.FromAgent, msg.Type, nil)
+			if color != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "%sMessage #%s from @%s:%s\n", color, msg.ID, msg.FromAgent, reset)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s%s%s\n", color, msg.Body, reset)
+				return nil
+			}
+
 			fmt.Fprintf(cmd.OutOrStdout(), "Message #%s from @%s:\n", msg.ID, msg.FromAgent)
 			fmt.Fprintln(cmd.OutOrStdout(), msg.Body)
 			return nil
