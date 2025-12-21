@@ -40,7 +40,7 @@ var (
 	statusColor = lipgloss.Color("241")
 	metaColor   = lipgloss.Color("242")
 	inputBg     = lipgloss.Color("236")
-	caretColor  = lipgloss.Color("250")
+	caretColor  = lipgloss.Color("243")
 	textColor   = lipgloss.Color("255")
 	blurText    = lipgloss.Color("248")
 )
@@ -143,11 +143,16 @@ func NewModel(opts Options) (*Model, error) {
 	}
 
 	input := textarea.New()
-	input.Prompt = "> "
 	input.CharLimit = 0
 	input.ShowLineNumbers = false
 	input.MaxHeight = inputMaxHeight
 	input.Cursor.SetChar("▍")
+	input.SetPromptFunc(2, func(lineIdx int) string {
+		if lineIdx == 0 {
+			return "› "
+		}
+		return "  "
+	})
 	input.FocusedStyle.Base = lipgloss.NewStyle().Foreground(textColor).Background(inputBg)
 	input.FocusedStyle.Text = lipgloss.NewStyle().Foreground(textColor).Background(inputBg)
 	input.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(caretColor).Background(inputBg)
@@ -343,7 +348,7 @@ func (m *Model) View() string {
 
 func (m *Model) renderInput() string {
 	content := m.input.View()
-	style := lipgloss.NewStyle().Background(inputBg).Padding(0, inputPadding)
+	style := lipgloss.NewStyle().Background(inputBg).Padding(0, inputPadding, 0, 0)
 	if width := m.mainWidth(); width > 0 {
 		style = style.Width(width)
 	}
@@ -1090,7 +1095,7 @@ func (m *Model) resize() {
 	}
 
 	width := m.mainWidth()
-	inputWidth := width - inputPadding*2
+	inputWidth := width - inputPadding
 	if inputWidth < 1 {
 		inputWidth = 1
 	}
