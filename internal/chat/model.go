@@ -291,6 +291,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, m.handleSubmit(value)
 		case tea.KeyTab:
+			if len(m.suggestions) > 0 {
+				return m, nil
+			}
 			m.toggleSidebar()
 			return m, nil
 		case tea.KeyPgUp, tea.KeyPgDown, tea.KeyHome, tea.KeyEnd:

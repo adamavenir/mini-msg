@@ -109,7 +109,7 @@ func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, er
 	}
 
 	kept := messages
-	if keep == 0 {
+	if pruneAll || keep == 0 {
 		kept = nil
 	} else if len(messages) > keep {
 		kept = messages[len(messages)-keep:]

@@ -211,6 +211,32 @@ func NewGetCmd() *cobra.Command {
 						}
 					}
 				}
+
+				claims, err := db.GetAllClaims(ctx.DB)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+
+				if len(claims) > 0 {
+					claimsByAgent := make(map[string][]string)
+					for _, claim := range claims {
+						pattern := claim.Pattern
+						if claim.ClaimType != types.ClaimTypeFile {
+							pattern = fmt.Sprintf("%s:%s", claim.ClaimType, claim.Pattern)
+						}
+						claimsByAgent[claim.AgentID] = append(claimsByAgent[claim.AgentID], pattern)
+					}
+
+					claimParts := make([]string, 0, len(claimsByAgent))
+					for agentID, patterns := range claimsByAgent {
+						claimParts = append(claimParts, fmt.Sprintf("@%s (%s)", agentID, strings.Join(patterns, ", ")))
+					}
+
+					fmt.Fprintln(out, "")
+					fmt.Fprintln(out, "---")
+					fmt.Fprintf(out, "Active claims: %s\n", strings.Join(claimParts, ", "))
+				}
+
 				fmt.Fprintln(out, "")
 				fmt.Fprintln(out, "---")
 				fmt.Fprintf(out, "More: mm get --last 50 | mm @%s --all | mm get --since <guid>\n", agentBase)
