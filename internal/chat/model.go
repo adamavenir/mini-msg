@@ -77,36 +77,39 @@ func Run(opts Options) error {
 
 // Model implements the chat UI.
 type Model struct {
-	db              *sql.DB
-	projectName     string
-	projectRoot     string
-	projectDBPath   string
-	username        string
-	showUpdates     bool
-	includeArchived bool
-	viewport        viewport.Model
-	input           textarea.Model
-	messages        []types.Message
-	lastCursor      *types.MessageCursor
-	oldestCursor    *types.MessageCursor
-	status          string
-	width           int
-	height          int
-	messageCount    int
-	lastLimit       int
-	hasMore         bool
-	colorMap        map[string]lipgloss.Color
-	suggestions     []suggestionItem
-	suggestionIndex int
-	suggestionStart int
-	suggestionKind  suggestionKind
-	reactionMode    bool
-	lastInputValue  string
-	lastInputPos    int
-	channels        []channelEntry
-	channelIndex    int
-	sidebarOpen     bool
-	sidebarFocus    bool
+	db                  *sql.DB
+	projectName         string
+	projectRoot         string
+	projectDBPath       string
+	username            string
+	showUpdates         bool
+	includeArchived     bool
+	viewport            viewport.Model
+	input               textarea.Model
+	messages            []types.Message
+	lastCursor          *types.MessageCursor
+	oldestCursor        *types.MessageCursor
+	status              string
+	width               int
+	height              int
+	messageCount        int
+	lastLimit           int
+	hasMore             bool
+	colorMap            map[string]lipgloss.Color
+	suggestions         []suggestionItem
+	suggestionIndex     int
+	suggestionStart     int
+	suggestionKind      suggestionKind
+	reactionMode        bool
+	lastInputValue      string
+	lastInputPos        int
+	channels            []channelEntry
+	channelIndex        int
+	sidebarOpen         bool
+	sidebarFocus        bool
+	sidebarFilter       string
+	sidebarMatches      []int
+	sidebarFilterActive bool
 }
 
 type pollMsg struct {
@@ -616,11 +619,31 @@ func (m *Model) renderSidebar() string {
 	activeStyle := lipgloss.NewStyle().Foreground(userColor).Bold(true)
 	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("236")).Bold(true)
 
-	lines := []string{headerStyle.Render(" Channels ")}
+	header := " Channels "
+	if m.sidebarFilterActive {
+		if m.sidebarFilter == "" {
+			header = " Channels (filter) "
+		} else {
+			header = fmt.Sprintf(" Channels (filter: %s) ", m.sidebarFilter)
+		}
+	}
+
+	lines := []string{headerStyle.Render(header)}
 	if len(m.channels) == 0 {
 		lines = append(lines, itemStyle.Render(" (none)"))
 	} else {
-		for i, ch := range m.channels {
+		indices := m.sidebarMatches
+		if !m.sidebarFilterActive {
+			indices = make([]int, len(m.channels))
+			for i := range m.channels {
+				indices[i] = i
+			}
+		}
+		if len(indices) == 0 {
+			lines = append(lines, itemStyle.Render(" (no matches)"))
+		}
+		for _, index := range indices {
+			ch := m.channels[index]
 			label := formatChannelLabel(ch)
 			line := label
 			if width > 0 {
@@ -631,7 +654,7 @@ func (m *Model) renderSidebar() string {
 			if samePath(ch.Path, m.projectRoot) {
 				style = activeStyle
 			}
-			if i == m.channelIndex && m.sidebarFocus {
+			if index == m.channelIndex && m.sidebarFocus {
 				style = selectedStyle
 			}
 			lines = append(lines, style.Render(" "+line))
@@ -705,6 +728,7 @@ func (m *Model) toggleSidebar() {
 	if !m.sidebarOpen {
 		m.sidebarOpen = true
 		m.sidebarFocus = true
+		m.resetSidebarFilter()
 		m.clearSuggestions()
 		m.resize()
 		return
@@ -719,7 +743,50 @@ func (m *Model) toggleSidebar() {
 
 	m.sidebarOpen = false
 	m.sidebarFocus = false
+	m.resetSidebarFilter()
 	m.resize()
+}
+
+func (m *Model) startSidebarFilter() {
+	if !m.sidebarFilterActive {
+		m.sidebarFilterActive = true
+		m.sidebarFilter = ""
+	}
+	m.updateSidebarMatches()
+}
+
+func (m *Model) resetSidebarFilter() {
+	m.sidebarFilterActive = false
+	m.sidebarFilter = ""
+	m.sidebarMatches = nil
+}
+
+func (m *Model) updateSidebarMatches() {
+	if !m.sidebarFilterActive {
+		m.sidebarMatches = nil
+		return
+	}
+
+	term := strings.ToLower(strings.TrimSpace(m.sidebarFilter))
+	matches := make([]int, 0, len(m.channels))
+	for i, ch := range m.channels {
+		if term == "" || channelMatchesFilter(ch, term) {
+			matches = append(matches, i)
+		}
+	}
+	m.sidebarMatches = matches
+	if len(matches) > 0 {
+		m.channelIndex = matches[0]
+	}
+}
+
+func channelMatchesFilter(entry channelEntry, term string) bool {
+	name := strings.ToLower(entry.Name)
+	id := strings.ToLower(entry.ID)
+	if name == "" {
+		name = id
+	}
+	return strings.Contains(name, term) || strings.Contains(id, term)
 }
 
 func (m *Model) handleSidebarKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
@@ -729,6 +796,11 @@ func (m *Model) handleSidebarKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 
 	switch msg.Type {
 	case tea.KeyEsc:
+		if m.sidebarFilterActive {
+			m.resetSidebarFilter()
+			m.resize()
+			return true, nil
+		}
 		m.sidebarFocus = false
 		m.resize()
 		return true, nil
@@ -736,6 +808,39 @@ func (m *Model) handleSidebarKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 
 	if !m.sidebarFocus {
 		return false, nil
+	}
+
+	if !m.sidebarFilterActive {
+		if msg.Type == tea.KeySpace || (msg.Type == tea.KeyRunes && !msg.Paste && (msg.String() == "#" || msg.String() == " ")) {
+			m.startSidebarFilter()
+			m.resize()
+			return true, nil
+		}
+	}
+
+	if m.sidebarFilterActive {
+		switch msg.Type {
+		case tea.KeyBackspace, tea.KeyCtrlH:
+			if m.sidebarFilter != "" {
+				runes := []rune(m.sidebarFilter)
+				m.sidebarFilter = string(runes[:len(runes)-1])
+			}
+			m.updateSidebarMatches()
+			m.resize()
+			return true, nil
+		case tea.KeyEnter:
+			if len(m.sidebarMatches) == 0 {
+				return true, nil
+			}
+		case tea.KeyRunes:
+			if msg.Paste || msg.String() == " " {
+				return true, nil
+			}
+			m.sidebarFilter += string(msg.Runes)
+			m.updateSidebarMatches()
+			m.resize()
+			return true, nil
+		}
 	}
 
 	switch msg.String() {
@@ -1640,6 +1745,33 @@ func (m *Model) moveChannelSelection(delta int) {
 	if len(m.channels) == 0 {
 		return
 	}
+	if m.sidebarFilterActive {
+		if len(m.sidebarMatches) == 0 {
+			return
+		}
+		current := 0
+		found := false
+		for i, index := range m.sidebarMatches {
+			if index == m.channelIndex {
+				current = i
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.channelIndex = m.sidebarMatches[0]
+			return
+		}
+		next := current + delta
+		if next < 0 {
+			next = len(m.sidebarMatches) - 1
+		} else if next >= len(m.sidebarMatches) {
+			next = 0
+		}
+		m.channelIndex = m.sidebarMatches[next]
+		return
+	}
+
 	index := m.channelIndex + delta
 	if index < 0 {
 		index = len(m.channels) - 1
@@ -1657,6 +1789,7 @@ func (m *Model) selectChannelCmd() tea.Cmd {
 	if samePath(entry.Path, m.projectRoot) {
 		m.sidebarFocus = false
 		m.sidebarOpen = false
+		m.resetSidebarFilter()
 		m.resize()
 		return nil
 	}
@@ -1666,6 +1799,7 @@ func (m *Model) selectChannelCmd() tea.Cmd {
 	}
 	m.sidebarFocus = false
 	m.sidebarOpen = false
+	m.resetSidebarFilter()
 	m.resize()
 	return m.pollCmd()
 }
