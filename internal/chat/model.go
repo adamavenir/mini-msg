@@ -26,6 +26,7 @@ const pollInterval = time.Second
 const suggestionLimit = 8
 const inputMaxHeight = 8
 const inputPadding = 1
+const doubleClickInterval = 400 * time.Millisecond
 
 var (
 	agentPalette = []lipgloss.Color{
@@ -107,6 +108,8 @@ type Model struct {
 	sidebarFilterActive bool
 	helpMessageID       string
 	initialScroll       bool
+	lastClickID         string
+	lastClickAt         time.Time
 }
 
 type pollMsg struct {
@@ -306,6 +309,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 	case tea.MouseMsg:
+		if msg.Shift {
+			return m, nil
+		}
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			if handled, cmd := m.handleMouseClick(msg); handled {
+				return m, cmd
+			}
+		}
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
 		if msg.Button == tea.MouseButtonWheelUp && m.viewport.AtTop() {
@@ -573,6 +584,129 @@ func (m *Model) removeMessageByID(id string) bool {
 		return true
 	}
 	return false
+}
+
+func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
+	if m.sidebarOpen && msg.X < m.sidebarWidth() {
+		if msg.Y < lipgloss.Height(m.renderSidebar()) {
+			if index := m.sidebarIndexAtLine(msg.Y); index >= 0 {
+				m.channelIndex = index
+				return true, m.selectChannelCmd()
+			}
+			return true, nil
+		}
+	}
+
+	if msg.Y >= m.viewport.Height {
+		return false, nil
+	}
+
+	line := m.viewport.YOffset + msg.Y
+	message, ok := m.messageAtLine(line)
+	if !ok || message == nil {
+		return ok, nil
+	}
+
+	now := time.Now()
+	if m.lastClickID == message.ID && now.Sub(m.lastClickAt) <= doubleClickInterval {
+		m.lastClickID = ""
+		m.lastClickAt = time.Time{}
+		m.copyMessage(*message)
+		return true, nil
+	}
+
+	m.lastClickID = message.ID
+	m.lastClickAt = now
+	m.prefillReply(*message)
+	return true, nil
+}
+
+func (m *Model) sidebarIndexAtLine(line int) int {
+	if line <= 0 {
+		return -1
+	}
+	if len(m.channels) == 0 {
+		return -1
+	}
+	indices := m.sidebarMatches
+	if !m.sidebarFilterActive {
+		indices = make([]int, len(m.channels))
+		for i := range m.channels {
+			indices[i] = i
+		}
+	}
+	if len(indices) == 0 {
+		return -1
+	}
+	index := line - 1
+	if index < 0 || index >= len(indices) {
+		return -1
+	}
+	return indices[index]
+}
+
+func (m *Model) messageAtLine(line int) (*types.Message, bool) {
+	if line < 0 {
+		return nil, false
+	}
+	prefixLength := core.GetDisplayPrefixLength(m.messageCount)
+	cursor := 0
+	for i, msg := range m.messages {
+		formatted := m.formatMessage(msg, prefixLength)
+		lines := lipgloss.Height(formatted)
+		if line >= cursor && line < cursor+lines {
+			if msg.Type == types.MessageTypeEvent {
+				return nil, true
+			}
+			return &m.messages[i], true
+		}
+		cursor += lines
+		if i < len(m.messages)-1 {
+			if line == cursor {
+				return nil, true
+			}
+			cursor++
+		}
+	}
+	return nil, false
+}
+
+func (m *Model) prefillReply(msg types.Message) {
+	prefix := msg.ID
+	value := m.input.Value()
+	match := replyPrefixRe.FindStringSubmatchIndex(value)
+	if match != nil {
+		rest := strings.TrimLeft(value[match[1]:], " \t")
+		if rest == "" {
+			value = fmt.Sprintf("#%s ", prefix)
+		} else {
+			value = fmt.Sprintf("#%s %s", prefix, rest)
+		}
+	} else if strings.TrimSpace(value) == "" {
+		value = fmt.Sprintf("#%s ", prefix)
+	} else {
+		value = fmt.Sprintf("#%s %s", prefix, strings.TrimSpace(value))
+	}
+	m.input.SetValue(value)
+	m.input.CursorEnd()
+	m.clearSuggestions()
+	m.lastInputValue = m.input.Value()
+	m.lastInputPos = m.inputCursorPos()
+	m.dismissHelpOnInput(value)
+	m.updateInputStyle()
+	m.resize()
+}
+
+func (m *Model) copyMessage(msg types.Message) {
+	text := msg.Body
+	if msg.Type != types.MessageTypeEvent {
+		text = fmt.Sprintf("@%s: %s", msg.FromAgent, msg.Body)
+	}
+	if err := copyToClipboard(text); err != nil {
+		m.status = err.Error()
+		return
+	}
+	m.status = "Copied message to clipboard."
 }
 
 func (m *Model) clearSuggestions() {

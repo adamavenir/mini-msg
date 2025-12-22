@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const helpText = "Shortcuts: Ctrl-C (clear/exit), Ctrl-J (newline), Tab (channels), Space/# (filter channels), PgUp/PgDn/Home/End (scroll), Up (prefill edit), j/k or Up/Down (channel select), Esc (exit channel select), ? (help)\nCommands: /edit <id> <text> | /delete <id> | /rm <id> | /prune [--keep N] [--all] | /help | /quit"
+const helpText = "Shortcuts: Ctrl-C (clear/exit), Ctrl-J (newline), Tab (channels), Space/# (filter channels), PgUp/PgDn/Home/End (scroll), Up (prefill edit), j/k or Up/Down (channel select), Esc (exit channel select), ? (help)\nMouse: click message (reply), double-click (copy), click channel (switch)\nCommands: /edit <id> <text> | /delete <id> | /rm <id> | /prune [--keep N] [--all] | /help | /quit"
 
 func (m *Model) handleSlashCommand(input string) (bool, tea.Cmd) {
 	trimmed := strings.TrimSpace(input)
