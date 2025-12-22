@@ -24,7 +24,7 @@ import (
 
 const pollInterval = time.Second
 const suggestionLimit = 8
-const inputMaxHeight = 6
+const inputMaxHeight = 8
 const inputPadding = 1
 
 var (
