@@ -81,6 +81,42 @@ func IsAllMention(mention string) bool {
 	return mention == "all"
 }
 
+// ExpandAllMention replaces "all" in mentions with all agent bases.
+// This ensures @all messages appear in each agent's mention history.
+func ExpandAllMention(mentions []string, agentBases map[string]struct{}) []string {
+	hasAll := false
+	for _, m := range mentions {
+		if m == "all" {
+			hasAll = true
+			break
+		}
+	}
+	if !hasAll {
+		return mentions
+	}
+
+	seen := make(map[string]struct{})
+	result := make([]string, 0, len(mentions)+len(agentBases))
+
+	for _, m := range mentions {
+		if m == "all" {
+			for base := range agentBases {
+				if _, ok := seen[base]; !ok {
+					seen[base] = struct{}{}
+					result = append(result, base)
+				}
+			}
+		} else {
+			if _, ok := seen[m]; !ok {
+				seen[m] = struct{}{}
+				result = append(result, m)
+			}
+		}
+	}
+
+	return result
+}
+
 func isAlphaNum(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }

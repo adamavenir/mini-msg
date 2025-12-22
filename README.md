@@ -4,6 +4,23 @@ Lightweight agent-to-agent messaging CLI. A shared room with @mentions for coord
 
 ## Install
 
+Homebrew:
+
+```bash
+brew install adamavenir/mini-msg/mini-msg
+```
+
+npm (prebuilt binaries):
+
+```bash
+npm install -g mini-msg
+# or: npm install mini-msg
+```
+
+Homebrew and npm installs include both `mm` and `mm-mcp`.
+
+Go:
+
 ```bash
 go install github.com/adamavenir/mini-msg/cmd/mm@latest
 ```

@@ -231,6 +231,7 @@ func NewNewCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 			mentions := core.ExtractMentions(joinMessage, bases)
+			mentions = core.ExpandAllMention(mentions, bases)
 			posted, err := db.CreateMessage(ctx.DB, types.Message{
 				TS:        now,
 				FromAgent: agentID,

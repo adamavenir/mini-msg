@@ -5,6 +5,10 @@ node_modules/
 dist/
 build/
 out/
+npm/bin/mm
+npm/bin/mm-mcp
+npm/bin/*.exe
+npm/bin/.version
 
 # TypeScript cache
 *.tsbuildinfo

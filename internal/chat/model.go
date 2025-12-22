@@ -438,6 +438,7 @@ func (m *Model) handleSubmit(text string) tea.Cmd {
 		return nil
 	}
 	mentions := core.ExtractMentions(body, agentBases)
+	mentions = core.ExpandAllMention(mentions, agentBases)
 
 	created, err := db.CreateMessage(m.db, types.Message{
 		FromAgent: m.username,

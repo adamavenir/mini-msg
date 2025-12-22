@@ -118,6 +118,19 @@ When you post, any unread @mentions are shown automatically:
   >   [msg-b2c3d4e5] bob: @alice can you review?
 
 This keeps you informed without extra commands.
+
+COLLISION PREVENTION
+--------------------
+Claim files to prevent other agents from accidentally working on the same code:
+  mm claim @agent --file src/auth.ts      Claim a file
+  mm claim @agent --files "*.ts,*.go"     Claim multiple patterns
+  mm claim @agent --file x --ttl 2h       Claim with expiration
+  mm claims                               List all active claims
+  mm claims @agent                        List agent's claims
+  mm clear @agent                         Clear all your claims
+  mm clear @agent --file src/auth.ts      Clear specific claim
+
+Claims auto-clear when you sign off with mm bye.
 `)
 }
 
@@ -188,6 +201,19 @@ func printQuickstartGuide(outWriter io.Writer, allAgents []types.Agent, register
 	fmt.Fprintln(outWriter, "  > 2 unread @alice:")
 	fmt.Fprintln(outWriter, "  >   [msg-b2c3d4e5] bob: @alice can you review?")
 	fmt.Fprintln(outWriter, "\nThis keeps you informed without extra commands.")
+
+	fmt.Fprintln(outWriter, "\nCOLLISION PREVENTION")
+	fmt.Fprintln(outWriter, "--------------------")
+	fmt.Fprintln(outWriter, "Claim files to prevent other agents from accidentally working on the same code:")
+	fmt.Fprintln(outWriter, "  mm claim @agent --file src/auth.ts      Claim a file")
+	fmt.Fprintln(outWriter, "  mm claim @agent --files \"*.ts,*.go\"     Claim multiple patterns")
+	fmt.Fprintln(outWriter, "  mm claim @agent --file x --ttl 2h       Claim with expiration")
+	fmt.Fprintln(outWriter, "  mm claims                               List all active claims")
+	fmt.Fprintln(outWriter, "  mm claims @agent                        List agent's claims")
+	fmt.Fprintln(outWriter, "  mm clear @agent                         Clear all your claims")
+	fmt.Fprintln(outWriter, "  mm clear @agent --file src/auth.ts      Clear specific claim")
+	fmt.Fprintln(outWriter, "")
+	fmt.Fprintln(outWriter, "Claims auto-clear when you sign off with mm bye.")
 }
 
 func formatAgentList(allAgents []types.Agent) string {

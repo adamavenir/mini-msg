@@ -148,6 +148,7 @@ func handlePost(ctx ToolContext, body string) *mcp.CallToolResult {
 		return toolError(err.Error())
 	}
 	mentions := core.ExtractMentions(body, bases)
+	mentions = core.ExpandAllMention(mentions, bases)
 
 	now := time.Now().Unix()
 	created, err := db.CreateMessage(ctx.DB, types.Message{

@@ -114,6 +114,7 @@ func NewPostCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 			mentions := core.ExtractMentions(args[0], bases)
+			mentions = core.ExpandAllMention(mentions, bases)
 
 			now := time.Now().Unix()
 			created, err := db.CreateMessage(ctx.DB, types.Message{

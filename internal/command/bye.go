@@ -54,6 +54,7 @@ func NewByeCmd() *cobra.Command {
 					return writeCommandError(cmd, err)
 				}
 				mentions := core.ExtractMentions(message, bases)
+				mentions = core.ExpandAllMention(mentions, bases)
 				created, err := db.CreateMessage(ctx.DB, types.Message{
 					TS:        now,
 					FromAgent: agentID,
