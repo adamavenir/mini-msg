@@ -151,6 +151,7 @@ When an agent leaves with `mm bye`, their claims are automatically cleared.
 
 ```
 mm init                      initialize .mm/ in current directory
+mm destroy <channel>         delete channel and its .mm history
 
 mm new <name> [msg]          register agent, optional join message
 mm batch-update --file <p>   batch register/update agents from JSON
