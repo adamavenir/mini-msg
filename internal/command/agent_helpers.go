@@ -1,14 +1,33 @@
 package command
 
 import (
+	"database/sql"
 	"fmt"
+	"sort"
+	"strings"
 
+	"github.com/adamavenir/mini-msg/internal/core"
 	"github.com/adamavenir/mini-msg/internal/db"
 	"github.com/adamavenir/mini-msg/internal/types"
 )
 
-func resolveAgentByRef(ctx *CommandContext, ref string) (*types.Agent, error) {
+func resolveAgentRef(ctx *CommandContext, ref string) (string, error) {
 	resolved := ResolveAgentRef(ref, ctx.ProjectConfig)
+	suggestion, err := suggestAgentDelimiter(ctx.DB, resolved)
+	if err != nil {
+		return "", err
+	}
+	if suggestion != "" && !ctx.Force {
+		return "", fmt.Errorf("did you mean @%s? Re-run with --force to use @%s", suggestion, resolved)
+	}
+	return resolved, nil
+}
+
+func resolveAgentByRef(ctx *CommandContext, ref string) (*types.Agent, error) {
+	resolved, err := resolveAgentRef(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
 
 	agent, err := db.GetAgent(ctx.DB, resolved)
 	if err != nil {
@@ -33,6 +52,56 @@ func resolveAgentByRef(ctx *CommandContext, ref string) (*types.Agent, error) {
 		return nil, fmt.Errorf("ambiguous prefix '%s' matches: %s", ref, joinList(ids))
 	}
 	return &matches[0], nil
+}
+
+func suggestAgentDelimiter(dbConn *sql.DB, agentRef string) (string, error) {
+	base := baseFromAgentRef(agentRef)
+	if base == "" {
+		return "", nil
+	}
+	bases, err := db.GetAgentBases(dbConn)
+	if err != nil {
+		return "", err
+	}
+	if _, ok := bases[base]; ok {
+		return "", nil
+	}
+
+	key := delimiterKey(base)
+	if key == "" {
+		return "", nil
+	}
+	candidates := make([]string, 0)
+	for candidate := range bases {
+		if candidate == base {
+			continue
+		}
+		if delimiterKey(candidate) == key {
+			candidates = append(candidates, candidate)
+		}
+	}
+	if len(candidates) == 0 {
+		return "", nil
+	}
+	sort.Strings(candidates)
+	return candidates[0], nil
+}
+
+func baseFromAgentRef(ref string) string {
+	normalized := core.NormalizeAgentRef(strings.TrimSpace(ref))
+	if core.IsLegacyAgentID(normalized) {
+		lastDot := strings.LastIndex(normalized, ".")
+		if lastDot > 0 {
+			return normalized[:lastDot]
+		}
+	}
+	return normalized
+}
+
+func delimiterKey(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	replacer := strings.NewReplacer("-", "", ".", "")
+	return replacer.Replace(value)
 }
 
 func joinList(values []string) string {

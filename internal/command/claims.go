@@ -31,7 +31,10 @@ func NewClaimsCmd() *cobra.Command {
 
 			var claims []types.Claim
 			if len(args) > 0 {
-				agentID := ResolveAgentRef(args[0], ctx.ProjectConfig)
+				agentID, err := resolveAgentRef(ctx, args[0])
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
 				claims, err = db.GetClaimsByAgent(ctx.DB, agentID)
 			} else {
 				claims, err = db.GetAllClaims(ctx.DB)
@@ -57,7 +60,10 @@ func NewClaimsCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			if len(claims) == 0 {
 				if len(args) > 0 {
-					agentID := ResolveAgentRef(args[0], ctx.ProjectConfig)
+					agentID, err := resolveAgentRef(ctx, args[0])
+					if err != nil {
+						return writeCommandError(cmd, err)
+					}
 					fmt.Fprintf(out, "No claims for @%s\n", agentID)
 				} else {
 					fmt.Fprintln(out, "No active claims")

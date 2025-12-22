@@ -26,7 +26,10 @@ func NewEditCmd() *cobra.Command {
 			if agentRef == "" {
 				return writeCommandError(cmd, fmt.Errorf("--as is required"))
 			}
-			agentID := ResolveAgentRef(agentRef, ctx.ProjectConfig)
+			agentID, err := resolveAgentRef(ctx, agentRef)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 
 			msgID := strings.TrimPrefix(strings.TrimSpace(args[0]), "#")
 			newBody := strings.Join(args[1:], " ")

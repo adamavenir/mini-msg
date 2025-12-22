@@ -20,6 +20,7 @@ type CommandContext struct {
 	ChannelID     string
 	ChannelName   string
 	ProjectConfig *db.ProjectConfig
+	Force         bool
 }
 
 // GetContext resolves database and channel context for a command.
@@ -27,6 +28,7 @@ func GetContext(cmd *cobra.Command) (*CommandContext, error) {
 	projectAlias, _ := cmd.Flags().GetString("project")
 	jsonMode, _ := cmd.Flags().GetBool("json")
 	channelRef, _ := cmd.Flags().GetString("in")
+	force, _ := cmd.Flags().GetBool("force")
 
 	if projectAlias != "" {
 		mainProject, err := core.DiscoverProject("")
@@ -78,6 +80,7 @@ func GetContext(cmd *cobra.Command) (*CommandContext, error) {
 			Project:       project,
 			JSONMode:      jsonMode,
 			ProjectConfig: config,
+			Force:         force,
 		}, nil
 	}
 
@@ -101,6 +104,7 @@ func GetContext(cmd *cobra.Command) (*CommandContext, error) {
 		ChannelID:     ctx.ChannelID,
 		ChannelName:   ctx.ChannelName,
 		ProjectConfig: ctx.ProjectConfig,
+		Force:         force,
 	}, nil
 }
 

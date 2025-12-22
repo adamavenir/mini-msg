@@ -87,7 +87,6 @@ func NewDestroyCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Bool("force", false, "skip confirmation prompt")
 	return cmd
 }
 

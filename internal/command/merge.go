@@ -22,8 +22,14 @@ func NewMergeCmd() *cobra.Command {
 			}
 			defer ctx.DB.Close()
 
-			fromID := ResolveAgentRef(args[0], ctx.ProjectConfig)
-			toID := ResolveAgentRef(args[1], ctx.ProjectConfig)
+			fromID, err := resolveAgentRef(ctx, args[0])
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+			toID, err := resolveAgentRef(ctx, args[1])
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 			if fromID == toID {
 				return writeCommandError(cmd, fmt.Errorf("cannot merge @%s into itself", fromID))
 			}

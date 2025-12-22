@@ -78,6 +78,13 @@ func NewNewCmd() *cobra.Command {
 				if !core.IsValidAgentID(agentID) {
 					return writeCommandError(cmd, fmt.Errorf("invalid agent name: %s\nNames must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.\nExamples: alice, pm, eager-beaver, frontend-dev", agentID))
 				}
+				suggestion, err := suggestAgentDelimiter(ctx.DB, agentID)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if suggestion != "" && !ctx.Force {
+					return writeCommandError(cmd, fmt.Errorf("did you mean @%s? Re-run with --force to use @%s", suggestion, agentID))
+				}
 			}
 
 			existing, err := db.GetAgent(ctx.DB, agentID)

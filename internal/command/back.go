@@ -27,7 +27,10 @@ func NewBackCmd() *cobra.Command {
 
 			jsonMode, _ := cmd.Flags().GetBool("json")
 
-			agentID := ResolveAgentRef(args[0], ctx.ProjectConfig)
+			agentID, err := resolveAgentRef(ctx, args[0])
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 
 			agent, err := db.GetAgent(ctx.DB, agentID)
 			if err != nil {

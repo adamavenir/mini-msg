@@ -32,7 +32,10 @@ func NewPostCmd() *cobra.Command {
 			if agentRef == "" {
 				return writeCommandError(cmd, fmt.Errorf("--as is required"))
 			}
-			agentID := ResolveAgentRef(agentRef, ctx.ProjectConfig)
+			agentID, err := resolveAgentRef(ctx, agentRef)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 
 			agent, err := db.GetAgent(ctx.DB, agentID)
 			if err != nil {

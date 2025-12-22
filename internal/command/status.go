@@ -24,7 +24,10 @@ func NewStatusCmd() *cobra.Command {
 			}
 			defer ctx.DB.Close()
 
-			agentID := ResolveAgentRef(args[0], ctx.ProjectConfig)
+			agentID, err := resolveAgentRef(ctx, args[0])
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 			message := ""
 			if len(args) > 1 {
 				message = args[1]

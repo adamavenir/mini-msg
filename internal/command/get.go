@@ -48,7 +48,10 @@ func NewGetCmd() *cobra.Command {
 			}
 			var resolvedAgentID string
 			if len(args) > 0 {
-				resolvedAgentID = ResolveAgentRef(args[0], ctx.ProjectConfig)
+				resolvedAgentID, err = resolveAgentRef(ctx, args[0])
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
 			}
 
 			var filter *types.Filter

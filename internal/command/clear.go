@@ -23,7 +23,10 @@ func NewClearCmd() *cobra.Command {
 			}
 			defer ctx.DB.Close()
 
-			agentID := ResolveAgentRef(args[0], ctx.ProjectConfig)
+			agentID, err := resolveAgentRef(ctx, args[0])
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 			agent, err := db.GetAgent(ctx.DB, agentID)
 			if err != nil {
 				return writeCommandError(cmd, err)

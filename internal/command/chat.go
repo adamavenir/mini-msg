@@ -26,6 +26,7 @@ func NewChatCmd() *cobra.Command {
 			last, _ := cmd.Flags().GetInt("last")
 			showUpdates, _ := cmd.Flags().GetBool("show-updates")
 			archived, _ := cmd.Flags().GetBool("archived")
+			force, _ := cmd.Flags().GetBool("force")
 			enableMouse, _ := cmd.Flags().GetBool("mouse")
 
 			var ctx *CommandContext
@@ -54,6 +55,7 @@ func NewChatCmd() *cobra.Command {
 					ChannelID:     resolved.ChannelID,
 					ChannelName:   resolved.ChannelName,
 					ProjectConfig: resolved.ProjectConfig,
+					Force:         force,
 				}
 			} else {
 				ctx, err = GetContext(cmd)

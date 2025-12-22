@@ -167,7 +167,6 @@ func NewInitCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Bool("force", false, "reinitialize even if already exists")
 	cmd.Flags().Bool("defaults", false, "use default values without prompting (idempotent)")
 
 	return cmd

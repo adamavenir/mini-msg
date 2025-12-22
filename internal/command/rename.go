@@ -24,7 +24,10 @@ func NewRenameCmd() *cobra.Command {
 			}
 			defer ctx.DB.Close()
 
-			oldID := ResolveAgentRef(args[0], ctx.ProjectConfig)
+			oldID, err := resolveAgentRef(ctx, args[0])
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 			newID := core.NormalizeAgentRef(args[1])
 
 			if !core.IsValidAgentID(newID) {

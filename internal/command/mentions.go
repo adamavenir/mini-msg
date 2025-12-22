@@ -28,7 +28,10 @@ func NewMentionsCmd() *cobra.Command {
 			showAll, _ := cmd.Flags().GetBool("all")
 			includeArchived, _ := cmd.Flags().GetBool("archived")
 
-			prefix := ResolveAgentRef(args[0], ctx.ProjectConfig)
+			prefix, err := resolveAgentRef(ctx, args[0])
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 			options := &types.MessageQueryOptions{IncludeArchived: includeArchived, AgentPrefix: prefix}
 
 			unreadOnly := true
