@@ -115,6 +115,48 @@ func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, er
 		kept = messages[len(messages)-keep:]
 	}
 
+	if keep > 0 && len(kept) > 0 && len(kept) < len(messages) {
+		keepIDs := make(map[string]struct{}, len(kept))
+		byID := make(map[string]db.MessageJSONLRecord, len(messages))
+		for _, msg := range messages {
+			byID[msg.ID] = msg
+		}
+		for _, msg := range kept {
+			keepIDs[msg.ID] = struct{}{}
+		}
+
+		for _, msg := range kept {
+			parentID := msg.ReplyTo
+			for parentID != nil && *parentID != "" {
+				id := *parentID
+				if _, ok := keepIDs[id]; ok {
+					parent, ok := byID[id]
+					if !ok {
+						break
+					}
+					parentID = parent.ReplyTo
+					continue
+				}
+				keepIDs[id] = struct{}{}
+				parent, ok := byID[id]
+				if !ok {
+					break
+				}
+				parentID = parent.ReplyTo
+			}
+		}
+
+		if len(keepIDs) != len(kept) {
+			filtered := make([]db.MessageJSONLRecord, 0, len(keepIDs))
+			for _, msg := range messages {
+				if _, ok := keepIDs[msg.ID]; ok {
+					filtered = append(filtered, msg)
+				}
+			}
+			kept = filtered
+		}
+	}
+
 	if err := writeMessages(messagesPath, kept); err != nil {
 		return pruneResult{}, err
 	}
