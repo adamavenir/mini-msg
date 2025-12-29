@@ -2,8 +2,14 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Release even if tag already exists"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -14,22 +20,75 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          version=$(grep -m1 -E '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | cut -d'[' -f2 | cut -d']' -f1)
+          if [ -z "$version" ]; then
+            echo "No version found in CHANGELOG.md"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Verify package.json version
+        run: |
+          pkg_version=$(grep -m1 '"version"' package.json | cut -d'"' -f4)
+          if [ "$pkg_version" != "${{ steps.version.outputs.version }}" ]; then
+            echo "package.json version ($pkg_version) does not match CHANGELOG.md (${{ steps.version.outputs.version }})"
+            exit 1
+          fi
+
+      - name: Check tag
+        id: tag
+        run: |
+          git fetch --tags --force
+          if git tag -l "v${{ steps.version.outputs.version }}" | grep -q .; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decide release
+        id: release
+        run: |
+          if [ "${{ steps.tag.outputs.exists }}" = "false" ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "release=false" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag
+        if: steps.release.outputs.release == 'true' && steps.tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Checkout tag
+        if: steps.release.outputs.release == 'true'
+        run: git checkout "v${{ steps.version.outputs.version }}"
 
       - uses: actions/setup-go@v5
+        if: steps.release.outputs.release == 'true'
         with:
           go-version-file: go.mod
 
       - uses: actions/setup-node@v4
+        if: steps.release.outputs.release == 'true'
         with:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
 
-      - name: Set npm version
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          npm version --no-git-tag-version "$version"
-
       - name: Run GoReleaser
+        if: steps.release.outputs.release == 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
@@ -39,4 +98,5 @@ jobs:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Publish npm package
+        if: steps.release.outputs.release == 'true'
         run: npm publish --access public --provenance
