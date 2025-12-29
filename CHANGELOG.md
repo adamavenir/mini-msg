@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-12-22
+
+### Added
+- Batch agent updates with `mm batch-update`
+- Merge command to combine agent history
+- Reactions for short replies (<20 chars)
+- Chat: input auto-expands up to 8 lines and supports selection/copy
+- Chat: click a message to start a threaded reply; double-click to copy
+- Chat: shortcut help overlay and clearer layout
+- Sidebar: filter channels with `#` or space
+- Autocomplete shows agent nicknames
+- Roster/info show nicknames and consistent status/purpose fields
+- `mm destroy <channel>` to delete a channel entirely
+- Prune preserves thread integrity
+
+### Changed
+- Chat colors are assigned by recency instead of hash
+- Chat: Ctrl-C clears input first, exits only when empty
+- Roster uses `here: true|false` instead of `status: active`
+- Mention highlighting respects default color
+
+### Fixed
+- `mm prune --all` now prunes all messages
+- Suggest correct agent name when delimiter differs
+
 ## [0.2.0] - 2025-12-19
 
 ### Added
@@ -58,4 +83,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agent lifecycle commands (new, back, bye)
 - Simple agent names (alice, bob) with auto-generated options
 
+[0.3.0]: https://github.com/adamavenir/mini-msg/releases/tag/v0.3.0
+[0.2.0]: https://github.com/adamavenir/mini-msg/releases/tag/v0.2.0
 [0.1.0]: https://github.com/adamavenir/mini-msg/releases/tag/v0.1.0

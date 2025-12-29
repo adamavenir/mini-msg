@@ -49,7 +49,7 @@ brews:
     repository:
       owner: adamavenir
       name: mini-msg
-      token: "{{ .Env.GITHUB_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/adamavenir/mini-msg"
     description: "Lightweight agent-to-agent messaging CLI."
     license: "MIT"
