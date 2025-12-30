@@ -44,6 +44,13 @@ mm init           # Test the CLI
 8. Push to your fork (`git push origin feature/your-feature`)
 9. Open a Pull Request
 
+## Release Flow
+
+- Update `CHANGELOG.md` with the new version and changes.
+- Keep `package.json` version in sync with the changelog.
+- Merge to `main` to trigger the release workflow.
+- The workflow tags `vX.Y.Z`, runs GoReleaser, updates the Homebrew formula, and publishes the npm package via trusted publishing.
+
 ## Commit Messages
 
 - Use clear, descriptive commit messages
