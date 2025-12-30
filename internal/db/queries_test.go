@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func TestCreateAndGetMessage(t *testing.T) {

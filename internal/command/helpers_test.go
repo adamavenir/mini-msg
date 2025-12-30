@@ -43,7 +43,7 @@ func TestSplitCommaList(t *testing.T) {
 }
 
 func TestRewriteMentionArgs(t *testing.T) {
-	args := []string{"mm", "--project", "foo", "@alice", "--last", "5"}
+	args := []string{"fray", "--project", "foo", "@alice", "--last", "5"}
 	updated := rewriteMentionArgs(args)
 	if len(updated) != len(args)+1 {
 		t.Fatalf("expected mention insert, got %v", updated)
@@ -52,7 +52,7 @@ func TestRewriteMentionArgs(t *testing.T) {
 		t.Fatalf("expected mentions inserted, got %v", updated)
 	}
 
-	args = []string{"mm", "get", "--last", "5"}
+	args = []string{"fray", "get", "--last", "5"}
 	updated = rewriteMentionArgs(args)
 	if len(updated) != len(args) {
 		t.Fatalf("unexpected rewrite: %v", updated)

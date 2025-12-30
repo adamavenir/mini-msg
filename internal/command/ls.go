@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/adamavenir/mini-msg/internal/core"
+	"github.com/adamavenir/fray/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -39,8 +39,8 @@ func NewLsCmd() *cobra.Command {
 
 			channels := make([]channelSummary, 0, len(config.Channels))
 			for id, channel := range config.Channels {
-				mmDir := filepath.Join(channel.Path, ".mm")
-				_, err := os.Stat(mmDir)
+				frayDir := filepath.Join(channel.Path, ".fray")
+				_, err := os.Stat(frayDir)
 				channels = append(channels, channelSummary{
 					ID:       id,
 					Name:     channel.Name,

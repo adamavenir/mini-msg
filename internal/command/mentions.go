@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -135,7 +135,7 @@ func printActivitySummary(out interface{ Write([]byte) (int, error) }, database 
 
 	if lastPostTS != nil {
 		rows, err := database.Query(`
-			SELECT from_agent FROM mm_messages
+			SELECT from_agent FROM fray_messages
 			WHERE ts > ? AND archived_at IS NULL AND from_agent != ?
 		`, *lastPostTS, agentPrefix)
 		if err != nil {
@@ -197,14 +197,14 @@ func printActivitySummary(out interface{ Write([]byte) (int, error) }, database 
 		fmt.Fprintf(out, "Active claims: %s\n", strings.Join(claimParts, ", "))
 	}
 
-	fmt.Fprintf(out, "Run 'mm get %s' to catch up\n", agentPrefix)
+	fmt.Fprintf(out, "Run 'fray get %s' to catch up\n", agentPrefix)
 
 	return nil
 }
 
 func getLastPostTimestamp(database *sql.DB, agentPrefix string) (*int64, error) {
 	row := database.QueryRow(`
-		SELECT MAX(ts) FROM mm_messages
+		SELECT MAX(ts) FROM fray_messages
 		WHERE from_agent = ? AND archived_at IS NULL
 	`, agentPrefix)
 

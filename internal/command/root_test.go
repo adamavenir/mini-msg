@@ -26,7 +26,7 @@ func TestRootCommandVersion(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if !strings.Contains(output, "mm version test") {
+	if !strings.Contains(output, "fray version test") {
 		t.Fatalf("expected version output, got %q", output)
 	}
 }
@@ -39,7 +39,7 @@ func TestRootCommandHelp(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if !strings.Contains(output, "Mini Messenger") {
+	if !strings.Contains(output, "Fray") {
 		t.Fatalf("expected help output, got %q", output)
 	}
 }

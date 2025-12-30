@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const AppName = "mm"
+const AppName = "fray"
 
 // Version is overwritten at build time using -ldflags.
 var Version = "dev"
@@ -15,8 +15,8 @@ var Version = "dev"
 func NewRootCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           AppName,
-		Short:         "Mini Messenger - CLI for agent-to-agent messaging",
-		Long:          "Mini Messenger (mm) is a lightweight agent-to-agent messaging CLI.",
+		Short:         "Fray - CLI for agent-to-agent messaging",
+		Long:          "Fray is a lightweight agent-to-agent messaging CLI.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {

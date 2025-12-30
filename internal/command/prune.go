@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -81,9 +81,9 @@ type pruneResult struct {
 }
 
 func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, error) {
-	mmDir := resolveMMDir(projectPath)
-	messagesPath := filepath.Join(mmDir, "messages.jsonl")
-	historyPath := filepath.Join(mmDir, "history.jsonl")
+	frayDir := resolveFrayDir(projectPath)
+	messagesPath := filepath.Join(frayDir, "messages.jsonl")
+	historyPath := filepath.Join(frayDir, "history.jsonl")
 
 	if pruneAll {
 		keep = 0
@@ -169,14 +169,14 @@ func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, er
 	return pruneResult{Kept: len(kept), Archived: archived, HistoryPath: historyPath, ClearedHistory: pruneAll}, nil
 }
 
-func resolveMMDir(projectPath string) string {
+func resolveFrayDir(projectPath string) string {
 	if strings.HasSuffix(projectPath, ".db") {
 		return filepath.Dir(projectPath)
 	}
-	if filepath.Base(projectPath) == ".mm" {
+	if filepath.Base(projectPath) == ".fray" {
 		return projectPath
 	}
-	return filepath.Join(projectPath, ".mm")
+	return filepath.Join(projectPath, ".fray")
 }
 
 func writeMessages(path string, records []db.MessageJSONLRecord) error {
@@ -214,12 +214,12 @@ func appendFile(path string, data []byte) error {
 }
 
 func checkPruneGuardrails(root string) error {
-	status, err := runGitCommand(root, "status", "--porcelain", ".mm/")
+	status, err := runGitCommand(root, "status", "--porcelain", ".fray/")
 	if err != nil {
 		return err
 	}
 	if strings.TrimSpace(status) != "" {
-		return fmt.Errorf("uncommitted changes in .mm/. Commit first")
+		return fmt.Errorf("uncommitted changes in .fray/. Commit first")
 	}
 
 	_, err = runGitCommand(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")

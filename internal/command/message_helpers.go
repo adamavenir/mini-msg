@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func resolveMessageRef(dbConn *sql.DB, ref string) (*types.Message, error) {

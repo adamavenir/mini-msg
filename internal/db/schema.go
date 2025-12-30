@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/adamavenir/mini-msg/internal/core"
+	"github.com/adamavenir/fray/internal/core"
 )
 
 const schemaSQL = `
 -- Agent presence and identity
-CREATE TABLE IF NOT EXISTS mm_agents (
+CREATE TABLE IF NOT EXISTS fray_agents (
   guid TEXT PRIMARY KEY,               -- e.g., "usr-x9y8z7w6"
   agent_id TEXT NOT NULL UNIQUE,       -- e.g., "alice.419", "pm.3.sub.1"
   status TEXT,                         -- current task/focus (mutable)
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS mm_agents (
 );
 
 -- Room messages
-CREATE TABLE IF NOT EXISTS mm_messages (
+CREATE TABLE IF NOT EXISTS fray_messages (
   guid TEXT PRIMARY KEY,               -- e.g., "msg-a1b2c3d4"
   ts INTEGER NOT NULL,                 -- unix timestamp
   channel_id TEXT,                     -- channel GUID for multi-channel support
@@ -37,13 +37,13 @@ CREATE TABLE IF NOT EXISTS mm_messages (
   reactions TEXT NOT NULL DEFAULT '{}' -- JSON object of reactions
 );
 
-CREATE INDEX IF NOT EXISTS idx_mm_messages_ts ON mm_messages(ts);
-CREATE INDEX IF NOT EXISTS idx_mm_messages_from ON mm_messages(from_agent);
-CREATE INDEX IF NOT EXISTS idx_mm_messages_archived ON mm_messages(archived_at);
-CREATE INDEX IF NOT EXISTS idx_mm_messages_reply_to ON mm_messages(reply_to);
+CREATE INDEX IF NOT EXISTS idx_fray_messages_ts ON fray_messages(ts);
+CREATE INDEX IF NOT EXISTS idx_fray_messages_from ON fray_messages(from_agent);
+CREATE INDEX IF NOT EXISTS idx_fray_messages_archived ON fray_messages(archived_at);
+CREATE INDEX IF NOT EXISTS idx_fray_messages_reply_to ON fray_messages(reply_to);
 
 -- Questions
-CREATE TABLE IF NOT EXISTS mm_questions (
+CREATE TABLE IF NOT EXISTS fray_questions (
   guid TEXT PRIMARY KEY,
   re TEXT NOT NULL,
   from_agent TEXT NOT NULL,
@@ -55,74 +55,74 @@ CREATE TABLE IF NOT EXISTS mm_questions (
   created_at INTEGER NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_mm_questions_status ON mm_questions(status);
-CREATE INDEX IF NOT EXISTS idx_mm_questions_thread ON mm_questions(thread_guid);
+CREATE INDEX IF NOT EXISTS idx_fray_questions_status ON fray_questions(status);
+CREATE INDEX IF NOT EXISTS idx_fray_questions_thread ON fray_questions(thread_guid);
 
 -- Threads
-CREATE TABLE IF NOT EXISTS mm_threads (
+CREATE TABLE IF NOT EXISTS fray_threads (
   guid TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   parent_thread TEXT,
   status TEXT DEFAULT 'open',
   created_at INTEGER NOT NULL,
-  FOREIGN KEY (parent_thread) REFERENCES mm_threads(guid)
+  FOREIGN KEY (parent_thread) REFERENCES fray_threads(guid)
 );
 
-CREATE INDEX IF NOT EXISTS idx_mm_threads_parent ON mm_threads(parent_thread);
-CREATE INDEX IF NOT EXISTS idx_mm_threads_status ON mm_threads(status);
+CREATE INDEX IF NOT EXISTS idx_fray_threads_parent ON fray_threads(parent_thread);
+CREATE INDEX IF NOT EXISTS idx_fray_threads_status ON fray_threads(status);
 
 -- Thread subscriptions
-CREATE TABLE IF NOT EXISTS mm_thread_subscriptions (
+CREATE TABLE IF NOT EXISTS fray_thread_subscriptions (
   thread_guid TEXT NOT NULL,
   agent_id TEXT NOT NULL,
   subscribed_at INTEGER NOT NULL,
   PRIMARY KEY (thread_guid, agent_id),
-  FOREIGN KEY (thread_guid) REFERENCES mm_threads(guid)
+  FOREIGN KEY (thread_guid) REFERENCES fray_threads(guid)
 );
 
 -- Thread message membership (playlist)
-CREATE TABLE IF NOT EXISTS mm_thread_messages (
+CREATE TABLE IF NOT EXISTS fray_thread_messages (
   thread_guid TEXT NOT NULL,
   message_guid TEXT NOT NULL,
   added_by TEXT NOT NULL,
   added_at INTEGER NOT NULL,
   PRIMARY KEY (thread_guid, message_guid),
-  FOREIGN KEY (thread_guid) REFERENCES mm_threads(guid)
+  FOREIGN KEY (thread_guid) REFERENCES fray_threads(guid)
 );
 
-CREATE INDEX IF NOT EXISTS idx_thread_messages_message ON mm_thread_messages(message_guid);
+CREATE INDEX IF NOT EXISTS idx_fray_thread_messages_message ON fray_thread_messages(message_guid);
 
 -- Linked projects for cross-project messaging
-CREATE TABLE IF NOT EXISTS mm_linked_projects (
+CREATE TABLE IF NOT EXISTS fray_linked_projects (
   alias TEXT PRIMARY KEY,
-  path TEXT NOT NULL                     -- absolute path to .mm directory
+  path TEXT NOT NULL                     -- absolute path to .fray directory
 );
 
 -- Configuration
-CREATE TABLE IF NOT EXISTS mm_config (
+CREATE TABLE IF NOT EXISTS fray_config (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
 
 -- Agent filter preferences
-CREATE TABLE IF NOT EXISTS mm_filters (
+CREATE TABLE IF NOT EXISTS fray_filters (
   agent_id TEXT PRIMARY KEY,
   mentions_pattern TEXT       -- comma-separated: "claude" or "claude,pm"
 );
 
 -- Read receipts for message tracking
-CREATE TABLE IF NOT EXISTS mm_read_receipts (
+CREATE TABLE IF NOT EXISTS fray_read_receipts (
   message_guid TEXT NOT NULL,
   agent_prefix TEXT NOT NULL,  -- base name without version (e.g., "alice" not "alice.1")
   read_at INTEGER NOT NULL,    -- unix timestamp
   PRIMARY KEY (message_guid, agent_prefix)
 );
 
-CREATE INDEX IF NOT EXISTS idx_mm_read_receipts_msg ON mm_read_receipts(message_guid);
-CREATE INDEX IF NOT EXISTS idx_mm_read_receipts_agent ON mm_read_receipts(agent_prefix);
+CREATE INDEX IF NOT EXISTS idx_fray_read_receipts_msg ON fray_read_receipts(message_guid);
+CREATE INDEX IF NOT EXISTS idx_fray_read_receipts_agent ON fray_read_receipts(agent_prefix);
 
 -- Resource claims for collision prevention
-CREATE TABLE IF NOT EXISTS mm_claims (
+CREATE TABLE IF NOT EXISTS fray_claims (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   agent_id TEXT NOT NULL,
   claim_type TEXT NOT NULL,        -- 'file', 'bd', 'issue'
@@ -133,13 +133,13 @@ CREATE TABLE IF NOT EXISTS mm_claims (
   UNIQUE(claim_type, pattern)
 );
 
-CREATE INDEX IF NOT EXISTS idx_mm_claims_agent ON mm_claims(agent_id);
-CREATE INDEX IF NOT EXISTS idx_mm_claims_type ON mm_claims(claim_type);
-CREATE INDEX IF NOT EXISTS idx_mm_claims_expires ON mm_claims(expires_at);
+CREATE INDEX IF NOT EXISTS idx_fray_claims_agent ON fray_claims(agent_id);
+CREATE INDEX IF NOT EXISTS idx_fray_claims_type ON fray_claims(claim_type);
+CREATE INDEX IF NOT EXISTS idx_fray_claims_expires ON fray_claims(expires_at);
 `
 
 const defaultConfigSQL = `
-INSERT OR IGNORE INTO mm_config (key, value) VALUES ('stale_hours', '4');
+INSERT OR IGNORE INTO fray_config (key, value) VALUES ('stale_hours', '4');
 `
 
 // DBTX represents shared methods across sql.DB and sql.Tx.
@@ -149,7 +149,7 @@ type DBTX interface {
 	QueryRow(query string, args ...any) *sql.Row
 }
 
-// InitSchema initializes the mm schema.
+// InitSchema initializes the fray schema.
 func InitSchema(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -178,11 +178,11 @@ func initSchemaWith(db DBTX) error {
 	return nil
 }
 
-// SchemaExists reports whether mm schema is present.
+// SchemaExists reports whether fray schema is present.
 func SchemaExists(db *sql.DB) (bool, error) {
 	row := db.QueryRow(`
 		SELECT name FROM sqlite_master
-		WHERE type='table' AND name='mm_agents'
+		WHERE type='table' AND name='fray_agents'
 	`)
 	var name string
 	err := row.Scan(&name)
@@ -257,16 +257,16 @@ func generateUniqueGUID(prefix string, used map[string]struct{}) (string, error)
 }
 
 func migrateSchema(db DBTX) error {
-	agentColumns, err := getTableInfo(db, "mm_agents")
+	agentColumns, err := getTableInfo(db, "fray_agents")
 	if err != nil {
 		return err
 	}
 
 	if len(agentColumns) > 0 && hasColumn(agentColumns, "goal") && !hasColumn(agentColumns, "status") {
-		if _, err := db.Exec("ALTER TABLE mm_agents RENAME COLUMN goal TO status"); err != nil {
+		if _, err := db.Exec("ALTER TABLE fray_agents RENAME COLUMN goal TO status"); err != nil {
 			return err
 		}
-		if _, err := db.Exec("ALTER TABLE mm_agents RENAME COLUMN bio TO purpose"); err != nil {
+		if _, err := db.Exec("ALTER TABLE fray_agents RENAME COLUMN bio TO purpose"); err != nil {
 			return err
 		}
 	}
@@ -282,7 +282,7 @@ func migrateSchema(db DBTX) error {
 
 		rows, err := db.Query(fmt.Sprintf(`
 			SELECT agent_id, %s as status, %s as purpose, registered_at, last_seen, left_at
-			FROM mm_agents
+			FROM fray_agents
 		`, statusCol, purposeCol))
 		if err != nil {
 			return err
@@ -310,7 +310,7 @@ func migrateSchema(db DBTX) error {
 		}
 
 		if _, err := db.Exec(`
-			CREATE TABLE mm_agents_new (
+			CREATE TABLE fray_agents_new (
 				guid TEXT PRIMARY KEY,
 				agent_id TEXT NOT NULL UNIQUE,
 				status TEXT,
@@ -344,7 +344,7 @@ func migrateSchema(db DBTX) error {
 			}
 
 			if _, err := db.Exec(
-				`INSERT INTO mm_agents_new (guid, agent_id, status, purpose, registered_at, last_seen, left_at)
+				`INSERT INTO fray_agents_new (guid, agent_id, status, purpose, registered_at, last_seen, left_at)
 				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 				guid, agent.AgentID, status, purpose, agent.RegisteredAt, agent.LastSeen, leftAt,
 			); err != nil {
@@ -352,15 +352,15 @@ func migrateSchema(db DBTX) error {
 			}
 		}
 
-		if _, err := db.Exec("DROP TABLE mm_agents"); err != nil {
+		if _, err := db.Exec("DROP TABLE fray_agents"); err != nil {
 			return err
 		}
-		if _, err := db.Exec("ALTER TABLE mm_agents_new RENAME TO mm_agents"); err != nil {
+		if _, err := db.Exec("ALTER TABLE fray_agents_new RENAME TO fray_agents"); err != nil {
 			return err
 		}
 	}
 
-	messageColumns, err := getTableInfo(db, "mm_messages")
+	messageColumns, err := getTableInfo(db, "fray_messages")
 	if err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ func migrateSchema(db DBTX) error {
 	if needsMessageMigration {
 		rows, err := db.Query(`
 			SELECT id, ts, from_agent, body, mentions, type, reply_to, edited_at, archived_at
-			FROM mm_messages
+			FROM fray_messages
 			ORDER BY id ASC
 		`)
 		if err != nil {
@@ -404,7 +404,7 @@ func migrateSchema(db DBTX) error {
 		}
 
 		if _, err := db.Exec(`
-			CREATE TABLE mm_messages_new (
+			CREATE TABLE fray_messages_new (
 				guid TEXT PRIMARY KEY,
 				ts INTEGER NOT NULL,
 				channel_id TEXT,
@@ -460,7 +460,7 @@ func migrateSchema(db DBTX) error {
 			}
 
 			if _, err := db.Exec(`
-				INSERT INTO mm_messages_new (
+				INSERT INTO fray_messages_new (
 					guid, ts, channel_id, home, from_agent, body, mentions, type, "references", surface_message, reply_to, edited_at, archived_at, reactions
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`,
@@ -483,44 +483,44 @@ func migrateSchema(db DBTX) error {
 			}
 		}
 
-		if _, err := db.Exec("DROP TABLE mm_messages"); err != nil {
+		if _, err := db.Exec("DROP TABLE fray_messages"); err != nil {
 			return err
 		}
-		if _, err := db.Exec("ALTER TABLE mm_messages_new RENAME TO mm_messages"); err != nil {
+		if _, err := db.Exec("ALTER TABLE fray_messages_new RENAME TO fray_messages"); err != nil {
 			return err
 		}
 	}
 	if len(messageColumns) > 0 && !needsMessageMigration {
 		if !hasColumn(messageColumns, "reactions") {
-			if _, err := db.Exec("ALTER TABLE mm_messages ADD COLUMN reactions TEXT NOT NULL DEFAULT '{}'"); err != nil {
+			if _, err := db.Exec("ALTER TABLE fray_messages ADD COLUMN reactions TEXT NOT NULL DEFAULT '{}'"); err != nil {
 				return err
 			}
 		}
 		if !hasColumn(messageColumns, "home") {
-			if _, err := db.Exec("ALTER TABLE mm_messages ADD COLUMN home TEXT DEFAULT 'room'"); err != nil {
+			if _, err := db.Exec("ALTER TABLE fray_messages ADD COLUMN home TEXT DEFAULT 'room'"); err != nil {
 				return err
 			}
 		}
 		if !hasColumn(messageColumns, "references") {
-			if _, err := db.Exec("ALTER TABLE mm_messages ADD COLUMN \"references\" TEXT"); err != nil {
+			if _, err := db.Exec("ALTER TABLE fray_messages ADD COLUMN \"references\" TEXT"); err != nil {
 				return err
 			}
 		}
 		if !hasColumn(messageColumns, "surface_message") {
-			if _, err := db.Exec("ALTER TABLE mm_messages ADD COLUMN surface_message TEXT"); err != nil {
+			if _, err := db.Exec("ALTER TABLE fray_messages ADD COLUMN surface_message TEXT"); err != nil {
 				return err
 			}
 		}
 	}
 
-	receiptColumns, err := getTableInfo(db, "mm_read_receipts")
+	receiptColumns, err := getTableInfo(db, "fray_read_receipts")
 	if err != nil {
 		return err
 	}
 	if len(receiptColumns) > 0 && !hasColumn(receiptColumns, "message_guid") {
 		rows, err := db.Query(`
 			SELECT message_id, agent_prefix, read_at
-			FROM mm_read_receipts
+			FROM fray_read_receipts
 		`)
 		if err != nil {
 			return err
@@ -545,7 +545,7 @@ func migrateSchema(db DBTX) error {
 		}
 
 		if _, err := db.Exec(`
-			CREATE TABLE mm_read_receipts_new (
+			CREATE TABLE fray_read_receipts_new (
 				message_guid TEXT NOT NULL,
 				agent_prefix TEXT NOT NULL,
 				read_at INTEGER NOT NULL,
@@ -561,17 +561,17 @@ func migrateSchema(db DBTX) error {
 				continue
 			}
 			if _, err := db.Exec(
-				`INSERT OR IGNORE INTO mm_read_receipts_new (message_guid, agent_prefix, read_at) VALUES (?, ?, ?)`,
+				`INSERT OR IGNORE INTO fray_read_receipts_new (message_guid, agent_prefix, read_at) VALUES (?, ?, ?)`,
 				guid, receipt.AgentPrefix, receipt.ReadAt,
 			); err != nil {
 				return err
 			}
 		}
 
-		if _, err := db.Exec("DROP TABLE mm_read_receipts"); err != nil {
+		if _, err := db.Exec("DROP TABLE fray_read_receipts"); err != nil {
 			return err
 		}
-		if _, err := db.Exec("ALTER TABLE mm_read_receipts_new RENAME TO mm_read_receipts"); err != nil {
+		if _, err := db.Exec("ALTER TABLE fray_read_receipts_new RENAME TO fray_read_receipts"); err != nil {
 			return err
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func TestMatchClaimFiles(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -38,10 +38,10 @@ func NewSurfaceCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 			if agent == nil {
-				return writeCommandError(cmd, fmt.Errorf("agent not found: @%s. Use 'mm new' first", agentID))
+				return writeCommandError(cmd, fmt.Errorf("agent not found: @%s. Use 'fray new' first", agentID))
 			}
 			if agent.LeftAt != nil {
-				return writeCommandError(cmd, fmt.Errorf("agent @%s has left. Use 'mm back @%s' to resume", agentID, agentID))
+				return writeCommandError(cmd, fmt.Errorf("agent @%s has left. Use 'fray back @%s' to resume", agentID, agentID))
 			}
 
 			original, err := resolveMessageRef(ctx.DB, args[0])

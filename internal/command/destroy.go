@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/core"
+	"github.com/adamavenir/fray/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -43,9 +43,9 @@ func NewDestroyCmd() *cobra.Command {
 				return writeCommandError(cmd, fmt.Errorf("channel not found: %s", args[0]))
 			}
 
-			mmDir := filepath.Join(channel.Path, ".mm")
+			frayDir := filepath.Join(channel.Path, ".fray")
 			if !force {
-				prompt := fmt.Sprintf("Destroy channel %s (%s) at %s? This deletes all history and cannot be undone. [y/N]: ", channel.Name, id, mmDir)
+				prompt := fmt.Sprintf("Destroy channel %s (%s) at %s? This deletes all history and cannot be undone. [y/N]: ", channel.Name, id, frayDir)
 				confirmed, err := confirmPrompt(cmd.InOrStdin(), cmd.OutOrStdout(), prompt)
 				if err != nil {
 					return writeCommandError(cmd, err)
@@ -69,7 +69,7 @@ func NewDestroyCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
-			if err := os.RemoveAll(mmDir); err != nil {
+			if err := os.RemoveAll(frayDir); err != nil {
 				return writeCommandError(cmd, err)
 			}
 
@@ -82,7 +82,7 @@ func NewDestroyCmd() *cobra.Command {
 				})
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Destroyed channel %s (%s) and removed %s\n", channel.Name, id, mmDir)
+			fmt.Fprintf(cmd.OutOrStdout(), "Destroyed channel %s (%s) and removed %s\n", channel.Name, id, frayDir)
 			return nil
 		},
 	}

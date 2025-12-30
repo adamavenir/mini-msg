@@ -10,9 +10,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -53,7 +53,7 @@ func NewRosterCmd() *cobra.Command {
 				}
 
 				for channelID, channel := range config.Channels {
-					project := core.Project{Root: channel.Path, DBPath: filepath.Join(channel.Path, ".mm", "mm.db")}
+					project := core.Project{Root: channel.Path, DBPath: filepath.Join(channel.Path, ".fray", "fray.db")}
 					if _, err := os.Stat(project.DBPath); err != nil {
 						continue
 					}

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -34,9 +34,9 @@ func newFilterSetCmd() *cobra.Command {
 			}
 			defer ctx.DB.Close()
 
-			agentID := os.Getenv("MM_AGENT_ID")
+			agentID := os.Getenv("FRAY_AGENT_ID")
 			if agentID == "" {
-				return writeCommandError(cmd, fmt.Errorf("MM_AGENT_ID not set. Run mm new first."))
+				return writeCommandError(cmd, fmt.Errorf("FRAY_AGENT_ID not set. Run fray new first."))
 			}
 
 			mentions, _ := cmd.Flags().GetString("mentions")
@@ -72,9 +72,9 @@ func newFilterShowCmd() *cobra.Command {
 			}
 			defer ctx.DB.Close()
 
-			agentID := os.Getenv("MM_AGENT_ID")
+			agentID := os.Getenv("FRAY_AGENT_ID")
 			if agentID == "" {
-				return writeCommandError(cmd, fmt.Errorf("MM_AGENT_ID not set"))
+				return writeCommandError(cmd, fmt.Errorf("FRAY_AGENT_ID not set"))
 			}
 
 			filter, err := db.GetFilter(ctx.DB, agentID)
@@ -107,9 +107,9 @@ func newFilterClearCmd() *cobra.Command {
 			}
 			defer ctx.DB.Close()
 
-			agentID := os.Getenv("MM_AGENT_ID")
+			agentID := os.Getenv("FRAY_AGENT_ID")
 			if agentID == "" {
-				return writeCommandError(cmd, fmt.Errorf("MM_AGENT_ID not set"))
+				return writeCommandError(cmd, fmt.Errorf("FRAY_AGENT_ID not set"))
 			}
 
 			if err := db.ClearFilter(ctx.DB, agentID); err != nil {

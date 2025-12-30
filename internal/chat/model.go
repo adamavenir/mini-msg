@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -1875,7 +1875,7 @@ func (m *Model) buildReplySuggestions(prefix string) ([]suggestionItem, error) {
 
 	rows, err := m.db.Query(`
 		SELECT guid, from_agent, body
-		FROM mm_messages
+		FROM fray_messages
 		WHERE guid LIKE ?
 		ORDER BY ts DESC, guid DESC
 		LIMIT ?
@@ -2309,7 +2309,7 @@ func (m *Model) formatMessage(msg types.Message, prefixLength int) string {
 
 func (m *Model) replyContext(replyTo string, prefixLength int) string {
 	row := m.db.QueryRow(`
-		SELECT from_agent, body FROM mm_messages WHERE guid = ?
+		SELECT from_agent, body FROM fray_messages WHERE guid = ?
 	`, replyTo)
 	var fromAgent string
 	var body string
@@ -2611,7 +2611,7 @@ func (m *Model) questionScope() (*string, bool) {
 }
 
 func countMessages(dbConn *sql.DB, includeArchived bool) (int, error) {
-	query := "SELECT COUNT(*) FROM mm_messages"
+	query := "SELECT COUNT(*) FROM fray_messages"
 	if !includeArchived {
 		query += " WHERE archived_at IS NULL"
 	}
@@ -2825,7 +2825,7 @@ func (m *Model) switchChannel(entry channelEntry) error {
 }
 
 func projectFromRoot(rootPath string) (core.Project, error) {
-	dbPath := filepath.Join(rootPath, ".mm", "mm.db")
+	dbPath := filepath.Join(rootPath, ".fray", "fray.db")
 	if _, err := os.Stat(dbPath); err != nil {
 		return core.Project{}, fmt.Errorf("channel database not found at %s", dbPath)
 	}

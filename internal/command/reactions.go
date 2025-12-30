@@ -3,8 +3,8 @@ package command
 import (
 	"sort"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func formatReactionEvents(msg types.Message) []string {

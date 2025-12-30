@@ -6,13 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/adamavenir/mini-msg/internal/core"
+	"github.com/adamavenir/fray/internal/core"
 )
 
 // OpenDatabase opens the SQLite database for a project.
 func OpenDatabase(project core.Project) (*sql.DB, error) {
-	mmDir := filepath.Dir(project.DBPath)
-	core.EnsureMMGitignore(mmDir)
+	frayDir := filepath.Dir(project.DBPath)
+	core.EnsureFrayGitignore(frayDir)
 
 	dbExists := true
 	if _, err := os.Stat(project.DBPath); err != nil {
@@ -23,7 +23,7 @@ func OpenDatabase(project core.Project) (*sql.DB, error) {
 		}
 	}
 
-	jsonlMtime := getJSONLMtime(mmDir)
+	jsonlMtime := getJSONLMtime(frayDir)
 	var dbMtime int64
 	if dbExists {
 		info, err := os.Stat(project.DBPath)
@@ -63,11 +63,11 @@ func OpenDatabase(project core.Project) (*sql.DB, error) {
 	return conn, nil
 }
 
-func getJSONLMtime(mmDir string) int64 {
+func getJSONLMtime(frayDir string) int64 {
 	files := []string{"messages.jsonl", "agents.jsonl", "questions.jsonl", "threads.jsonl"}
 	latest := int64(0)
 	for _, name := range files {
-		path := filepath.Join(mmDir, name)
+		path := filepath.Join(frayDir, name)
 		info, err := os.Stat(path)
 		if err != nil {
 			continue

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -27,10 +27,10 @@ func NewUnreactCmd() *cobra.Command {
 
 			agentRef, _ := cmd.Flags().GetString("as")
 			if agentRef == "" {
-				agentRef = os.Getenv("MM_AGENT_ID")
+				agentRef = os.Getenv("FRAY_AGENT_ID")
 			}
 			if agentRef == "" {
-				return writeCommandError(cmd, fmt.Errorf("--as is required or set MM_AGENT_ID"))
+				return writeCommandError(cmd, fmt.Errorf("--as is required or set FRAY_AGENT_ID"))
 			}
 			agentID, err := resolveAgentRef(ctx, agentRef)
 			if err != nil {
@@ -103,6 +103,6 @@ func NewUnreactCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().String("as", "", "agent ID removing the reaction (defaults to MM_AGENT_ID)")
+	cmd.Flags().String("as", "", "agent ID removing the reaction (defaults to FRAY_AGENT_ID)")
 	return cmd
 }

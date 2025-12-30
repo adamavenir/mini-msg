@@ -5,9 +5,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func TestInitNewPostFlow(t *testing.T) {

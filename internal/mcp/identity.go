@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 const mcpAgentBase = "desktop"
@@ -69,7 +69,7 @@ func mcpConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	configDir := filepath.Join(home, ".config", "mm")
+	configDir := filepath.Join(home, ".config", "fray")
 	return filepath.Join(configDir, "mcp-agents.json"), nil
 }
 

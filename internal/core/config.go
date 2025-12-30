@@ -23,8 +23,8 @@ func globalConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	configDir := filepath.Join(home, ".config", "mm")
-	return filepath.Join(configDir, "mm-config.json"), nil
+	configDir := filepath.Join(home, ".config", "fray")
+	return filepath.Join(configDir, "fray-config.json"), nil
 }
 
 func ensureConfigDir() (string, error) {

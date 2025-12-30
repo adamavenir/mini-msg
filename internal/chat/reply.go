@@ -49,7 +49,7 @@ func ResolveReplyReference(db *sql.DB, text string) (ReplyResolution, error) {
 
 	rows, err := db.Query(`
 		SELECT guid, ts, from_agent, body
-		FROM mm_messages
+		FROM fray_messages
 		WHERE guid LIKE ?
 		ORDER BY ts DESC, guid DESC
 		LIMIT 5

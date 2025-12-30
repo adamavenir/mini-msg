@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func TestAppendAndReadMessages(t *testing.T) {
@@ -121,11 +121,11 @@ func TestUpdateProjectConfigMergesKnownAgents(t *testing.T) {
 
 func TestReadMessagesSkipsMalformedLines(t *testing.T) {
 	projectDir := t.TempDir()
-	mmDir := filepath.Join(projectDir, ".mm")
-	if err := os.MkdirAll(mmDir, 0o755); err != nil {
+	frayDir := filepath.Join(projectDir, ".fray")
+	if err := os.MkdirAll(frayDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	path := filepath.Join(mmDir, messagesFile)
+	path := filepath.Join(frayDir, messagesFile)
 
 	good1, _ := json.Marshal(map[string]any{"type": "message", "id": "msg-good1", "mentions": []string{}})
 	good2, _ := json.Marshal(map[string]any{"type": "message", "id": "msg-good2", "mentions": []string{}})

@@ -9,9 +9,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -89,7 +89,7 @@ func NewInfoCmd() *cobra.Command {
 					return json.NewEncoder(cmd.OutOrStdout()).Encode(channelInfo{Initialized: false})
 				}
 				fmt.Fprintln(cmd.OutOrStdout(), "Not initialized")
-				fmt.Fprintln(cmd.OutOrStdout(), "Run: mm init")
+				fmt.Fprintln(cmd.OutOrStdout(), "Run: fray init")
 				return nil
 			}
 
@@ -99,7 +99,7 @@ func NewInfoCmd() *cobra.Command {
 					return json.NewEncoder(cmd.OutOrStdout()).Encode(channelInfo{Initialized: false})
 				}
 				fmt.Fprintln(cmd.OutOrStdout(), "Not initialized")
-				fmt.Fprintln(cmd.OutOrStdout(), "Run: mm init")
+				fmt.Fprintln(cmd.OutOrStdout(), "Run: fray init")
 				return nil
 			}
 
@@ -116,12 +116,12 @@ func NewInfoCmd() *cobra.Command {
 }
 
 func getChannelInfo(projectRoot string) channelInfo {
-	mmDir := filepath.Join(projectRoot, ".mm")
-	if _, err := os.Stat(mmDir); err != nil {
+	frayDir := filepath.Join(projectRoot, ".fray")
+	if _, err := os.Stat(frayDir); err != nil {
 		return channelInfo{Initialized: false}
 	}
 
-	dbPath := filepath.Join(mmDir, "mm.db")
+	dbPath := filepath.Join(frayDir, "fray.db")
 	if _, err := os.Stat(dbPath); err != nil {
 		return channelInfo{Initialized: false}
 	}
@@ -225,7 +225,7 @@ func toAgentInfo(agent types.Agent, messageCounts map[string]int64, claimCounts 
 func formatChannelInfo(out io.Writer, info channelInfo, showPath bool) {
 	if !info.Initialized {
 		fmt.Fprintln(out, "Not initialized")
-		fmt.Fprintln(out, "Run: mm init")
+		fmt.Fprintln(out, "Run: fray init")
 		return
 	}
 

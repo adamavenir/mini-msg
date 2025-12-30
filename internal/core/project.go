@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 )
 
-// Project represents an mm project.
+// Project represents a fray project.
 type Project struct {
 	Root   string
 	DBPath string
 }
 
-// DiscoverProject walks up from startDir to find a .mm directory.
+// DiscoverProject walks up from startDir to find a .fray directory.
 func DiscoverProject(startDir string) (Project, error) {
 	current := startDir
 	if current == "" {
@@ -29,25 +29,25 @@ func DiscoverProject(startDir string) (Project, error) {
 	}
 
 	for {
-		mmDir := filepath.Join(current, ".mm")
-		info, err := os.Stat(mmDir)
+		frayDir := filepath.Join(current, ".fray")
+		info, err := os.Stat(frayDir)
 		if err == nil && info.IsDir() {
-			dbPath := filepath.Join(mmDir, "mm.db")
+			dbPath := filepath.Join(frayDir, "fray.db")
 			if _, err := os.Stat(dbPath); err != nil {
-				return Project{}, fmt.Errorf("mm database not found. Run 'mm init' first")
+				return Project{}, fmt.Errorf("fray database not found. Run 'fray init' first")
 			}
 			return Project{Root: current, DBPath: dbPath}, nil
 		}
 
 		parent := filepath.Dir(current)
 		if parent == current {
-			return Project{}, fmt.Errorf("not initialized. Run 'mm init' first")
+			return Project{}, fmt.Errorf("not initialized. Run 'fray init' first")
 		}
 		current = parent
 	}
 }
 
-// InitProject initializes a new mm project at dir.
+// InitProject initializes a new fray project at dir.
 func InitProject(dir string, force bool) (Project, error) {
 	root := dir
 	if root == "" {
@@ -62,17 +62,17 @@ func InitProject(dir string, force bool) (Project, error) {
 		return Project{}, err
 	}
 
-	mmDir := filepath.Join(root, ".mm")
-	dbPath := filepath.Join(mmDir, "mm.db")
+	frayDir := filepath.Join(root, ".fray")
+	dbPath := filepath.Join(frayDir, "fray.db")
 
-	if info, err := os.Stat(mmDir); err == nil && info.IsDir() && !force {
+	if info, err := os.Stat(frayDir); err == nil && info.IsDir() && !force {
 		return Project{}, fmt.Errorf("already initialized. Use --force to reinitialize")
 	}
 
-	if err := os.MkdirAll(mmDir, 0o755); err != nil {
+	if err := os.MkdirAll(frayDir, 0o755); err != nil {
 		return Project{}, err
 	}
-	EnsureMMGitignore(mmDir)
+	EnsureFrayGitignore(frayDir)
 
 	if force {
 		if err := os.Remove(dbPath); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -83,9 +83,9 @@ func InitProject(dir string, force bool) (Project, error) {
 	return Project{Root: root, DBPath: dbPath}, nil
 }
 
-// EnsureMMGitignore ensures .mm/.gitignore contains sqlite ignores.
-func EnsureMMGitignore(mmDir string) {
-	gitignore := filepath.Join(mmDir, ".gitignore")
+// EnsureFrayGitignore ensures .fray/.gitignore contains sqlite ignores.
+func EnsureFrayGitignore(frayDir string) {
+	gitignore := filepath.Join(frayDir, ".gitignore")
 	entries := []string{"*.db", "*.db-wal", "*.db-shm"}
 
 	data, err := os.ReadFile(gitignore)

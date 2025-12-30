@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/db"
 	"github.com/spf13/cobra"
 )
 

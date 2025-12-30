@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/gobwas/glob"
 	"modernc.org/sqlite"
 )
@@ -31,7 +31,7 @@ type AgentUpdates struct {
 func GetAgent(db *sql.DB, agentID string) (*types.Agent, error) {
 	row := db.QueryRow(`
 		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
-		FROM mm_agents
+		FROM fray_agents
 		WHERE agent_id = ?
 	`, agentID)
 
@@ -49,7 +49,7 @@ func GetAgent(db *sql.DB, agentID string) (*types.Agent, error) {
 func GetAgentsByPrefix(db *sql.DB, prefix string) ([]types.Agent, error) {
 	rows, err := db.Query(`
 		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
-		FROM mm_agents
+		FROM fray_agents
 		WHERE agent_id = ? OR agent_id LIKE ?
 		ORDER BY agent_id
 	`, prefix, fmt.Sprintf("%s.%%", prefix))
@@ -76,7 +76,7 @@ func GetAgentsByPrefix(db *sql.DB, prefix string) ([]types.Agent, error) {
 func GetAgents(db *sql.DB) ([]types.Agent, error) {
 	rows, err := db.Query(`
 		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
-		FROM mm_agents
+		FROM fray_agents
 		ORDER BY agent_id
 	`)
 	if err != nil {
@@ -103,14 +103,14 @@ func CreateAgent(db *sql.DB, agent types.Agent) error {
 	guid := agent.GUID
 	if guid == "" {
 		var err error
-		guid, err = generateUniqueGUIDForTable(db, "mm_agents", "usr")
+		guid, err = generateUniqueGUIDForTable(db, "fray_agents", "usr")
 		if err != nil {
 			return err
 		}
 	}
 
 	_, err := db.Exec(`
-		INSERT INTO mm_agents (guid, agent_id, status, purpose, registered_at, last_seen, left_at)
+		INSERT INTO fray_agents (guid, agent_id, status, purpose, registered_at, last_seen, left_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, guid, agent.AgentID, agent.Status, agent.Purpose, agent.RegisteredAt, agent.LastSeen, agent.LeftAt)
 	return err
@@ -143,7 +143,7 @@ func UpdateAgent(db *sql.DB, agentID string, updates AgentUpdates) error {
 	}
 
 	args = append(args, agentID)
-	query := fmt.Sprintf("UPDATE mm_agents SET %s WHERE agent_id = ?", strings.Join(fields, ", "))
+	query := fmt.Sprintf("UPDATE fray_agents SET %s WHERE agent_id = ?", strings.Join(fields, ", "))
 	_, err := db.Exec(query, args...)
 	return err
 }
@@ -152,7 +152,7 @@ func UpdateAgent(db *sql.DB, agentID string, updates AgentUpdates) error {
 func GetActiveAgents(db *sql.DB, staleHours int) ([]types.Agent, error) {
 	rows, err := db.Query(`
 		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
-		FROM mm_agents
+		FROM fray_agents
 		WHERE left_at IS NULL
 		  AND last_seen > (strftime('%s', 'now') - ? * 3600)
 		ORDER BY last_seen DESC
@@ -180,7 +180,7 @@ func GetActiveAgents(db *sql.DB, staleHours int) ([]types.Agent, error) {
 func GetAllAgents(db *sql.DB) ([]types.Agent, error) {
 	rows, err := db.Query(`
 		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
-		FROM mm_agents
+		FROM fray_agents
 		ORDER BY agent_id
 	`)
 	if err != nil {
@@ -216,7 +216,7 @@ func GetActiveUsers(db *sql.DB) ([]string, error) {
 
 // GetAgentBases returns unique base agent IDs.
 func GetAgentBases(db *sql.DB) (map[string]struct{}, error) {
-	rows, err := db.Query(`SELECT agent_id FROM mm_agents`)
+	rows, err := db.Query(`SELECT agent_id FROM fray_agents`)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +248,7 @@ func GetAgentBases(db *sql.DB) (map[string]struct{}, error) {
 // IsAgentActive reports whether an agent is active.
 func IsAgentActive(db *sql.DB, agentID string, staleHours int) (bool, error) {
 	row := db.QueryRow(`
-		SELECT 1 FROM mm_agents
+		SELECT 1 FROM fray_agents
 		WHERE agent_id = ?
 		  AND left_at IS NULL
 		  AND last_seen > (strftime('%s', 'now') - ? * 3600)
@@ -282,15 +282,15 @@ func RenameAgent(db *sql.DB, oldID, newID string) error {
 		return fmt.Errorf("agent already exists: %s", newID)
 	}
 
-	if _, err := db.Exec("UPDATE mm_agents SET agent_id = ? WHERE agent_id = ?", newID, oldID); err != nil {
+	if _, err := db.Exec("UPDATE fray_agents SET agent_id = ? WHERE agent_id = ?", newID, oldID); err != nil {
 		return err
 	}
-	if _, err := db.Exec("UPDATE mm_messages SET from_agent = ? WHERE from_agent = ?", newID, oldID); err != nil {
+	if _, err := db.Exec("UPDATE fray_messages SET from_agent = ? WHERE from_agent = ?", newID, oldID); err != nil {
 		return err
 	}
 
 	rows, err := db.Query(`
-		SELECT guid, mentions FROM mm_messages
+		SELECT guid, mentions FROM fray_messages
 		WHERE mentions LIKE ?
 	`, fmt.Sprintf("%%\"%s\"%%", oldID))
 	if err != nil {
@@ -324,7 +324,7 @@ func RenameAgent(db *sql.DB, oldID, newID string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := db.Exec("UPDATE mm_messages SET mentions = ? WHERE guid = ?", string(updatedJSON), guid); err != nil {
+		if _, err := db.Exec("UPDATE fray_messages SET mentions = ? WHERE guid = ?", string(updatedJSON), guid); err != nil {
 			return err
 		}
 	}
@@ -364,14 +364,14 @@ func MergeAgentHistory(db *sql.DB, fromID, toID string) (int64, error) {
 }
 
 func mergeAgentHistoryWith(tx *sql.Tx, fromID, toID string) (int64, error) {
-	result, err := tx.Exec("UPDATE mm_messages SET from_agent = ? WHERE from_agent = ?", toID, fromID)
+	result, err := tx.Exec("UPDATE fray_messages SET from_agent = ? WHERE from_agent = ?", toID, fromID)
 	if err != nil {
 		return 0, err
 	}
 	messageCount, _ := result.RowsAffected()
 
 	rows, err := tx.Query(`
-		SELECT guid, mentions FROM mm_messages
+		SELECT guid, mentions FROM fray_messages
 		WHERE mentions LIKE ?
 	`, fmt.Sprintf("%%\"%s\"%%", fromID))
 	if err != nil {
@@ -406,7 +406,7 @@ func mergeAgentHistoryWith(tx *sql.Tx, fromID, toID string) (int64, error) {
 		if err != nil {
 			return 0, err
 		}
-		if _, err := tx.Exec("UPDATE mm_messages SET mentions = ? WHERE guid = ?", string(updatedJSON), guid); err != nil {
+		if _, err := tx.Exec("UPDATE fray_messages SET mentions = ? WHERE guid = ?", string(updatedJSON), guid); err != nil {
 			return 0, err
 		}
 	}
@@ -418,7 +418,7 @@ func mergeAgentHistoryWith(tx *sql.Tx, fromID, toID string) (int64, error) {
 		return 0, err
 	}
 
-	if _, err := tx.Exec("UPDATE mm_claims SET agent_id = ? WHERE agent_id = ?", toID, fromID); err != nil {
+	if _, err := tx.Exec("UPDATE fray_claims SET agent_id = ? WHERE agent_id = ?", toID, fromID); err != nil {
 		return 0, err
 	}
 
@@ -427,7 +427,7 @@ func mergeAgentHistoryWith(tx *sql.Tx, fromID, toID string) (int64, error) {
 
 func updateReactionsForAgent(db DBTX, oldID, newID string) error {
 	rows, err := db.Query(`
-		SELECT guid, reactions FROM mm_messages
+		SELECT guid, reactions FROM fray_messages
 		WHERE reactions LIKE ?
 	`, fmt.Sprintf("%%\"%s\"%%", oldID))
 	if err != nil {
@@ -467,7 +467,7 @@ func updateReactionsForAgent(db DBTX, oldID, newID string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := db.Exec("UPDATE mm_messages SET reactions = ? WHERE guid = ?", string(updatedJSON), guid); err != nil {
+		if _, err := db.Exec("UPDATE fray_messages SET reactions = ? WHERE guid = ?", string(updatedJSON), guid); err != nil {
 			return err
 		}
 	}
@@ -477,7 +477,7 @@ func updateReactionsForAgent(db DBTX, oldID, newID string) error {
 // GetMaxVersion returns the highest version for a base name.
 func GetMaxVersion(db *sql.DB, base string) (int, error) {
 	pattern := fmt.Sprintf("%s.[0-9]*", base)
-	rows, err := db.Query("SELECT agent_id FROM mm_agents WHERE agent_id GLOB ?", pattern)
+	rows, err := db.Query("SELECT agent_id FROM fray_agents WHERE agent_id GLOB ?", pattern)
 	if err != nil {
 		return 0, err
 	}
@@ -545,7 +545,7 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 		msgType = types.MessageTypeAgent
 	}
 
-	guid, err := generateUniqueGUIDForTable(db, "mm_messages", "msg")
+	guid, err := generateUniqueGUIDForTable(db, "fray_messages", "msg")
 	if err != nil {
 		return types.Message{}, err
 	}
@@ -556,7 +556,7 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 	}
 
 	_, err = db.Exec(`
-		INSERT INTO mm_messages (guid, ts, channel_id, home, from_agent, body, mentions, type, "references", surface_message, reply_to, edited_at, archived_at, reactions)
+		INSERT INTO fray_messages (guid, ts, channel_id, home, from_agent, body, mentions, type, "references", surface_message, reply_to, edited_at, archived_at, reactions)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
 	`, guid, ts, channelID, home, message.FromAgent, message.Body, string(mentionsJSON), msgType, message.References, message.SurfaceMessage, message.ReplyTo, string(reactionsJSON))
 	if err != nil {
@@ -646,7 +646,7 @@ func GetMessages(db *sql.DB, options *types.MessageQueryOptions) ([]types.Messag
 
 		query := fmt.Sprintf(`
 			SELECT * FROM (
-				SELECT * FROM mm_messages%s
+				SELECT * FROM fray_messages%s
 				ORDER BY ts DESC, guid DESC
 				LIMIT ?
 			) ORDER BY ts ASC, guid ASC
@@ -662,7 +662,7 @@ func GetMessages(db *sql.DB, options *types.MessageQueryOptions) ([]types.Messag
 		return scanMessages(rows)
 	}
 
-	query := "SELECT * FROM mm_messages"
+	query := "SELECT * FROM fray_messages"
 	var conditions []string
 	var params []any
 
@@ -756,13 +756,13 @@ func GetMessagesWithMention(db *sql.DB, mentionPrefix string, options *types.Mes
 	}
 
 	query := `
-		SELECT DISTINCT m.* FROM mm_messages m, json_each(m.mentions) j
+		SELECT DISTINCT m.* FROM fray_messages m, json_each(m.mentions) j
 	`
 	var params []any
 
 	if filterUnread {
 		query += `
-		LEFT JOIN mm_read_receipts r
+		LEFT JOIN fray_read_receipts r
 		  ON m.guid = r.message_guid AND r.agent_prefix = ?
 		`
 		params = append(params, agentPrefix)
@@ -817,7 +817,7 @@ func GetMessagesWithMention(db *sql.DB, mentionPrefix string, options *types.Mes
 // GetLastMessageCursor returns the last message cursor.
 func GetLastMessageCursor(db *sql.DB) (*types.MessageCursor, error) {
 	row := db.QueryRow(`
-		SELECT guid, ts FROM mm_messages
+		SELECT guid, ts FROM fray_messages
 		WHERE home = 'room'
 		ORDER BY ts DESC, guid DESC
 		LIMIT 1
@@ -834,7 +834,7 @@ func GetLastMessageCursor(db *sql.DB) (*types.MessageCursor, error) {
 
 // GetMessage returns a message by GUID.
 func GetMessage(db *sql.DB, messageID string) (*types.Message, error) {
-	row := db.QueryRow("SELECT * FROM mm_messages WHERE guid = ?", messageID)
+	row := db.QueryRow("SELECT * FROM fray_messages WHERE guid = ?", messageID)
 	message, err := scanMessage(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -854,7 +854,7 @@ func GetMessageByPrefix(db *sql.DB, prefix string) (*types.Message, error) {
 	}
 
 	rows, err := db.Query(`
-		SELECT * FROM mm_messages
+		SELECT * FROM fray_messages
 		WHERE guid LIKE ?
 		ORDER BY ts DESC
 		LIMIT 2
@@ -897,7 +897,7 @@ func AddReaction(db *sql.DB, messageID, reactor, reaction string) (*types.Messag
 	if err != nil {
 		return nil, false, err
 	}
-	if _, err := db.Exec("UPDATE mm_messages SET reactions = ? WHERE guid = ?", string(reactionsJSON), messageID); err != nil {
+	if _, err := db.Exec("UPDATE fray_messages SET reactions = ? WHERE guid = ?", string(reactionsJSON), messageID); err != nil {
 		return nil, false, err
 	}
 
@@ -944,7 +944,7 @@ func RemoveReactions(db *sql.DB, messageID, reactor string) (*types.Message, boo
 	if err != nil {
 		return nil, false, err
 	}
-	if _, err := db.Exec("UPDATE mm_messages SET reactions = ? WHERE guid = ?", string(reactionsJSON), messageID); err != nil {
+	if _, err := db.Exec("UPDATE fray_messages SET reactions = ? WHERE guid = ?", string(reactionsJSON), messageID); err != nil {
 		return nil, false, err
 	}
 
@@ -971,7 +971,7 @@ func GetMessageReactions(db *sql.DB, messageIDs []string) (map[string]map[string
 		args = append(args, id)
 	}
 
-	query := fmt.Sprintf("SELECT guid, reactions FROM mm_messages WHERE guid IN (%s)", strings.Join(placeholders, ", "))
+	query := fmt.Sprintf("SELECT guid, reactions FROM fray_messages WHERE guid IN (%s)", strings.Join(placeholders, ", "))
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -1013,7 +1013,7 @@ func EditMessage(db *sql.DB, messageID, newBody, agentID string) error {
 	}
 
 	editedAt := time.Now().Unix()
-	if _, err := db.Exec("UPDATE mm_messages SET body = ?, edited_at = ? WHERE guid = ?", newBody, editedAt, messageID); err != nil {
+	if _, err := db.Exec("UPDATE fray_messages SET body = ?, edited_at = ? WHERE guid = ?", newBody, editedAt, messageID); err != nil {
 		return err
 	}
 
@@ -1037,13 +1037,13 @@ func DeleteMessage(db *sql.DB, messageID string) error {
 	}
 
 	deletedAt := time.Now().Unix()
-	_, err = db.Exec("UPDATE mm_messages SET body = ?, archived_at = ? WHERE guid = ?", "[deleted]", deletedAt, messageID)
+	_, err = db.Exec("UPDATE fray_messages SET body = ?, archived_at = ? WHERE guid = ?", "[deleted]", deletedAt, messageID)
 	return err
 }
 
 // GetConfig returns a config value.
 func GetConfig(db *sql.DB, key string) (string, error) {
-	row := db.QueryRow("SELECT value FROM mm_config WHERE key = ?", key)
+	row := db.QueryRow("SELECT value FROM fray_config WHERE key = ?", key)
 	var value string
 	if err := row.Scan(&value); err != nil {
 		if err == sql.ErrNoRows {
@@ -1056,13 +1056,13 @@ func GetConfig(db *sql.DB, key string) (string, error) {
 
 // SetConfig sets a config value.
 func SetConfig(db *sql.DB, key, value string) error {
-	_, err := db.Exec("INSERT OR REPLACE INTO mm_config (key, value) VALUES (?, ?)", key, value)
+	_, err := db.Exec("INSERT OR REPLACE INTO fray_config (key, value) VALUES (?, ?)", key, value)
 	return err
 }
 
 // GetAllConfig returns all config entries.
 func GetAllConfig(db *sql.DB) ([]types.ConfigEntry, error) {
-	rows, err := db.Query("SELECT key, value FROM mm_config ORDER BY key")
+	rows, err := db.Query("SELECT key, value FROM fray_config ORDER BY key")
 	if err != nil {
 		return nil, err
 	}
@@ -1084,7 +1084,7 @@ func GetAllConfig(db *sql.DB) ([]types.ConfigEntry, error) {
 
 // GetLinkedProject returns a linked project by alias.
 func GetLinkedProject(db *sql.DB, alias string) (*types.LinkedProject, error) {
-	row := db.QueryRow("SELECT alias, path FROM mm_linked_projects WHERE alias = ?", alias)
+	row := db.QueryRow("SELECT alias, path FROM fray_linked_projects WHERE alias = ?", alias)
 	var project types.LinkedProject
 	if err := row.Scan(&project.Alias, &project.Path); err != nil {
 		if err == sql.ErrNoRows {
@@ -1097,7 +1097,7 @@ func GetLinkedProject(db *sql.DB, alias string) (*types.LinkedProject, error) {
 
 // GetLinkedProjects returns all linked projects.
 func GetLinkedProjects(db *sql.DB) ([]types.LinkedProject, error) {
-	rows, err := db.Query("SELECT alias, path FROM mm_linked_projects ORDER BY alias")
+	rows, err := db.Query("SELECT alias, path FROM fray_linked_projects ORDER BY alias")
 	if err != nil {
 		return nil, err
 	}
@@ -1119,13 +1119,13 @@ func GetLinkedProjects(db *sql.DB) ([]types.LinkedProject, error) {
 
 // LinkProject creates or updates a project alias.
 func LinkProject(db *sql.DB, alias, path string) error {
-	_, err := db.Exec("INSERT OR REPLACE INTO mm_linked_projects (alias, path) VALUES (?, ?)", alias, path)
+	_, err := db.Exec("INSERT OR REPLACE INTO fray_linked_projects (alias, path) VALUES (?, ?)", alias, path)
 	return err
 }
 
 // UnlinkProject removes a project alias.
 func UnlinkProject(db *sql.DB, alias string) (bool, error) {
-	result, err := db.Exec("DELETE FROM mm_linked_projects WHERE alias = ?", alias)
+	result, err := db.Exec("DELETE FROM fray_linked_projects WHERE alias = ?", alias)
 	if err != nil {
 		return false, err
 	}
@@ -1138,7 +1138,7 @@ func UnlinkProject(db *sql.DB, alias string) (bool, error) {
 
 // GetFilter returns filter preferences for an agent.
 func GetFilter(db *sql.DB, agentID string) (*types.Filter, error) {
-	row := db.QueryRow("SELECT agent_id, mentions_pattern FROM mm_filters WHERE agent_id = ?", agentID)
+	row := db.QueryRow("SELECT agent_id, mentions_pattern FROM fray_filters WHERE agent_id = ?", agentID)
 	var filter types.Filter
 	var mentions sql.NullString
 	if err := row.Scan(&filter.AgentID, &mentions); err != nil {
@@ -1156,7 +1156,7 @@ func GetFilter(db *sql.DB, agentID string) (*types.Filter, error) {
 // SetFilter upserts filter preferences.
 func SetFilter(db *sql.DB, filter types.Filter) error {
 	_, err := db.Exec(`
-		INSERT INTO mm_filters (agent_id, mentions_pattern)
+		INSERT INTO fray_filters (agent_id, mentions_pattern)
 		VALUES (?, ?)
 		ON CONFLICT(agent_id) DO UPDATE SET
 		  mentions_pattern = excluded.mentions_pattern
@@ -1166,7 +1166,7 @@ func SetFilter(db *sql.DB, filter types.Filter) error {
 
 // ClearFilter clears filter preferences.
 func ClearFilter(db *sql.DB, agentID string) error {
-	_, err := db.Exec("DELETE FROM mm_filters WHERE agent_id = ?", agentID)
+	_, err := db.Exec("DELETE FROM fray_filters WHERE agent_id = ?", agentID)
 	return err
 }
 
@@ -1179,7 +1179,7 @@ func MarkMessagesRead(db *sql.DB, messageIDs []string, agentPrefix string) error
 	now := time.Now().Unix()
 	for _, id := range messageIDs {
 		if _, err := db.Exec(`
-			INSERT OR IGNORE INTO mm_read_receipts (message_guid, agent_prefix, read_at)
+			INSERT OR IGNORE INTO fray_read_receipts (message_guid, agent_prefix, read_at)
 			VALUES (?, ?, ?)
 		`, id, agentPrefix, now); err != nil {
 			return err
@@ -1191,7 +1191,7 @@ func MarkMessagesRead(db *sql.DB, messageIDs []string, agentPrefix string) error
 // GetReadReceipts returns agent prefixes who read a message.
 func GetReadReceipts(db *sql.DB, messageID string) ([]string, error) {
 	rows, err := db.Query(`
-		SELECT agent_prefix FROM mm_read_receipts
+		SELECT agent_prefix FROM fray_read_receipts
 		WHERE message_guid = ?
 		ORDER BY read_at
 	`, messageID)
@@ -1217,7 +1217,7 @@ func GetReadReceipts(db *sql.DB, messageID string) ([]string, error) {
 // GetReadReceiptCount returns count of read receipts.
 func GetReadReceiptCount(db *sql.DB, messageID string) (int64, error) {
 	row := db.QueryRow(`
-		SELECT COUNT(*) as count FROM mm_read_receipts WHERE message_guid = ?
+		SELECT COUNT(*) as count FROM fray_read_receipts WHERE message_guid = ?
 	`, messageID)
 	var count int64
 	if err := row.Scan(&count); err != nil {
@@ -1231,7 +1231,7 @@ func ArchiveMessages(db *sql.DB, before *types.MessageCursor, beforeID string) (
 	archivedAt := time.Now().Unix()
 
 	if before == nil && beforeID == "" {
-		result, err := db.Exec("UPDATE mm_messages SET archived_at = ? WHERE archived_at IS NULL", archivedAt)
+		result, err := db.Exec("UPDATE fray_messages SET archived_at = ? WHERE archived_at IS NULL", archivedAt)
 		if err != nil {
 			return 0, err
 		}
@@ -1247,7 +1247,7 @@ func ArchiveMessages(db *sql.DB, before *types.MessageCursor, beforeID string) (
 	}
 
 	clause, params := buildCursorCondition("", "<", cursor)
-	query := fmt.Sprintf("UPDATE mm_messages SET archived_at = ? WHERE %s AND archived_at IS NULL", clause)
+	query := fmt.Sprintf("UPDATE fray_messages SET archived_at = ? WHERE %s AND archived_at IS NULL", clause)
 	params = append([]any{archivedAt}, params...)
 	result, err := db.Exec(query, params...)
 	if err != nil {
@@ -1259,7 +1259,7 @@ func ArchiveMessages(db *sql.DB, before *types.MessageCursor, beforeID string) (
 // GetReplyChain returns parent + replies.
 func GetReplyChain(db *sql.DB, messageID string) ([]types.Message, error) {
 	rows, err := db.Query(`
-		SELECT * FROM mm_messages
+		SELECT * FROM fray_messages
 		WHERE guid = ? OR reply_to = ?
 		ORDER BY CASE WHEN guid = ? THEN 0 ELSE 1 END, ts ASC, guid ASC
 	`, messageID, messageID, messageID)
@@ -1273,7 +1273,7 @@ func GetReplyChain(db *sql.DB, messageID string) ([]types.Message, error) {
 
 // GetReplyCount returns the number of replies to a message.
 func GetReplyCount(db *sql.DB, messageID string) (int64, error) {
-	row := db.QueryRow("SELECT COUNT(*) as count FROM mm_messages WHERE reply_to = ?", messageID)
+	row := db.QueryRow("SELECT COUNT(*) as count FROM fray_messages WHERE reply_to = ?", messageID)
 	var count int64
 	if err := row.Scan(&count); err != nil {
 		return 0, err
@@ -1295,7 +1295,7 @@ func CreateQuestion(db *sql.DB, question types.Question) (types.Question, error)
 	guid := question.GUID
 	if guid == "" {
 		var err error
-		guid, err = generateUniqueGUIDForTable(db, "mm_questions", "qstn")
+		guid, err = generateUniqueGUIDForTable(db, "fray_questions", "qstn")
 		if err != nil {
 			return types.Question{}, err
 		}
@@ -1311,7 +1311,7 @@ func CreateQuestion(db *sql.DB, question types.Question) (types.Question, error)
 	}
 
 	_, err := db.Exec(`
-		INSERT INTO mm_questions (guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at)
+		INSERT INTO fray_questions (guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, guid, question.Re, question.FromAgent, question.ToAgent, string(status), question.ThreadGUID, question.AskedIn, question.AnsweredIn, createdAt)
 	if err != nil {
@@ -1355,7 +1355,7 @@ func UpdateQuestion(db *sql.DB, guid string, updates QuestionUpdates) (*types.Qu
 	}
 
 	args = append(args, guid)
-	query := fmt.Sprintf("UPDATE mm_questions SET %s WHERE guid = ?", strings.Join(fields, ", "))
+	query := fmt.Sprintf("UPDATE fray_questions SET %s WHERE guid = ?", strings.Join(fields, ", "))
 	if _, err := db.Exec(query, args...); err != nil {
 		return nil, err
 	}
@@ -1366,7 +1366,7 @@ func UpdateQuestion(db *sql.DB, guid string, updates QuestionUpdates) (*types.Qu
 func GetQuestion(db *sql.DB, guid string) (*types.Question, error) {
 	row := db.QueryRow(`
 		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
-		FROM mm_questions WHERE guid = ?
+		FROM fray_questions WHERE guid = ?
 	`, guid)
 
 	question, err := scanQuestion(row)
@@ -1383,7 +1383,7 @@ func GetQuestion(db *sql.DB, guid string) (*types.Question, error) {
 func GetQuestionByPrefix(db *sql.DB, prefix string) (*types.Question, error) {
 	rows, err := db.Query(`
 		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
-		FROM mm_questions
+		FROM fray_questions
 		WHERE guid = ? OR guid LIKE ?
 		ORDER BY created_at DESC
 	`, prefix, fmt.Sprintf("%s%%", prefix))
@@ -1406,7 +1406,7 @@ func GetQuestionByPrefix(db *sql.DB, prefix string) (*types.Question, error) {
 func GetQuestionsByRe(db *sql.DB, re string) ([]types.Question, error) {
 	rows, err := db.Query(`
 		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
-		FROM mm_questions
+		FROM fray_questions
 		WHERE lower(re) = lower(?)
 		ORDER BY created_at ASC
 	`, strings.TrimSpace(re))
@@ -1422,7 +1422,7 @@ func GetQuestionsByRe(db *sql.DB, re string) ([]types.Question, error) {
 func GetQuestions(db *sql.DB, options *types.QuestionQueryOptions) ([]types.Question, error) {
 	query := `
 		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
-		FROM mm_questions
+		FROM fray_questions
 	`
 	var conditions []string
 	var args []any
@@ -1474,7 +1474,7 @@ func CreateThread(db *sql.DB, thread types.Thread) (types.Thread, error) {
 	guid := thread.GUID
 	if guid == "" {
 		var err error
-		guid, err = generateUniqueGUIDForTable(db, "mm_threads", "thrd")
+		guid, err = generateUniqueGUIDForTable(db, "fray_threads", "thrd")
 		if err != nil {
 			return types.Thread{}, err
 		}
@@ -1490,7 +1490,7 @@ func CreateThread(db *sql.DB, thread types.Thread) (types.Thread, error) {
 	}
 
 	_, err := db.Exec(`
-		INSERT INTO mm_threads (guid, name, parent_thread, status, created_at)
+		INSERT INTO fray_threads (guid, name, parent_thread, status, created_at)
 		VALUES (?, ?, ?, ?, ?)
 	`, guid, thread.Name, thread.ParentThread, string(status), createdAt)
 	if err != nil {
@@ -1526,7 +1526,7 @@ func UpdateThread(db *sql.DB, guid string, updates ThreadUpdates) (*types.Thread
 	}
 
 	args = append(args, guid)
-	query := fmt.Sprintf("UPDATE mm_threads SET %s WHERE guid = ?", strings.Join(fields, ", "))
+	query := fmt.Sprintf("UPDATE fray_threads SET %s WHERE guid = ?", strings.Join(fields, ", "))
 	if _, err := db.Exec(query, args...); err != nil {
 		return nil, err
 	}
@@ -1537,7 +1537,7 @@ func UpdateThread(db *sql.DB, guid string, updates ThreadUpdates) (*types.Thread
 func GetThread(db *sql.DB, guid string) (*types.Thread, error) {
 	row := db.QueryRow(`
 		SELECT guid, name, parent_thread, status, created_at
-		FROM mm_threads WHERE guid = ?
+		FROM fray_threads WHERE guid = ?
 	`, guid)
 
 	thread, err := scanThread(row)
@@ -1554,7 +1554,7 @@ func GetThread(db *sql.DB, guid string) (*types.Thread, error) {
 func GetThreadByPrefix(db *sql.DB, prefix string) (*types.Thread, error) {
 	rows, err := db.Query(`
 		SELECT guid, name, parent_thread, status, created_at
-		FROM mm_threads
+		FROM fray_threads
 		WHERE guid = ? OR guid LIKE ?
 		ORDER BY created_at ASC
 	`, prefix, fmt.Sprintf("%s%%", prefix))
@@ -1579,12 +1579,12 @@ func GetThreadByName(db *sql.DB, name string, parent *string) (*types.Thread, er
 	if parent == nil {
 		row = db.QueryRow(`
 			SELECT guid, name, parent_thread, status, created_at
-			FROM mm_threads WHERE name = ? AND parent_thread IS NULL
+			FROM fray_threads WHERE name = ? AND parent_thread IS NULL
 		`, name)
 	} else {
 		row = db.QueryRow(`
 			SELECT guid, name, parent_thread, status, created_at
-			FROM mm_threads WHERE name = ? AND parent_thread = ?
+			FROM fray_threads WHERE name = ? AND parent_thread = ?
 		`, name, *parent)
 	}
 
@@ -1602,13 +1602,13 @@ func GetThreadByName(db *sql.DB, name string, parent *string) (*types.Thread, er
 func GetThreads(db *sql.DB, options *types.ThreadQueryOptions) ([]types.Thread, error) {
 	query := `
 		SELECT DISTINCT t.guid, t.name, t.parent_thread, t.status, t.created_at
-		FROM mm_threads t
+		FROM fray_threads t
 	`
 	var conditions []string
 	var args []any
 
 	if options != nil && options.SubscribedAgent != nil {
-		query += " INNER JOIN mm_thread_subscriptions s ON s.thread_guid = t.guid"
+		query += " INNER JOIN fray_thread_subscriptions s ON s.thread_guid = t.guid"
 		conditions = append(conditions, "s.agent_id = ?")
 		args = append(args, *options.SubscribedAgent)
 	}
@@ -1650,7 +1650,7 @@ func SubscribeThread(db *sql.DB, threadGUID, agentID string, subscribedAt int64)
 		subscribedAt = time.Now().Unix()
 	}
 	_, err := db.Exec(`
-		INSERT OR REPLACE INTO mm_thread_subscriptions (thread_guid, agent_id, subscribed_at)
+		INSERT OR REPLACE INTO fray_thread_subscriptions (thread_guid, agent_id, subscribed_at)
 		VALUES (?, ?, ?)
 	`, threadGUID, agentID, subscribedAt)
 	return err
@@ -1659,7 +1659,7 @@ func SubscribeThread(db *sql.DB, threadGUID, agentID string, subscribedAt int64)
 // UnsubscribeThread unsubscribes an agent from a thread.
 func UnsubscribeThread(db *sql.DB, threadGUID, agentID string) error {
 	_, err := db.Exec(`
-		DELETE FROM mm_thread_subscriptions WHERE thread_guid = ? AND agent_id = ?
+		DELETE FROM fray_thread_subscriptions WHERE thread_guid = ? AND agent_id = ?
 	`, threadGUID, agentID)
 	return err
 }
@@ -1670,7 +1670,7 @@ func AddMessageToThread(db *sql.DB, threadGUID, messageGUID, addedBy string, add
 		addedAt = time.Now().Unix()
 	}
 	_, err := db.Exec(`
-		INSERT OR REPLACE INTO mm_thread_messages (thread_guid, message_guid, added_by, added_at)
+		INSERT OR REPLACE INTO fray_thread_messages (thread_guid, message_guid, added_by, added_at)
 		VALUES (?, ?, ?, ?)
 	`, threadGUID, messageGUID, addedBy, addedAt)
 	return err
@@ -1679,7 +1679,7 @@ func AddMessageToThread(db *sql.DB, threadGUID, messageGUID, addedBy string, add
 // RemoveMessageFromThread removes a message from a thread playlist.
 func RemoveMessageFromThread(db *sql.DB, threadGUID, messageGUID string) error {
 	_, err := db.Exec(`
-		DELETE FROM mm_thread_messages WHERE thread_guid = ? AND message_guid = ?
+		DELETE FROM fray_thread_messages WHERE thread_guid = ? AND message_guid = ?
 	`, threadGUID, messageGUID)
 	return err
 }
@@ -1687,8 +1687,8 @@ func RemoveMessageFromThread(db *sql.DB, threadGUID, messageGUID string) error {
 // GetThreadMessages returns messages in a thread (home or membership).
 func GetThreadMessages(db *sql.DB, threadGUID string) ([]types.Message, error) {
 	rows, err := db.Query(`
-		SELECT DISTINCT m.* FROM mm_messages m
-		LEFT JOIN mm_thread_messages tm ON tm.message_guid = m.guid AND tm.thread_guid = ?
+		SELECT DISTINCT m.* FROM fray_messages m
+		LEFT JOIN fray_thread_messages tm ON tm.message_guid = m.guid AND tm.thread_guid = ?
 		WHERE m.home = ? OR tm.thread_guid = ?
 		ORDER BY m.ts ASC, m.guid ASC
 	`, threadGUID, threadGUID, threadGUID)
@@ -1703,9 +1703,9 @@ func GetThreadMessages(db *sql.DB, threadGUID string) ([]types.Message, error) {
 // IsMessageInThread reports whether a message is in a thread (home or membership).
 func IsMessageInThread(db *sql.DB, threadGUID, messageGUID string) (bool, error) {
 	row := db.QueryRow(`
-		SELECT 1 FROM mm_messages WHERE guid = ? AND home = ?
+		SELECT 1 FROM fray_messages WHERE guid = ? AND home = ?
 		UNION
-		SELECT 1 FROM mm_thread_messages WHERE message_guid = ? AND thread_guid = ?
+		SELECT 1 FROM fray_thread_messages WHERE message_guid = ? AND thread_guid = ?
 		LIMIT 1
 	`, messageGUID, threadGUID, messageGUID, threadGUID)
 	var value int
@@ -1721,7 +1721,7 @@ func IsMessageInThread(db *sql.DB, threadGUID, messageGUID string) (bool, error)
 // PruneExpiredClaims removes expired claims.
 func PruneExpiredClaims(db *sql.DB) (int64, error) {
 	now := time.Now().Unix()
-	result, err := db.Exec("DELETE FROM mm_claims WHERE expires_at IS NOT NULL AND expires_at < ?", now)
+	result, err := db.Exec("DELETE FROM fray_claims WHERE expires_at IS NOT NULL AND expires_at < ?", now)
 	if err != nil {
 		return 0, err
 	}
@@ -1732,7 +1732,7 @@ func PruneExpiredClaims(db *sql.DB) (int64, error) {
 func CreateClaim(db *sql.DB, claim types.ClaimInput) (*types.Claim, error) {
 	now := time.Now().Unix()
 	result, err := db.Exec(`
-		INSERT INTO mm_claims (agent_id, claim_type, pattern, reason, created_at, expires_at)
+		INSERT INTO fray_claims (agent_id, claim_type, pattern, reason, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, claim.AgentID, claim.ClaimType, claim.Pattern, claim.Reason, now, claim.ExpiresAt)
 	if err != nil {
@@ -1765,7 +1765,7 @@ func CreateClaim(db *sql.DB, claim types.ClaimInput) (*types.Claim, error) {
 func GetClaim(db *sql.DB, claimType types.ClaimType, pattern string) (*types.Claim, error) {
 	row := db.QueryRow(`
 		SELECT id, agent_id, claim_type, pattern, reason, created_at, expires_at
-		FROM mm_claims
+		FROM fray_claims
 		WHERE claim_type = ? AND pattern = ?
 	`, claimType, pattern)
 	claim, err := scanClaim(row)
@@ -1782,7 +1782,7 @@ func GetClaim(db *sql.DB, claimType types.ClaimType, pattern string) (*types.Cla
 func GetClaimsByAgent(db *sql.DB, agentID string) ([]types.Claim, error) {
 	rows, err := db.Query(`
 		SELECT id, agent_id, claim_type, pattern, reason, created_at, expires_at
-		FROM mm_claims
+		FROM fray_claims
 		WHERE agent_id = ?
 		ORDER BY created_at
 	`, agentID)
@@ -1798,7 +1798,7 @@ func GetClaimsByAgent(db *sql.DB, agentID string) ([]types.Claim, error) {
 func GetClaimsByType(db *sql.DB, claimType types.ClaimType) ([]types.Claim, error) {
 	rows, err := db.Query(`
 		SELECT id, agent_id, claim_type, pattern, reason, created_at, expires_at
-		FROM mm_claims
+		FROM fray_claims
 		WHERE claim_type = ?
 		ORDER BY created_at
 	`, claimType)
@@ -1817,7 +1817,7 @@ func GetAllClaims(db *sql.DB) ([]types.Claim, error) {
 	}
 	rows, err := db.Query(`
 		SELECT id, agent_id, claim_type, pattern, reason, created_at, expires_at
-		FROM mm_claims
+		FROM fray_claims
 		ORDER BY created_at
 	`)
 	if err != nil {
@@ -1830,7 +1830,7 @@ func GetAllClaims(db *sql.DB) ([]types.Claim, error) {
 
 // DeleteClaim removes a specific claim.
 func DeleteClaim(db *sql.DB, claimType types.ClaimType, pattern string) (bool, error) {
-	result, err := db.Exec("DELETE FROM mm_claims WHERE claim_type = ? AND pattern = ?", claimType, pattern)
+	result, err := db.Exec("DELETE FROM fray_claims WHERE claim_type = ? AND pattern = ?", claimType, pattern)
 	if err != nil {
 		return false, err
 	}
@@ -1843,7 +1843,7 @@ func DeleteClaim(db *sql.DB, claimType types.ClaimType, pattern string) (bool, e
 
 // DeleteClaimsByAgent removes all claims for an agent.
 func DeleteClaimsByAgent(db *sql.DB, agentID string) (int64, error) {
-	result, err := db.Exec("DELETE FROM mm_claims WHERE agent_id = ?", agentID)
+	result, err := db.Exec("DELETE FROM fray_claims WHERE agent_id = ?", agentID)
 	if err != nil {
 		return 0, err
 	}
@@ -1891,7 +1891,7 @@ func CheckFileConflict(db *sql.DB, filePath, excludeAgent string) (*types.Claim,
 
 // UpdateClaimsAgentID updates claim ownership.
 func UpdateClaimsAgentID(db *sql.DB, oldID, newID string) error {
-	_, err := db.Exec("UPDATE mm_claims SET agent_id = ? WHERE agent_id = ?", newID, oldID)
+	_, err := db.Exec("UPDATE fray_claims SET agent_id = ? WHERE agent_id = ?", newID, oldID)
 	return err
 }
 
@@ -1903,7 +1903,7 @@ func GetClaimCountsByAgent(db *sql.DB) (map[string]int64, error) {
 
 	rows, err := db.Query(`
 		SELECT agent_id, COUNT(*) as count
-		FROM mm_claims
+		FROM fray_claims
 		GROUP BY agent_id
 	`)
 	if err != nil {
@@ -1933,7 +1933,7 @@ func resolveCursor(db *sql.DB, cursor *types.MessageCursor, guid string) (*types
 	if guid == "" {
 		return nil, nil
 	}
-	row := db.QueryRow("SELECT guid, ts FROM mm_messages WHERE guid = ?", guid)
+	row := db.QueryRow("SELECT guid, ts FROM fray_messages WHERE guid = ?", guid)
 	var result types.MessageCursor
 	if err := row.Scan(&result.GUID, &result.TS); err != nil {
 		if err == sql.ErrNoRows {

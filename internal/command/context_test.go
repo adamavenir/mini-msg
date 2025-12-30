@@ -3,8 +3,8 @@ package command
 import (
 	"testing"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
 )
 
 func TestResolveChannelContextByName(t *testing.T) {

@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -60,23 +60,23 @@ type readReceiptRow struct {
 func NewMigrateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "migrate",
-		Short: "Migrate mm project from v0.1.0 to v0.2.0 format",
+		Short: "Migrate fray project from v0.1.0 to v0.2.0 format",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			project, err := core.DiscoverProject("")
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
 
-			mmDir := filepath.Dir(project.DBPath)
-			configPath := filepath.Join(mmDir, "mm-config.json")
+			frayDir := filepath.Dir(project.DBPath)
+			configPath := filepath.Join(frayDir, "fray-config.json")
 
 			if _, err := os.Stat(configPath); err == nil {
-				return writeCommandError(cmd, fmt.Errorf("mm-config.json already exists. Nothing to migrate."))
+				return writeCommandError(cmd, fmt.Errorf("fray-config.json already exists. Nothing to migrate."))
 			}
 
-			backupDir := filepath.Join(project.Root, ".mm.bak")
+			backupDir := filepath.Join(project.Root, ".fray.bak")
 			if _, err := os.Stat(backupDir); err == nil {
-				return writeCommandError(cmd, fmt.Errorf("Backup already exists at .mm.bak/. Move it aside before migrating."))
+				return writeCommandError(cmd, fmt.Errorf("Backup already exists at .fray.bak/. Move it aside before migrating."))
 			}
 
 			defaultName := filepath.Base(project.Root)
@@ -95,11 +95,11 @@ func NewMigrateCmd() *cobra.Command {
 			}
 			defer sourceDB.Close()
 
-			if !tableExists(sourceDB, "mm_agents") || !tableExists(sourceDB, "mm_messages") {
-				return writeCommandError(cmd, fmt.Errorf("Missing mm tables in database. Nothing to migrate."))
+			if !tableExists(sourceDB, "fray_agents") || !tableExists(sourceDB, "fray_messages") {
+				return writeCommandError(cmd, fmt.Errorf("Missing fray tables in database. Nothing to migrate."))
 			}
 
-			agentColumns, err := getColumns(sourceDB, "mm_agents")
+			agentColumns, err := getColumns(sourceDB, "fray_agents")
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
@@ -109,7 +109,7 @@ func NewMigrateCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
-			messageColumns, err := getColumns(sourceDB, "mm_messages")
+			messageColumns, err := getColumns(sourceDB, "fray_messages")
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
@@ -226,7 +226,7 @@ func NewMigrateCmd() *cobra.Command {
 				})
 			}
 
-			if err := copyDir(mmDir, backupDir); err != nil {
+			if err := copyDir(frayDir, backupDir); err != nil {
 				return writeCommandError(cmd, err)
 			}
 
@@ -241,10 +241,10 @@ func NewMigrateCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
-			if err := writeJSONLFile(filepath.Join(mmDir, "agents.jsonl"), agentsJSONL); err != nil {
+			if err := writeJSONLFile(filepath.Join(frayDir, "agents.jsonl"), agentsJSONL); err != nil {
 				return writeCommandError(cmd, err)
 			}
-			if err := writeJSONLFile(filepath.Join(mmDir, "messages.jsonl"), messagesJSONL); err != nil {
+			if err := writeJSONLFile(filepath.Join(frayDir, "messages.jsonl"), messagesJSONL); err != nil {
 				return writeCommandError(cmd, err)
 			}
 
@@ -281,7 +281,7 @@ func NewMigrateCmd() *cobra.Command {
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), "✓ Registered channel %s as '%s'\n", channelID, channelName)
-			fmt.Fprintln(cmd.OutOrStdout(), "Migration complete. Backup at .mm.bak/")
+			fmt.Fprintln(cmd.OutOrStdout(), "Migration complete. Backup at .fray.bak/")
 			fmt.Fprintf(cmd.OutOrStdout(), "Migrated %d agents and %d messages.\n", len(agentsJSONL), len(messagesJSONL))
 			return nil
 		},
@@ -356,7 +356,7 @@ func loadAgents(dbConn *sql.DB, hasGUID bool) ([]agentRow, error) {
 	if hasGUID {
 		rows, err := dbConn.Query(`
 			SELECT guid, agent_id, goal, bio, registered_at, last_seen, left_at
-			FROM mm_agents
+			FROM fray_agents
 		`)
 		if err != nil {
 			return nil, err
@@ -367,7 +367,7 @@ func loadAgents(dbConn *sql.DB, hasGUID bool) ([]agentRow, error) {
 
 	rows, err := dbConn.Query(`
 		SELECT agent_id, goal, bio, registered_at, last_seen, left_at
-		FROM mm_agents
+		FROM fray_agents
 	`)
 	if err != nil {
 		return nil, err
@@ -425,7 +425,7 @@ func loadMessages(dbConn *sql.DB, hasGUID bool, hasID bool) ([]messageRow, error
 	fields = append(fields, "ts", "from_agent", "body", "mentions", "type", "reply_to", "edited_at", "archived_at")
 	query := fmt.Sprintf(`
 		SELECT %s
-		FROM mm_messages
+		FROM fray_messages
 		ORDER BY %s
 	`, strings.Join(fields, ", "), messageOrder(hasID))
 
@@ -500,11 +500,11 @@ func scanMessages(rows *sql.Rows, hasGUID bool, hasID bool) ([]messageRow, error
 }
 
 func loadReadReceipts(dbConn *sql.DB) ([]readReceiptRow, error) {
-	if !tableExists(dbConn, "mm_read_receipts") {
+	if !tableExists(dbConn, "fray_read_receipts") {
 		return nil, nil
 	}
 
-	columns, err := getColumns(dbConn, "mm_read_receipts")
+	columns, err := getColumns(dbConn, "fray_read_receipts")
 	if err != nil {
 		return nil, err
 	}
@@ -517,7 +517,7 @@ func loadReadReceipts(dbConn *sql.DB) ([]readReceiptRow, error) {
 
 	rows, err := dbConn.Query(fmt.Sprintf(`
 		SELECT %s, agent_prefix, read_at
-		FROM mm_read_receipts
+		FROM fray_read_receipts
 	`, field))
 	if err != nil {
 		return nil, err
@@ -568,7 +568,7 @@ func restoreReadReceipts(dbConn *sql.DB, receipts []readReceiptRow, idToGuid map
 	}()
 
 	stmt, err := tx.Prepare(`
-		INSERT OR IGNORE INTO mm_read_receipts (message_guid, agent_prefix, read_at)
+		INSERT OR IGNORE INTO fray_read_receipts (message_guid, agent_prefix, read_at)
 		VALUES (?, ?, ?)
 	`)
 	if err != nil {

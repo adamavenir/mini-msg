@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -61,66 +61,66 @@ type statusArgs struct {
 	Clear      bool     `json:"clear,omitempty" jsonschema:"Clear all claims and reset status"`
 }
 
-// RegisterTools registers all MCP tools for mm.
+// RegisterTools registers all MCP tools for fray.
 func RegisterTools(server *mcp.Server, ctx *ToolContext) {
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "mm_post",
-		Description: "Post a message to the mm room. Use @mentions to direct messages to specific agents.",
+		Name:        "fray_post",
+		Description: "Post a message to the fray room. Use @mentions to direct messages to specific agents.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args postArgs) (*mcp.CallToolResult, any, error) {
 		return handlePost(*ctx, args.Body), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "mm_get",
+		Name:        "fray_get",
 		Description: "Get recent room messages. Use for catching up on conversation.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args getArgs) (*mcp.CallToolResult, any, error) {
 		return handleGet(*ctx, args.Since, args.Limit), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "mm_mentions",
+		Name:        "fray_mentions",
 		Description: "Get messages that mention me. Use to check for messages directed at you.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args mentionsArgs) (*mcp.CallToolResult, any, error) {
 		return handleMentions(*ctx, args.Since, args.Limit), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "mm_here",
+		Name:        "fray_here",
 		Description: "List active agents in the room. See who is available to collaborate.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 		return handleHere(*ctx), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "mm_whoami",
+		Name:        "fray_whoami",
 		Description: "Show my agent identity. Returns your agent ID and status.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 		return handleWhoami(*ctx), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "mm_claim",
+		Name:        "fray_claim",
 		Description: "Claim resources (files, bd issues, GitHub issues) to prevent collision with other agents.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args claimArgs) (*mcp.CallToolResult, any, error) {
 		return handleClaim(*ctx, args.Files, args.BD, args.Issues, args.Reason, args.TTLMinutes), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "mm_clear",
+		Name:        "fray_clear",
 		Description: "Clear claims. Clear all your claims or specific ones.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args clearArgs) (*mcp.CallToolResult, any, error) {
 		return handleClear(*ctx, args.File, args.BD, args.Issue), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "mm_claims",
+		Name:        "fray_claims",
 		Description: "List active claims. Shows who has claimed what resources.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args claimsArgs) (*mcp.CallToolResult, any, error) {
 		return handleClaims(*ctx, args.Agent), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "mm_status",
+		Name:        "fray_status",
 		Description: "Update your status with optional resource claims. Sets your status and claims resources in one operation.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, args statusArgs) (*mcp.CallToolResult, any, error) {
 		return handleStatus(*ctx, args.Message, args.Files, args.BD, args.Issues, args.TTLMinutes, args.Clear), nil, nil

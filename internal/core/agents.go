@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 var (

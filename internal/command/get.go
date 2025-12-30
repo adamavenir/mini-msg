@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -239,11 +239,11 @@ func NewGetCmd() *cobra.Command {
 
 				fmt.Fprintln(out, "")
 				fmt.Fprintln(out, "---")
-				fmt.Fprintf(out, "More: mm get --last 50 | mm @%s --all | mm get --since <guid>\n", agentBase)
+				fmt.Fprintf(out, "More: fray get --last 50 | fray @%s --all | fray get --since <guid>\n", agentBase)
 				return nil
 			}
 
-			return writeCommandError(cmd, fmt.Errorf("usage: mm get <agent>        Combined room + @mentions view\n       mm get --last <n>     Last N messages\n       mm get --since <guid> Messages after GUID\n       mm get --all          All messages"))
+			return writeCommandError(cmd, fmt.Errorf("usage: fray get <agent>        Combined room + @mentions view\n       fray get --last <n>     Last N messages\n       fray get --since <guid> Messages after GUID\n       fray get --all          All messages"))
 		},
 	}
 

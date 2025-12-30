@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/db"
 )
 
 const (
@@ -29,9 +29,9 @@ func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, er
 		return pruneResult{}, fmt.Errorf("invalid --keep value: %d", keep)
 	}
 
-	mmDir := resolveMMDir(projectPath)
-	messagesPath := filepath.Join(mmDir, messagesJSONL)
-	historyPath := filepath.Join(mmDir, historyJSONL)
+	frayDir := resolveFrayDir(projectPath)
+	messagesPath := filepath.Join(frayDir, messagesJSONL)
+	historyPath := filepath.Join(frayDir, historyJSONL)
 
 	if pruneAll {
 		if err := os.Remove(historyPath); err != nil && !os.IsNotExist(err) {
@@ -76,19 +76,19 @@ func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, er
 	}, nil
 }
 
-func resolveMMDir(projectPath string) string {
+func resolveFrayDir(projectPath string) string {
 	if strings.HasSuffix(projectPath, ".db") {
 		return filepath.Dir(projectPath)
 	}
-	if filepath.Base(projectPath) == ".mm" {
+	if filepath.Base(projectPath) == ".fray" {
 		return projectPath
 	}
-	return filepath.Join(projectPath, ".mm")
+	return filepath.Join(projectPath, ".fray")
 }
 
 func projectRootFromPath(projectPath string) string {
-	mmDir := resolveMMDir(projectPath)
-	return filepath.Dir(mmDir)
+	frayDir := resolveFrayDir(projectPath)
+	return filepath.Dir(frayDir)
 }
 
 func writeMessages(path string, records []db.MessageJSONLRecord) error {
@@ -130,12 +130,12 @@ func checkPruneGuardrails(root string) error {
 		return fmt.Errorf("unable to determine project root")
 	}
 
-	status, err := runGitCommand(root, "status", "--porcelain", ".mm/")
+	status, err := runGitCommand(root, "status", "--porcelain", ".fray/")
 	if err != nil {
 		return err
 	}
 	if strings.TrimSpace(status) != "" {
-		return fmt.Errorf("uncommitted changes in .mm/. Commit first")
+		return fmt.Errorf("uncommitted changes in .fray/. Commit first")
 	}
 
 	_, err = runGitCommand(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")

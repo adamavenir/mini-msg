@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 	agentsFile        = "agents.jsonl"
 	questionsFile     = "questions.jsonl"
 	threadsFile       = "threads.jsonl"
-	projectConfigFile = "mm-config.json"
+	projectConfigFile = "fray-config.json"
 )
 
 // MessageJSONLRecord represents a message entry in JSONL.
@@ -167,14 +167,14 @@ type ProjectConfig struct {
 	KnownAgents map[string]ProjectKnownAgent `json:"known_agents,omitempty"`
 }
 
-func resolveMMDir(projectPath string) string {
+func resolveFrayDir(projectPath string) string {
 	if strings.HasSuffix(projectPath, ".db") {
 		return filepath.Dir(projectPath)
 	}
-	if filepath.Base(projectPath) == ".mm" {
+	if filepath.Base(projectPath) == ".fray" {
 		return projectPath
 	}
-	return filepath.Join(projectPath, ".mm")
+	return filepath.Join(projectPath, ".fray")
 }
 
 func ensureDir(dirPath string) error {
@@ -205,11 +205,11 @@ func appendJSONLine(filePath string, record any) error {
 }
 
 func touchDatabaseFile(projectPath string) {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	if strings.HasSuffix(projectPath, ".db") {
-		mmDir = filepath.Dir(projectPath)
+		frayDir = filepath.Dir(projectPath)
 	}
-	path := filepath.Join(mmDir, "mm.db")
+	path := filepath.Join(frayDir, "fray.db")
 	_, err := os.Stat(path)
 	if err != nil {
 		return
@@ -266,7 +266,7 @@ func readJSONLFile[T any](filePath string) ([]T, error) {
 
 // AppendMessage appends a message record to JSONL.
 func AppendMessage(projectPath string, message types.Message) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	home := message.Home
 	if home == "" {
 		home = "room"
@@ -289,7 +289,7 @@ func AppendMessage(projectPath string, message types.Message) error {
 		ArchivedAt:     message.ArchivedAt,
 	}
 
-	if err := appendJSONLine(filepath.Join(mmDir, messagesFile), record); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, messagesFile), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -298,9 +298,9 @@ func AppendMessage(projectPath string, message types.Message) error {
 
 // AppendMessageUpdate appends an update record to JSONL.
 func AppendMessageUpdate(projectPath string, update MessageUpdateJSONLRecord) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	update.Type = "message_update"
-	if err := appendJSONLine(filepath.Join(mmDir, messagesFile), update); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, messagesFile), update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -309,7 +309,7 @@ func AppendMessageUpdate(projectPath string, update MessageUpdateJSONLRecord) er
 
 // AppendAgent appends an agent record to JSONL.
 func AppendAgent(projectPath string, agent types.Agent) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	config, err := ReadProjectConfig(projectPath)
 	if err != nil {
 		return err
@@ -354,7 +354,7 @@ func AppendAgent(projectPath string, agent types.Agent) error {
 		record.HomeChannel = &channelID
 	}
 
-	if err := appendJSONLine(filepath.Join(mmDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -363,7 +363,7 @@ func AppendAgent(projectPath string, agent types.Agent) error {
 
 // AppendQuestion appends a question record to JSONL.
 func AppendQuestion(projectPath string, question types.Question) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	record := QuestionJSONLRecord{
 		Type:       "question",
 		GUID:       question.GUID,
@@ -376,7 +376,7 @@ func AppendQuestion(projectPath string, question types.Question) error {
 		AnsweredIn: question.AnsweredIn,
 		CreatedAt:  question.CreatedAt,
 	}
-	if err := appendJSONLine(filepath.Join(mmDir, questionsFile), record); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, questionsFile), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -385,9 +385,9 @@ func AppendQuestion(projectPath string, question types.Question) error {
 
 // AppendQuestionUpdate appends a question update record to JSONL.
 func AppendQuestionUpdate(projectPath string, update QuestionUpdateJSONLRecord) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	update.Type = "question_update"
-	if err := appendJSONLine(filepath.Join(mmDir, questionsFile), update); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, questionsFile), update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -396,7 +396,7 @@ func AppendQuestionUpdate(projectPath string, update QuestionUpdateJSONLRecord) 
 
 // AppendThread appends a thread record to JSONL.
 func AppendThread(projectPath string, thread types.Thread, subscribed []string) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	record := ThreadJSONLRecord{
 		Type:         "thread",
 		GUID:         thread.GUID,
@@ -406,7 +406,7 @@ func AppendThread(projectPath string, thread types.Thread, subscribed []string) 
 		Status:       string(thread.Status),
 		CreatedAt:    thread.CreatedAt,
 	}
-	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), record); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -415,9 +415,9 @@ func AppendThread(projectPath string, thread types.Thread, subscribed []string) 
 
 // AppendThreadUpdate appends a thread update record to JSONL.
 func AppendThreadUpdate(projectPath string, update ThreadUpdateJSONLRecord) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	update.Type = "thread_update"
-	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), update); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -426,9 +426,9 @@ func AppendThreadUpdate(projectPath string, update ThreadUpdateJSONLRecord) erro
 
 // AppendThreadSubscribe appends a thread subscribe event to JSONL.
 func AppendThreadSubscribe(projectPath string, event ThreadSubscribeJSONLRecord) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_subscribe"
-	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), event); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -437,9 +437,9 @@ func AppendThreadSubscribe(projectPath string, event ThreadSubscribeJSONLRecord)
 
 // AppendThreadUnsubscribe appends a thread unsubscribe event to JSONL.
 func AppendThreadUnsubscribe(projectPath string, event ThreadUnsubscribeJSONLRecord) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_unsubscribe"
-	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), event); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -448,9 +448,9 @@ func AppendThreadUnsubscribe(projectPath string, event ThreadUnsubscribeJSONLRec
 
 // AppendThreadMessage appends a thread message membership event to JSONL.
 func AppendThreadMessage(projectPath string, event ThreadMessageJSONLRecord) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_message"
-	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), event); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -459,9 +459,9 @@ func AppendThreadMessage(projectPath string, event ThreadMessageJSONLRecord) err
 
 // AppendThreadMessageRemove appends a thread message removal event to JSONL.
 func AppendThreadMessageRemove(projectPath string, event ThreadMessageRemoveJSONLRecord) error {
-	mmDir := resolveMMDir(projectPath)
+	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_message_remove"
-	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), event); err != nil {
+	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -470,8 +470,8 @@ func AppendThreadMessageRemove(projectPath string, event ThreadMessageRemoveJSON
 
 // UpdateProjectConfig merges updates into the project config.
 func UpdateProjectConfig(projectPath string, updates ProjectConfig) (*ProjectConfig, error) {
-	mmDir := resolveMMDir(projectPath)
-	if err := ensureDir(mmDir); err != nil {
+	frayDir := resolveFrayDir(projectPath)
+	if err := ensureDir(frayDir); err != nil {
 		return nil, err
 	}
 
@@ -514,7 +514,7 @@ func UpdateProjectConfig(projectPath string, updates ProjectConfig) (*ProjectCon
 	}
 	data = append(data, '\n')
 
-	configPath := filepath.Join(mmDir, projectConfigFile)
+	configPath := filepath.Join(frayDir, projectConfigFile)
 	if err := os.WriteFile(configPath, data, 0o644); err != nil {
 		return nil, err
 	}
@@ -550,8 +550,8 @@ func mergeKnownAgent(existing, updates ProjectKnownAgent) ProjectKnownAgent {
 
 // ReadMessages reads message records and applies updates.
 func ReadMessages(projectPath string) ([]MessageJSONLRecord, error) {
-	mmDir := resolveMMDir(projectPath)
-	lines, err := readJSONLLines(filepath.Join(mmDir, messagesFile))
+	frayDir := resolveFrayDir(projectPath)
+	lines, err := readJSONLLines(filepath.Join(frayDir, messagesFile))
 	if err != nil {
 		return nil, err
 	}
@@ -663,8 +663,8 @@ type threadMessageEvent struct {
 
 // ReadQuestions reads question records and applies updates.
 func ReadQuestions(projectPath string) ([]QuestionJSONLRecord, error) {
-	mmDir := resolveMMDir(projectPath)
-	lines, err := readJSONLLines(filepath.Join(mmDir, questionsFile))
+	frayDir := resolveFrayDir(projectPath)
+	lines, err := readJSONLLines(filepath.Join(frayDir, questionsFile))
 	if err != nil {
 		return nil, err
 	}
@@ -736,8 +736,8 @@ func ReadQuestions(projectPath string) ([]QuestionJSONLRecord, error) {
 
 // ReadThreads reads thread records and subscription/membership events.
 func ReadThreads(projectPath string) ([]ThreadJSONLRecord, []threadSubscriptionEvent, []threadMessageEvent, error) {
-	mmDir := resolveMMDir(projectPath)
-	lines, err := readJSONLLines(filepath.Join(mmDir, threadsFile))
+	frayDir := resolveFrayDir(projectPath)
+	lines, err := readJSONLLines(filepath.Join(frayDir, threadsFile))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -853,14 +853,14 @@ func ReadThreads(projectPath string) ([]ThreadJSONLRecord, []threadSubscriptionE
 
 // ReadAgents reads agent JSONL records.
 func ReadAgents(projectPath string) ([]AgentJSONLRecord, error) {
-	mmDir := resolveMMDir(projectPath)
-	return readJSONLFile[AgentJSONLRecord](filepath.Join(mmDir, agentsFile))
+	frayDir := resolveFrayDir(projectPath)
+	return readJSONLFile[AgentJSONLRecord](filepath.Join(frayDir, agentsFile))
 }
 
 // ReadProjectConfig reads the project config file.
 func ReadProjectConfig(projectPath string) (*ProjectConfig, error) {
-	mmDir := resolveMMDir(projectPath)
-	path := filepath.Join(mmDir, projectConfigFile)
+	frayDir := resolveFrayDir(projectPath)
+	path := filepath.Join(frayDir, projectConfigFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -898,25 +898,25 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 		return err
 	}
 
-	if _, err := db.Exec("DROP TABLE IF EXISTS mm_messages"); err != nil {
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_messages"); err != nil {
 		return err
 	}
-	if _, err := db.Exec("DROP TABLE IF EXISTS mm_agents"); err != nil {
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_agents"); err != nil {
 		return err
 	}
-	if _, err := db.Exec("DROP TABLE IF EXISTS mm_read_receipts"); err != nil {
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_read_receipts"); err != nil {
 		return err
 	}
-	if _, err := db.Exec("DROP TABLE IF EXISTS mm_questions"); err != nil {
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_questions"); err != nil {
 		return err
 	}
-	if _, err := db.Exec("DROP TABLE IF EXISTS mm_thread_messages"); err != nil {
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_thread_messages"); err != nil {
 		return err
 	}
-	if _, err := db.Exec("DROP TABLE IF EXISTS mm_thread_subscriptions"); err != nil {
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_thread_subscriptions"); err != nil {
 		return err
 	}
-	if _, err := db.Exec("DROP TABLE IF EXISTS mm_threads"); err != nil {
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_threads"); err != nil {
 		return err
 	}
 	if err := initSchemaWith(db); err != nil {
@@ -924,18 +924,18 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	}
 
 	if config != nil && config.ChannelID != "" {
-		if _, err := db.Exec("INSERT OR REPLACE INTO mm_config (key, value) VALUES (?, ?)", "channel_id", config.ChannelID); err != nil {
+		if _, err := db.Exec("INSERT OR REPLACE INTO fray_config (key, value) VALUES (?, ?)", "channel_id", config.ChannelID); err != nil {
 			return err
 		}
 		if config.ChannelName != "" {
-			if _, err := db.Exec("INSERT OR REPLACE INTO mm_config (key, value) VALUES (?, ?)", "channel_name", config.ChannelName); err != nil {
+			if _, err := db.Exec("INSERT OR REPLACE INTO fray_config (key, value) VALUES (?, ?)", "channel_name", config.ChannelName); err != nil {
 				return err
 			}
 		}
 	}
 
 	insertAgent := `
-		INSERT OR REPLACE INTO mm_agents (
+		INSERT OR REPLACE INTO fray_agents (
 			guid, agent_id, status, purpose, registered_at, last_seen, left_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
@@ -964,7 +964,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	}
 
 	insertMessage := `
-		INSERT OR REPLACE INTO mm_messages (
+		INSERT OR REPLACE INTO fray_messages (
 			guid, ts, channel_id, home, from_agent, body, mentions, type, "references", surface_message, reply_to, edited_at, archived_at, reactions
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
@@ -1010,7 +1010,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 
 	if len(questions) > 0 {
 		insertQuestion := `
-			INSERT OR REPLACE INTO mm_questions (
+			INSERT OR REPLACE INTO fray_questions (
 				guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`
@@ -1037,7 +1037,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 
 	if len(threads) > 0 {
 		insertThread := `
-			INSERT OR REPLACE INTO mm_threads (
+			INSERT OR REPLACE INTO fray_threads (
 				guid, name, parent_thread, status, created_at
 			) VALUES (?, ?, ?, ?, ?)
 		`
@@ -1091,7 +1091,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 		for threadGUID, set := range subscriptions {
 			for agentID, subscribedAt := range set {
 				if _, err := db.Exec(`
-					INSERT OR REPLACE INTO mm_thread_subscriptions (thread_guid, agent_id, subscribed_at)
+					INSERT OR REPLACE INTO fray_thread_subscriptions (thread_guid, agent_id, subscribed_at)
 					VALUES (?, ?, ?)
 				`, threadGUID, agentID, subscribedAt); err != nil {
 					return err
@@ -1122,7 +1122,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 		for _, messages := range threadMessages {
 			for _, entry := range messages {
 				if _, err := db.Exec(`
-					INSERT OR REPLACE INTO mm_thread_messages (thread_guid, message_guid, added_by, added_at)
+					INSERT OR REPLACE INTO fray_thread_messages (thread_guid, message_guid, added_by, added_at)
 					VALUES (?, ?, ?, ?)
 				`, entry.ThreadGUID, entry.MessageGUID, entry.AddedBy, entry.AddedAt); err != nil {
 					return err

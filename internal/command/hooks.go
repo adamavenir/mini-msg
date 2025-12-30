@@ -2,7 +2,7 @@ package command
 
 import "os"
 
-// WriteClaudeEnv writes MM_AGENT_ID to CLAUDE_ENV_FILE if set.
+// WriteClaudeEnv writes FRAY_AGENT_ID to CLAUDE_ENV_FILE if set.
 func WriteClaudeEnv(agentID string) bool {
 	path := os.Getenv("CLAUDE_ENV_FILE")
 	if path == "" {
@@ -15,7 +15,7 @@ func WriteClaudeEnv(agentID string) bool {
 	}
 	defer file.Close()
 
-	if _, err := file.WriteString("MM_AGENT_ID=" + agentID + "\n"); err != nil {
+	if _, err := file.WriteString("FRAY_AGENT_ID=" + agentID + "\n"); err != nil {
 		return false
 	}
 	return true

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adamavenir/mini-msg/internal/command"
+	"github.com/adamavenir/fray/internal/command"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func parseRelativeTime(value string) *time.Time {
@@ -75,7 +75,7 @@ func resolveGUIDCursor(db *sql.DB, expr string) (*types.MessageCursor, error) {
 	}
 
 	if strings.HasPrefix(raw, "msg-") {
-		row := db.QueryRow("SELECT guid, ts FROM mm_messages WHERE guid = ?", raw)
+		row := db.QueryRow("SELECT guid, ts FROM fray_messages WHERE guid = ?", raw)
 		var guid string
 		var ts int64
 		if err := row.Scan(&guid, &ts); err != nil {
@@ -93,7 +93,7 @@ func resolveGUIDCursor(db *sql.DB, expr string) (*types.MessageCursor, error) {
 
 	like := fmt.Sprintf("msg-%s%%", raw)
 	rows, err := db.Query(`
-		SELECT guid, ts FROM mm_messages
+		SELECT guid, ts FROM fray_messages
 		WHERE guid LIKE ?
 		ORDER BY ts DESC, guid DESC
 		LIMIT 5

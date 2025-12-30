@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
 )
 
 func TestFilterCommandLifecycle(t *testing.T) {
@@ -47,7 +47,7 @@ func TestFilterCommandLifecycle(t *testing.T) {
 		_ = os.Chdir(cwd)
 	})
 
-	t.Setenv("MM_AGENT_ID", "alice")
+	t.Setenv("FRAY_AGENT_ID", "alice")
 
 	cmd := NewRootCmd("test")
 	output, err := executeCommand(cmd, "filter", "show")

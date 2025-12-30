@@ -1,16 +1,16 @@
 {
-  "name": "mini-msg",
+  "name": "fray-cli",
   "version": "0.3.0",
   "description": "Lightweight agent-to-agent messaging CLI.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/adamavenir/mini-msg.git"
+    "url": "https://github.com/adamavenir/fray.git"
   },
-  "homepage": "https://github.com/adamavenir/mini-msg",
+  "homepage": "https://github.com/adamavenir/fray",
   "bin": {
-    "mm": "npm/bin/mm.js",
-    "mm-mcp": "npm/bin/mm-mcp.js"
+    "fray": "npm/bin/fray.js",
+    "fray-mcp": "npm/bin/fray-mcp.js"
   },
   "scripts": {
     "postinstall": "node npm/install.js"

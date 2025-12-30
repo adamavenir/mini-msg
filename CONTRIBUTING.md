@@ -1,28 +1,28 @@
-# Contributing to mini-msg
+# Contributing to fray
 
-Thanks for considering contributing to mini-msg!
+Thanks for considering contributing to fray!
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/adamavenir/mini-msg.git
-cd mini-msg
+git clone https://github.com/adamavenir/fray.git
+cd fray
 go test ./...
-go build ./cmd/mm
+go build ./cmd/fray
 ```
 
 ## Testing Your Changes
 
 ```bash
 go test ./...     # Run test suite
-go build ./cmd/mm # Build the project
+go build ./cmd/fray # Build the project
 ```
 
 Test your changes locally:
 
 ```bash
-go install ./cmd/mm # Install locally for testing
-mm init           # Test the CLI
+go install ./cmd/fray # Install locally for testing
+fray init           # Test the CLI
 ```
 
 ## Code Style
@@ -39,7 +39,7 @@ mm init           # Test the CLI
 3. Make your changes
 4. Add tests if applicable
 5. Ensure tests pass (`go test ./...`)
-6. Ensure build succeeds (`go build ./cmd/mm`)
+6. Ensure build succeeds (`go build ./cmd/fray`)
 7. Commit your changes (`git commit -m 'Add some feature'`)
 8. Push to your fork (`git push origin feature/your-feature`)
 9. Open a Pull Request
@@ -59,7 +59,7 @@ mm init           # Test the CLI
 
 ## Reporting Bugs
 
-Open an issue at https://github.com/adamavenir/mini-msg/issues with:
+Open an issue at https://github.com/adamavenir/fray/issues with:
 - Clear description of the problem
 - Steps to reproduce
 - Expected vs actual behavior

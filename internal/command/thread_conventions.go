@@ -3,8 +3,8 @@ package command
 import (
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func ensureThread(ctx *CommandContext, name string, parent *types.Thread, subscribers []string) (*types.Thread, error) {

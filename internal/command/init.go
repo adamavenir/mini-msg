@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +28,7 @@ type initResult struct {
 func NewInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Initialize mm in current directory",
+		Short: "Initialize fray in current directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			force, _ := cmd.Flags().GetBool("force")
 			useDefaults, _ := cmd.Flags().GetBool("defaults")
@@ -39,7 +39,7 @@ func NewInitCmd() *cobra.Command {
 
 			if useDefaults && !force {
 				if existing, err := core.DiscoverProject(""); err == nil {
-					configPath := filepath.Join(existing.Root, ".mm", "mm-config.json")
+					configPath := filepath.Join(existing.Root, ".fray", "fray-config.json")
 					if _, err := os.Stat(configPath); err == nil {
 						config, err := db.ReadProjectConfig(existing.DBPath)
 						if err == nil && config != nil && config.ChannelID != "" && config.ChannelName != "" {
@@ -155,12 +155,12 @@ func NewInitCmd() *cobra.Command {
 				if !alreadyExisted {
 					fmt.Fprintf(out, "✓ Registered channel %s as '%s'\n", channelID, channelName)
 				}
-				fmt.Fprintln(out, "Initialized .mm/")
+				fmt.Fprintln(out, "Initialized .fray/")
 				fmt.Fprintln(out, "")
 				fmt.Fprintln(out, "Next steps:")
-				fmt.Fprintln(out, "  mm new <name>                # Join as an agent")
-				fmt.Fprintln(out, "  mm hook-install              # Install Claude Code hooks")
-				fmt.Fprintln(out, "  mm hook-install --precommit  # Add git pre-commit hook for claims")
+				fmt.Fprintln(out, "  fray new <name>                # Join as an agent")
+				fmt.Fprintln(out, "  fray hook-install              # Install Claude Code hooks")
+				fmt.Fprintln(out, "  fray hook-install --precommit  # Add git pre-commit hook for claims")
 			}
 
 			return nil

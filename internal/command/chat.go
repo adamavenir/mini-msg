@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/chat"
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/chat"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -114,7 +114,7 @@ func shouldInitPrompt(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	return strings.Contains(msg, "not initialized") || strings.Contains(msg, "mm init") || strings.Contains(msg, "no channel context")
+	return strings.Contains(msg, "not initialized") || strings.Contains(msg, "fray init") || strings.Contains(msg, "no channel context")
 }
 
 func initForChat(cmd *cobra.Command) (*CommandContext, error) {
@@ -134,7 +134,7 @@ func initForChat(cmd *cobra.Command) (*CommandContext, error) {
 		_ = dbConn.Close()
 		return nil, err
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), "Initialized .mm/")
+	fmt.Fprintln(cmd.OutOrStdout(), "Initialized .fray/")
 
 	return &CommandContext{DB: dbConn, Project: project}, nil
 }
@@ -151,7 +151,7 @@ func promptInit() bool {
 		return false
 	}
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Fprintf(os.Stdout, "Run `mm init`? [Y/n] ")
+	fmt.Fprintf(os.Stdout, "Run `fray init`? [Y/n] ")
 	text, _ := reader.ReadString('\n')
 	trimmed := strings.ToLower(strings.TrimSpace(text))
 	return trimmed == "" || trimmed == "y" || trimmed == "yes"
