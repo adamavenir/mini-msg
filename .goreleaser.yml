@@ -48,7 +48,7 @@ brews:
     directory: Formula
     repository:
       owner: adamavenir
-      name: fray
+      name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://fray.so"
     description: "Multi-agent work that flows without losing the thread."
