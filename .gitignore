@@ -1,3 +1,6 @@
+# Go build cache
+.gocache/
+
 # Dependencies
 node_modules/
 

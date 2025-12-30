@@ -15,23 +15,28 @@ import (
 const (
 	messagesFile      = "messages.jsonl"
 	agentsFile        = "agents.jsonl"
+	questionsFile     = "questions.jsonl"
+	threadsFile       = "threads.jsonl"
 	projectConfigFile = "mm-config.json"
 )
 
 // MessageJSONLRecord represents a message entry in JSONL.
 type MessageJSONLRecord struct {
-	Type       string              `json:"type"`
-	ID         string              `json:"id"`
-	ChannelID  *string             `json:"channel_id"`
-	FromAgent  string              `json:"from_agent"`
-	Body       string              `json:"body"`
-	Mentions   []string            `json:"mentions"`
-	Reactions  map[string][]string `json:"reactions,omitempty"`
-	MsgType    types.MessageType   `json:"message_type"`
-	ReplyTo    *string             `json:"reply_to"`
-	TS         int64               `json:"ts"`
-	EditedAt   *int64              `json:"edited_at"`
-	ArchivedAt *int64              `json:"archived_at"`
+	Type           string              `json:"type"`
+	ID             string              `json:"id"`
+	ChannelID      *string             `json:"channel_id"`
+	Home           string              `json:"home,omitempty"`
+	FromAgent      string              `json:"from_agent"`
+	Body           string              `json:"body"`
+	Mentions       []string            `json:"mentions"`
+	Reactions      map[string][]string `json:"reactions,omitempty"`
+	MsgType        types.MessageType   `json:"message_type"`
+	References     *string             `json:"references,omitempty"`
+	SurfaceMessage *string             `json:"surface_message,omitempty"`
+	ReplyTo        *string             `json:"reply_to"`
+	TS             int64               `json:"ts"`
+	EditedAt       *int64              `json:"edited_at"`
+	ArchivedAt     *int64              `json:"archived_at"`
 }
 
 // MessageUpdateJSONLRecord represents a message update entry in JSONL.
@@ -42,6 +47,85 @@ type MessageUpdateJSONLRecord struct {
 	EditedAt   *int64               `json:"edited_at,omitempty"`
 	ArchivedAt *int64               `json:"archived_at,omitempty"`
 	Reactions  *map[string][]string `json:"reactions,omitempty"`
+}
+
+// QuestionJSONLRecord represents a question entry in JSONL.
+type QuestionJSONLRecord struct {
+	Type       string  `json:"type"`
+	GUID       string  `json:"guid"`
+	Re         string  `json:"re"`
+	FromAgent  string  `json:"from_agent"`
+	ToAgent    *string `json:"to,omitempty"`
+	Status     string  `json:"status"`
+	ThreadGUID *string `json:"thread_guid,omitempty"`
+	AskedIn    *string `json:"asked_in,omitempty"`
+	AnsweredIn *string `json:"answered_in,omitempty"`
+	CreatedAt  int64   `json:"created_at"`
+}
+
+// QuestionUpdateJSONLRecord represents a question update entry in JSONL.
+type QuestionUpdateJSONLRecord struct {
+	Type       string  `json:"type"`
+	GUID       string  `json:"guid"`
+	Status     *string `json:"status,omitempty"`
+	ToAgent    *string `json:"to,omitempty"`
+	ThreadGUID *string `json:"thread_guid,omitempty"`
+	AskedIn    *string `json:"asked_in,omitempty"`
+	AnsweredIn *string `json:"answered_in,omitempty"`
+}
+
+// ThreadJSONLRecord represents a thread entry in JSONL.
+type ThreadJSONLRecord struct {
+	Type         string   `json:"type"`
+	GUID         string   `json:"guid"`
+	Name         string   `json:"name"`
+	ParentThread *string  `json:"parent_thread,omitempty"`
+	Subscribed   []string `json:"subscribed,omitempty"`
+	Status       string   `json:"status"`
+	CreatedAt    int64    `json:"created_at"`
+}
+
+// ThreadUpdateJSONLRecord represents a thread update entry in JSONL.
+type ThreadUpdateJSONLRecord struct {
+	Type         string  `json:"type"`
+	GUID         string  `json:"guid"`
+	Name         *string `json:"name,omitempty"`
+	Status       *string `json:"status,omitempty"`
+	ParentThread *string `json:"parent_thread,omitempty"`
+}
+
+// ThreadSubscribeJSONLRecord represents a subscription event.
+type ThreadSubscribeJSONLRecord struct {
+	Type         string `json:"type"`
+	ThreadGUID   string `json:"thread_guid"`
+	AgentID      string `json:"agent_id"`
+	SubscribedAt int64  `json:"subscribed_at"`
+}
+
+// ThreadUnsubscribeJSONLRecord represents an unsubscribe event.
+type ThreadUnsubscribeJSONLRecord struct {
+	Type           string `json:"type"`
+	ThreadGUID     string `json:"thread_guid"`
+	AgentID        string `json:"agent_id"`
+	UnsubscribedAt int64  `json:"unsubscribed_at"`
+}
+
+// ThreadMessageJSONLRecord represents a thread membership event.
+type ThreadMessageJSONLRecord struct {
+	Type        string `json:"type"`
+	ThreadGUID  string `json:"thread_guid"`
+	MessageGUID string `json:"message_guid"`
+	AddedBy     string `json:"added_by"`
+	AddedAt     int64  `json:"added_at"`
+}
+
+// ThreadMessageRemoveJSONLRecord represents a removal event.
+type ThreadMessageRemoveJSONLRecord struct {
+	Type        string `json:"type"`
+	ThreadGUID  string `json:"thread_guid"`
+	MessageGUID string `json:"message_guid"`
+	RemovedBy   string `json:"removed_by"`
+	RemovedAt   int64  `json:"removed_at"`
 }
 
 // AgentJSONLRecord represents an agent entry in JSONL.
@@ -183,19 +267,26 @@ func readJSONLFile[T any](filePath string) ([]T, error) {
 // AppendMessage appends a message record to JSONL.
 func AppendMessage(projectPath string, message types.Message) error {
 	mmDir := resolveMMDir(projectPath)
+	home := message.Home
+	if home == "" {
+		home = "room"
+	}
 	record := MessageJSONLRecord{
-		Type:       "message",
-		ID:         message.ID,
-		ChannelID:  message.ChannelID,
-		FromAgent:  message.FromAgent,
-		Body:       message.Body,
-		Mentions:   message.Mentions,
-		Reactions:  normalizeReactions(message.Reactions),
-		MsgType:    message.Type,
-		ReplyTo:    message.ReplyTo,
-		TS:         message.TS,
-		EditedAt:   message.EditedAt,
-		ArchivedAt: message.ArchivedAt,
+		Type:           "message",
+		ID:             message.ID,
+		ChannelID:      message.ChannelID,
+		Home:           home,
+		FromAgent:      message.FromAgent,
+		Body:           message.Body,
+		Mentions:       message.Mentions,
+		Reactions:      normalizeReactions(message.Reactions),
+		MsgType:        message.Type,
+		References:     message.References,
+		SurfaceMessage: message.SurfaceMessage,
+		ReplyTo:        message.ReplyTo,
+		TS:             message.TS,
+		EditedAt:       message.EditedAt,
+		ArchivedAt:     message.ArchivedAt,
 	}
 
 	if err := appendJSONLine(filepath.Join(mmDir, messagesFile), record); err != nil {
@@ -264,6 +355,113 @@ func AppendAgent(projectPath string, agent types.Agent) error {
 	}
 
 	if err := appendJSONLine(filepath.Join(mmDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendQuestion appends a question record to JSONL.
+func AppendQuestion(projectPath string, question types.Question) error {
+	mmDir := resolveMMDir(projectPath)
+	record := QuestionJSONLRecord{
+		Type:       "question",
+		GUID:       question.GUID,
+		Re:         question.Re,
+		FromAgent:  question.FromAgent,
+		ToAgent:    question.ToAgent,
+		Status:     string(question.Status),
+		ThreadGUID: question.ThreadGUID,
+		AskedIn:    question.AskedIn,
+		AnsweredIn: question.AnsweredIn,
+		CreatedAt:  question.CreatedAt,
+	}
+	if err := appendJSONLine(filepath.Join(mmDir, questionsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendQuestionUpdate appends a question update record to JSONL.
+func AppendQuestionUpdate(projectPath string, update QuestionUpdateJSONLRecord) error {
+	mmDir := resolveMMDir(projectPath)
+	update.Type = "question_update"
+	if err := appendJSONLine(filepath.Join(mmDir, questionsFile), update); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendThread appends a thread record to JSONL.
+func AppendThread(projectPath string, thread types.Thread, subscribed []string) error {
+	mmDir := resolveMMDir(projectPath)
+	record := ThreadJSONLRecord{
+		Type:         "thread",
+		GUID:         thread.GUID,
+		Name:         thread.Name,
+		ParentThread: thread.ParentThread,
+		Subscribed:   subscribed,
+		Status:       string(thread.Status),
+		CreatedAt:    thread.CreatedAt,
+	}
+	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendThreadUpdate appends a thread update record to JSONL.
+func AppendThreadUpdate(projectPath string, update ThreadUpdateJSONLRecord) error {
+	mmDir := resolveMMDir(projectPath)
+	update.Type = "thread_update"
+	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), update); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendThreadSubscribe appends a thread subscribe event to JSONL.
+func AppendThreadSubscribe(projectPath string, event ThreadSubscribeJSONLRecord) error {
+	mmDir := resolveMMDir(projectPath)
+	event.Type = "thread_subscribe"
+	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), event); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendThreadUnsubscribe appends a thread unsubscribe event to JSONL.
+func AppendThreadUnsubscribe(projectPath string, event ThreadUnsubscribeJSONLRecord) error {
+	mmDir := resolveMMDir(projectPath)
+	event.Type = "thread_unsubscribe"
+	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), event); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendThreadMessage appends a thread message membership event to JSONL.
+func AppendThreadMessage(projectPath string, event ThreadMessageJSONLRecord) error {
+	mmDir := resolveMMDir(projectPath)
+	event.Type = "thread_message"
+	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), event); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendThreadMessageRemove appends a thread message removal event to JSONL.
+func AppendThreadMessageRemove(projectPath string, event ThreadMessageRemoveJSONLRecord) error {
+	mmDir := resolveMMDir(projectPath)
+	event.Type = "thread_message_remove"
+	if err := appendJSONLine(filepath.Join(mmDir, threadsFile), event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -376,6 +574,9 @@ func ReadMessages(projectPath string) ([]MessageJSONLRecord, error) {
 			if err := json.Unmarshal([]byte(line), &record); err != nil {
 				continue
 			}
+			if record.Home == "" {
+				record.Home = "room"
+			}
 			if _, ok := seen[record.ID]; !ok {
 				seen[record.ID] = struct{}{}
 				order = append(order, record.ID)
@@ -443,6 +644,213 @@ func ReadMessages(projectPath string) ([]MessageJSONLRecord, error) {
 	return messages, nil
 }
 
+type threadSubscriptionEvent struct {
+	Type       string
+	ThreadGUID string
+	AgentID    string
+	At         int64
+}
+
+type threadMessageEvent struct {
+	Type        string
+	ThreadGUID  string
+	MessageGUID string
+	AddedBy     string
+	AddedAt     int64
+	RemovedBy   string
+	RemovedAt   int64
+}
+
+// ReadQuestions reads question records and applies updates.
+func ReadQuestions(projectPath string) ([]QuestionJSONLRecord, error) {
+	mmDir := resolveMMDir(projectPath)
+	lines, err := readJSONLLines(filepath.Join(mmDir, questionsFile))
+	if err != nil {
+		return nil, err
+	}
+
+	questionMap := make(map[string]QuestionJSONLRecord)
+	order := make([]string, 0)
+	seen := make(map[string]struct{})
+
+	for _, line := range lines {
+		var envelope struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+			continue
+		}
+
+		switch envelope.Type {
+		case "question":
+			var record QuestionJSONLRecord
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			if record.Status == "" {
+				record.Status = string(types.QuestionStatusUnasked)
+			}
+			if _, ok := seen[record.GUID]; !ok {
+				seen[record.GUID] = struct{}{}
+				order = append(order, record.GUID)
+			}
+			questionMap[record.GUID] = record
+		case "question_update":
+			var update QuestionUpdateJSONLRecord
+			if err := json.Unmarshal([]byte(line), &update); err != nil {
+				continue
+			}
+			existing, ok := questionMap[update.GUID]
+			if !ok {
+				continue
+			}
+			if update.Status != nil {
+				existing.Status = *update.Status
+			}
+			if update.ToAgent != nil {
+				existing.ToAgent = update.ToAgent
+			}
+			if update.ThreadGUID != nil {
+				existing.ThreadGUID = update.ThreadGUID
+			}
+			if update.AskedIn != nil {
+				existing.AskedIn = update.AskedIn
+			}
+			if update.AnsweredIn != nil {
+				existing.AnsweredIn = update.AnsweredIn
+			}
+			questionMap[update.GUID] = existing
+		}
+	}
+
+	questions := make([]QuestionJSONLRecord, 0, len(order))
+	for _, guid := range order {
+		record, ok := questionMap[guid]
+		if !ok {
+			continue
+		}
+		questions = append(questions, record)
+	}
+	return questions, nil
+}
+
+// ReadThreads reads thread records and subscription/membership events.
+func ReadThreads(projectPath string) ([]ThreadJSONLRecord, []threadSubscriptionEvent, []threadMessageEvent, error) {
+	mmDir := resolveMMDir(projectPath)
+	lines, err := readJSONLLines(filepath.Join(mmDir, threadsFile))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	threadMap := make(map[string]ThreadJSONLRecord)
+	order := make([]string, 0)
+	seen := make(map[string]struct{})
+
+	subEvents := make([]threadSubscriptionEvent, 0)
+	msgEvents := make([]threadMessageEvent, 0)
+
+	for _, line := range lines {
+		var envelope struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+			continue
+		}
+
+		switch envelope.Type {
+		case "thread":
+			var record ThreadJSONLRecord
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			if record.Status == "" {
+				record.Status = string(types.ThreadStatusOpen)
+			}
+			if _, ok := seen[record.GUID]; !ok {
+				seen[record.GUID] = struct{}{}
+				order = append(order, record.GUID)
+			}
+			threadMap[record.GUID] = record
+		case "thread_update":
+			var update ThreadUpdateJSONLRecord
+			if err := json.Unmarshal([]byte(line), &update); err != nil {
+				continue
+			}
+			existing, ok := threadMap[update.GUID]
+			if !ok {
+				continue
+			}
+			if update.Name != nil {
+				existing.Name = *update.Name
+			}
+			if update.Status != nil {
+				existing.Status = *update.Status
+			}
+			if update.ParentThread != nil {
+				existing.ParentThread = update.ParentThread
+			}
+			threadMap[update.GUID] = existing
+		case "thread_subscribe":
+			var event ThreadSubscribeJSONLRecord
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				continue
+			}
+			subEvents = append(subEvents, threadSubscriptionEvent{
+				Type:       event.Type,
+				ThreadGUID: event.ThreadGUID,
+				AgentID:    event.AgentID,
+				At:         event.SubscribedAt,
+			})
+		case "thread_unsubscribe":
+			var event ThreadUnsubscribeJSONLRecord
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				continue
+			}
+			subEvents = append(subEvents, threadSubscriptionEvent{
+				Type:       event.Type,
+				ThreadGUID: event.ThreadGUID,
+				AgentID:    event.AgentID,
+				At:         event.UnsubscribedAt,
+			})
+		case "thread_message":
+			var event ThreadMessageJSONLRecord
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				continue
+			}
+			msgEvents = append(msgEvents, threadMessageEvent{
+				Type:        event.Type,
+				ThreadGUID:  event.ThreadGUID,
+				MessageGUID: event.MessageGUID,
+				AddedBy:     event.AddedBy,
+				AddedAt:     event.AddedAt,
+			})
+		case "thread_message_remove":
+			var event ThreadMessageRemoveJSONLRecord
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				continue
+			}
+			msgEvents = append(msgEvents, threadMessageEvent{
+				Type:        event.Type,
+				ThreadGUID:  event.ThreadGUID,
+				MessageGUID: event.MessageGUID,
+				RemovedBy:   event.RemovedBy,
+				RemovedAt:   event.RemovedAt,
+			})
+		}
+	}
+
+	threads := make([]ThreadJSONLRecord, 0, len(order))
+	for _, guid := range order {
+		record, ok := threadMap[guid]
+		if !ok {
+			continue
+		}
+		threads = append(threads, record)
+	}
+
+	return threads, subEvents, msgEvents, nil
+}
+
 // ReadAgents reads agent JSONL records.
 func ReadAgents(projectPath string) ([]AgentJSONLRecord, error) {
 	mmDir := resolveMMDir(projectPath)
@@ -473,6 +881,14 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	if err != nil {
 		return err
 	}
+	questions, err := ReadQuestions(projectPath)
+	if err != nil {
+		return err
+	}
+	threads, subEvents, msgEvents, err := ReadThreads(projectPath)
+	if err != nil {
+		return err
+	}
 	agents, err := ReadAgents(projectPath)
 	if err != nil {
 		return err
@@ -489,6 +905,18 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 		return err
 	}
 	if _, err := db.Exec("DROP TABLE IF EXISTS mm_read_receipts"); err != nil {
+		return err
+	}
+	if _, err := db.Exec("DROP TABLE IF EXISTS mm_questions"); err != nil {
+		return err
+	}
+	if _, err := db.Exec("DROP TABLE IF EXISTS mm_thread_messages"); err != nil {
+		return err
+	}
+	if _, err := db.Exec("DROP TABLE IF EXISTS mm_thread_subscriptions"); err != nil {
+		return err
+	}
+	if _, err := db.Exec("DROP TABLE IF EXISTS mm_threads"); err != nil {
 		return err
 	}
 	if err := initSchemaWith(db); err != nil {
@@ -537,8 +965,8 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 
 	insertMessage := `
 		INSERT OR REPLACE INTO mm_messages (
-			guid, ts, channel_id, from_agent, body, mentions, type, reply_to, edited_at, archived_at, reactions
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			guid, ts, channel_id, home, from_agent, body, mentions, type, "references", surface_message, reply_to, edited_at, archived_at, reactions
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	for _, message := range messages {
@@ -555,20 +983,151 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 			msgType = types.MessageTypeAgent
 		}
 
+		home := message.Home
+		if home == "" {
+			home = "room"
+		}
+
 		if _, err := db.Exec(insertMessage,
 			message.ID,
 			message.TS,
 			message.ChannelID,
+			home,
 			message.FromAgent,
 			message.Body,
 			string(mentionsJSON),
 			msgType,
+			message.References,
+			message.SurfaceMessage,
 			message.ReplyTo,
 			message.EditedAt,
 			message.ArchivedAt,
 			string(reactionsJSON),
 		); err != nil {
 			return err
+		}
+	}
+
+	if len(questions) > 0 {
+		insertQuestion := `
+			INSERT OR REPLACE INTO mm_questions (
+				guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`
+		for _, question := range questions {
+			status := question.Status
+			if status == "" {
+				status = string(types.QuestionStatusUnasked)
+			}
+			if _, err := db.Exec(insertQuestion,
+				question.GUID,
+				question.Re,
+				question.FromAgent,
+				question.ToAgent,
+				status,
+				question.ThreadGUID,
+				question.AskedIn,
+				question.AnsweredIn,
+				question.CreatedAt,
+			); err != nil {
+				return err
+			}
+		}
+	}
+
+	if len(threads) > 0 {
+		insertThread := `
+			INSERT OR REPLACE INTO mm_threads (
+				guid, name, parent_thread, status, created_at
+			) VALUES (?, ?, ?, ?, ?)
+		`
+		for _, thread := range threads {
+			status := thread.Status
+			if status == "" {
+				status = string(types.ThreadStatusOpen)
+			}
+			if _, err := db.Exec(insertThread,
+				thread.GUID,
+				thread.Name,
+				thread.ParentThread,
+				status,
+				thread.CreatedAt,
+			); err != nil {
+				return err
+			}
+		}
+
+		subscriptions := make(map[string]map[string]int64)
+		for _, thread := range threads {
+			if len(thread.Subscribed) == 0 {
+				continue
+			}
+			set := make(map[string]int64, len(thread.Subscribed))
+			for _, agentID := range thread.Subscribed {
+				if agentID == "" {
+					continue
+				}
+				set[agentID] = thread.CreatedAt
+			}
+			if len(set) > 0 {
+				subscriptions[thread.GUID] = set
+			}
+		}
+
+		for _, event := range subEvents {
+			set, ok := subscriptions[event.ThreadGUID]
+			if !ok {
+				set = make(map[string]int64)
+				subscriptions[event.ThreadGUID] = set
+			}
+			switch event.Type {
+			case "thread_subscribe":
+				set[event.AgentID] = event.At
+			case "thread_unsubscribe":
+				delete(set, event.AgentID)
+			}
+		}
+
+		for threadGUID, set := range subscriptions {
+			for agentID, subscribedAt := range set {
+				if _, err := db.Exec(`
+					INSERT OR REPLACE INTO mm_thread_subscriptions (thread_guid, agent_id, subscribed_at)
+					VALUES (?, ?, ?)
+				`, threadGUID, agentID, subscribedAt); err != nil {
+					return err
+				}
+			}
+		}
+
+		threadMessages := make(map[string]map[string]ThreadMessageJSONLRecord)
+		for _, event := range msgEvents {
+			switch event.Type {
+			case "thread_message":
+				if _, ok := threadMessages[event.ThreadGUID]; !ok {
+					threadMessages[event.ThreadGUID] = make(map[string]ThreadMessageJSONLRecord)
+				}
+				threadMessages[event.ThreadGUID][event.MessageGUID] = ThreadMessageJSONLRecord{
+					ThreadGUID:  event.ThreadGUID,
+					MessageGUID: event.MessageGUID,
+					AddedBy:     event.AddedBy,
+					AddedAt:     event.AddedAt,
+				}
+			case "thread_message_remove":
+				if set, ok := threadMessages[event.ThreadGUID]; ok {
+					delete(set, event.MessageGUID)
+				}
+			}
+		}
+
+		for _, messages := range threadMessages {
+			for _, entry := range messages {
+				if _, err := db.Exec(`
+					INSERT OR REPLACE INTO mm_thread_messages (thread_guid, message_guid, added_by, added_at)
+					VALUES (?, ?, ?, ?)
+				`, entry.ThreadGUID, entry.MessageGUID, entry.AddedBy, entry.AddedAt); err != nil {
+					return err
+				}
+			}
 		}
 	}
 

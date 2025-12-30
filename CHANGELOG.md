@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0]
+
+### Added
+- Questions: wonder/ask/list/view/answer/close workflow with JSONL + SQLite support
+- Threads as playlists with message home + curation, subscriptions, and surfacing/backlinks
+- `mm reply` for reply chains (renamed from `mm thread`)
+- Thread/Question CLI commands (`thread`, `threads`, `surface`, `note`, `notes`, `meta`)
+- Chat TUI thread panel with filtering and pseudo-thread question views
+
+### Changed
+- Messages now include `home`, `references`, and `surface_message` fields
+- Room message queries default to `home = "room"`
+
 ## [0.3.0] - 2025-12-22
 
 ### Added

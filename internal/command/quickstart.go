@@ -97,7 +97,7 @@ THREADING
 ---------
 Messages display with #xxxx/#xxxxx/#xxxxxx suffixes (short GUID). Reply using the full GUID:
   mm post --as alice --reply-to msg-a1b2c3d4 "Good point"
-  mm thread msg-a1b2c3d4        View message and all its replies
+  mm reply msg-a1b2c3d4         View message and all its replies
 
 In mm chat, you can use prefix matching: type "#a1b2 response" to reply.
 
@@ -181,7 +181,7 @@ func printQuickstartGuide(outWriter io.Writer, allAgents []types.Agent, register
 	fmt.Fprintln(outWriter, "---------")
 	fmt.Fprintln(outWriter, "Messages display with #xxxx/#xxxxx/#xxxxxx suffixes (short GUID). Reply using the full GUID:")
 	fmt.Fprintln(outWriter, "  mm post --as alice --reply-to msg-a1b2c3d4 \"Good point\"")
-	fmt.Fprintln(outWriter, "  mm thread msg-a1b2c3d4        View message and all its replies")
+	fmt.Fprintln(outWriter, "  mm reply msg-a1b2c3d4         View message and all its replies")
 	fmt.Fprintln(outWriter, "")
 	fmt.Fprintln(outWriter, "In mm chat, you can use prefix matching: type \"#a1b2 response\" to reply.")
 

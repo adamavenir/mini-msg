@@ -78,7 +78,7 @@ func buildHelpText() string {
 		formatHelpRow(
 			helpItemStyle+"Ctrl-C"+helpResetStyle+" - clear text",
 			helpItemStyle+"Up"+helpResetStyle+" - edit last",
-			helpItemStyle+"Tab"+helpResetStyle+" - channel picker",
+			helpItemStyle+"Tab"+helpResetStyle+" - thread/channel list",
 			25,
 			22,
 		),
@@ -314,9 +314,20 @@ func (m *Model) applyMessageUpdate(msg types.Message) {
 		}
 		if !m.includeArchived && msg.ArchivedAt != nil {
 			m.messages = append(m.messages[:i], m.messages[i+1:]...)
-			return
+			break
 		}
 		m.messages[i] = msg
+		break
+	}
+	for i := range m.threadMessages {
+		if m.threadMessages[i].ID != msg.ID {
+			continue
+		}
+		if !m.includeArchived && msg.ArchivedAt != nil {
+			m.threadMessages = append(m.threadMessages[:i], m.threadMessages[i+1:]...)
+			return
+		}
+		m.threadMessages[i] = msg
 		return
 	}
 }

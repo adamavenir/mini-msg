@@ -145,3 +145,241 @@ func TestReadMessagesSkipsMalformedLines(t *testing.T) {
 		t.Fatalf("unexpected ids: %s, %s", readBack[0].ID, readBack[1].ID)
 	}
 }
+
+func TestAppendAndReadQuestions(t *testing.T) {
+	projectDir := t.TempDir()
+
+	question := types.Question{
+		GUID:      "qstn-abc12345",
+		Re:        "target market?",
+		FromAgent: "alice",
+		Status:    types.QuestionStatusUnasked,
+		CreatedAt: 123,
+	}
+
+	if err := AppendQuestion(projectDir, question); err != nil {
+		t.Fatalf("append question: %v", err)
+	}
+
+	status := string(types.QuestionStatusOpen)
+	askedIn := "msg-aaa11111"
+	if err := AppendQuestionUpdate(projectDir, QuestionUpdateJSONLRecord{
+		GUID:    question.GUID,
+		Status:  &status,
+		AskedIn: &askedIn,
+	}); err != nil {
+		t.Fatalf("append question update: %v", err)
+	}
+
+	readBack, err := ReadQuestions(projectDir)
+	if err != nil {
+		t.Fatalf("read questions: %v", err)
+	}
+	if len(readBack) != 1 {
+		t.Fatalf("expected 1 question, got %d", len(readBack))
+	}
+	if readBack[0].Status != string(types.QuestionStatusOpen) {
+		t.Fatalf("expected status open, got %s", readBack[0].Status)
+	}
+	if readBack[0].AskedIn == nil || *readBack[0].AskedIn != askedIn {
+		t.Fatalf("expected asked_in to roundtrip")
+	}
+}
+
+func TestReadThreadsEvents(t *testing.T) {
+	projectDir := t.TempDir()
+
+	thread := types.Thread{
+		GUID:      "thrd-abc12345",
+		Name:      "market-analysis",
+		Status:    types.ThreadStatusOpen,
+		CreatedAt: 123,
+	}
+
+	if err := AppendThread(projectDir, thread, []string{"alice", "bob"}); err != nil {
+		t.Fatalf("append thread: %v", err)
+	}
+
+	status := string(types.ThreadStatusArchived)
+	if err := AppendThreadUpdate(projectDir, ThreadUpdateJSONLRecord{
+		GUID:   thread.GUID,
+		Status: &status,
+	}); err != nil {
+		t.Fatalf("append thread update: %v", err)
+	}
+
+	if err := AppendThreadSubscribe(projectDir, ThreadSubscribeJSONLRecord{
+		ThreadGUID:   thread.GUID,
+		AgentID:      "charlie",
+		SubscribedAt: 200,
+	}); err != nil {
+		t.Fatalf("append subscribe: %v", err)
+	}
+
+	if err := AppendThreadMessage(projectDir, ThreadMessageJSONLRecord{
+		ThreadGUID:  thread.GUID,
+		MessageGUID: "msg-aaa",
+		AddedBy:     "alice",
+		AddedAt:     300,
+	}); err != nil {
+		t.Fatalf("append thread message: %v", err)
+	}
+
+	threads, subs, msgs, err := ReadThreads(projectDir)
+	if err != nil {
+		t.Fatalf("read threads: %v", err)
+	}
+	if len(threads) != 1 {
+		t.Fatalf("expected 1 thread, got %d", len(threads))
+	}
+	if threads[0].Status != status {
+		t.Fatalf("expected status archived, got %s", threads[0].Status)
+	}
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subscription event, got %d", len(subs))
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 thread message event, got %d", len(msgs))
+	}
+}
+
+func TestRebuildDatabaseFromJSONL(t *testing.T) {
+	projectDir := t.TempDir()
+
+	thread := types.Thread{
+		GUID:      "thrd-abc12345",
+		Name:      "analysis",
+		Status:    types.ThreadStatusOpen,
+		CreatedAt: 10,
+	}
+
+	if err := AppendThread(projectDir, thread, []string{"alice"}); err != nil {
+		t.Fatalf("append thread: %v", err)
+	}
+
+	if err := AppendThreadSubscribe(projectDir, ThreadSubscribeJSONLRecord{
+		ThreadGUID:   thread.GUID,
+		AgentID:      "bob",
+		SubscribedAt: 12,
+	}); err != nil {
+		t.Fatalf("append subscribe: %v", err)
+	}
+
+	if err := AppendThreadUnsubscribe(projectDir, ThreadUnsubscribeJSONLRecord{
+		ThreadGUID:     thread.GUID,
+		AgentID:        "bob",
+		UnsubscribedAt: 13,
+	}); err != nil {
+		t.Fatalf("append unsubscribe: %v", err)
+	}
+
+	roomMessage := types.Message{
+		ID:        "msg-aaaa1111",
+		TS:        100,
+		FromAgent: "alice",
+		Body:      "room message",
+		Mentions:  []string{},
+		Type:      types.MessageTypeAgent,
+		Home:      "room",
+	}
+	threadMessage := types.Message{
+		ID:        "msg-bbbb2222",
+		TS:        110,
+		FromAgent: "alice",
+		Body:      "thread message",
+		Mentions:  []string{},
+		Type:      types.MessageTypeAgent,
+		Home:      thread.GUID,
+	}
+
+	if err := AppendMessage(projectDir, roomMessage); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+	if err := AppendMessage(projectDir, threadMessage); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+
+	if err := AppendThreadMessage(projectDir, ThreadMessageJSONLRecord{
+		ThreadGUID:  thread.GUID,
+		MessageGUID: roomMessage.ID,
+		AddedBy:     "alice",
+		AddedAt:     120,
+	}); err != nil {
+		t.Fatalf("append thread message: %v", err)
+	}
+
+	question := types.Question{
+		GUID:      "qstn-abc12345",
+		Re:        "target market?",
+		FromAgent: "alice",
+		Status:    types.QuestionStatusUnasked,
+		CreatedAt: 200,
+	}
+	if err := AppendQuestion(projectDir, question); err != nil {
+		t.Fatalf("append question: %v", err)
+	}
+
+	status := string(types.QuestionStatusAnswered)
+	if err := AppendQuestionUpdate(projectDir, QuestionUpdateJSONLRecord{
+		GUID:       question.GUID,
+		Status:     &status,
+		AnsweredIn: &roomMessage.ID,
+	}); err != nil {
+		t.Fatalf("append question update: %v", err)
+	}
+
+	dbConn := openTestDB(t)
+	if err := RebuildDatabaseFromJSONL(dbConn, projectDir); err != nil {
+		t.Fatalf("rebuild: %v", err)
+	}
+
+	rebuiltQuestion, err := GetQuestion(dbConn, question.GUID)
+	if err != nil {
+		t.Fatalf("get question: %v", err)
+	}
+	if rebuiltQuestion == nil || rebuiltQuestion.Status != types.QuestionStatusAnswered {
+		t.Fatalf("expected answered question after rebuild")
+	}
+	if rebuiltQuestion.AnsweredIn == nil || *rebuiltQuestion.AnsweredIn != roomMessage.ID {
+		t.Fatalf("expected answered_in to roundtrip")
+	}
+
+	messages, err := GetThreadMessages(dbConn, thread.GUID)
+	if err != nil {
+		t.Fatalf("get thread messages: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 thread messages, got %d", len(messages))
+	}
+	foundRoom := false
+	foundThread := false
+	for _, msg := range messages {
+		switch msg.ID {
+		case roomMessage.ID:
+			foundRoom = true
+		case threadMessage.ID:
+			foundThread = true
+		}
+	}
+	if !foundRoom || !foundThread {
+		t.Fatalf("expected room and thread messages in thread view")
+	}
+
+	agentID := "alice"
+	threads, err := GetThreads(dbConn, &types.ThreadQueryOptions{SubscribedAgent: &agentID})
+	if err != nil {
+		t.Fatalf("get subscribed threads: %v", err)
+	}
+	if len(threads) != 1 || threads[0].GUID != thread.GUID {
+		t.Fatalf("expected alice subscribed to thread")
+	}
+
+	bobID := "bob"
+	bobThreads, err := GetThreads(dbConn, &types.ThreadQueryOptions{SubscribedAgent: &bobID})
+	if err != nil {
+		t.Fatalf("get bob threads: %v", err)
+	}
+	if len(bobThreads) != 0 {
+		t.Fatalf("expected bob unsubscribed after rebuild")
+	}
+}

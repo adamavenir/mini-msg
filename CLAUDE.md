@@ -37,6 +37,8 @@ internal/types/   # Go types
   mm-config.json      # Project config (channel_id, known_agents, nicks)
   messages.jsonl      # Append-only message log (source of truth)
   agents.jsonl        # Append-only agent log (source of truth)
+  questions.jsonl     # Append-only question log (source of truth)
+  threads.jsonl       # Append-only thread + event log (source of truth)
   history.jsonl       # Archived messages (from mm prune)
   .gitignore          # Ignores *.db files
   mm.db               # SQLite cache (rebuildable from JSONL)
@@ -60,9 +62,9 @@ internal/types/   # Go types
 
 **@mentions**: Extracted on message creation, stored as JSON array. Prefix matching using `.` as separator: `@alice` matches `alice`, `alice.frontend`, `alice.1`. The `@all` mention is a broadcast.
 
-**Threading**: Messages can reply to other messages via `reply_to` field (GUID). Use `--reply-to <guid>` when posting. In chat, prefix matching is supported: type `#abc hello` to reply (resolves to full GUID). View threads with `mm thread <guid>`.
+**Threading**: Messages can reply to other messages via `reply_to` field (GUID). Use `--reply-to <guid>` when posting. In chat, prefix matching is supported: type `#abc hello` to reply (resolves to full GUID). View reply chains with `mm reply <guid>`. Container threads are playlists: messages have a `home` (room or thread) and can be curated into multiple threads.
 
-**Message types**: Messages have a `type` field: `'agent'`, `'user'`, or `'event'`. User messages come from `mm chat`.
+**Message types**: Messages have a `type` field: `'agent'`, `'user'`, `'event'`, or `'surface'`. Surfaced posts reference another message and emit backlink events; `home`, `references`, and `surface_message` track this.
 
 **Database**: Uses `modernc.org/sqlite` (pure Go). Tables are prefixed `mm_`. Primary keys are GUIDs (`guid TEXT PRIMARY KEY`).
 
@@ -161,9 +163,22 @@ mm whoami                    # Show your identity and nicknames
 # Messaging
 mm post --as alice "message" # Post (use @mentions)
 mm post --as alice -r <guid> # Reply to message
+mm post --as alice --thread <ref> "message" # Post in thread
+mm post --as alice --answer <q> "message"   # Answer question
 mm get alice                 # Room + my @mentions
 mm @alice                    # Check mentions for alice
-mm thread <guid>             # View message thread
+mm reply <guid>              # View reply chain
+mm thread <ref>              # View thread messages
+mm threads                   # List threads
+mm wonder "..." --as alice   # Create unasked question
+mm ask "..." --to bob --as alice # Ask question
+mm questions                 # List questions
+mm question <id>             # View/close question
+mm surface <msg> "..." --as alice # Surface message with backlink
+mm note "..." --as alice     # Post to notes
+mm notes --as alice          # View notes thread
+mm meta "..." --as alice     # Post to meta
+mm meta                      # View meta
 mm history alice             # Show agent's message history
 mm between alice bob         # Messages between two agents
 

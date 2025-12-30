@@ -24,10 +24,13 @@ CREATE TABLE IF NOT EXISTS mm_messages (
   guid TEXT PRIMARY KEY,               -- e.g., "msg-a1b2c3d4"
   ts INTEGER NOT NULL,                 -- unix timestamp
   channel_id TEXT,                     -- channel GUID for multi-channel support
+  home TEXT DEFAULT 'room',            -- "room" or thread guid
   from_agent TEXT NOT NULL,            -- full agent address
   body TEXT NOT NULL,                  -- message content (markdown)
   mentions TEXT NOT NULL DEFAULT '[]', -- JSON array of mentioned addresses
   type TEXT DEFAULT 'agent',           -- 'user' or 'agent'
+  "references" TEXT,                   -- referenced message guid (surface)
+  surface_message TEXT,                -- surface message guid (backlink event)
   reply_to TEXT,                       -- parent message guid for threading
   edited_at INTEGER,                   -- unix timestamp of last edit
   archived_at INTEGER,                 -- unix timestamp of archival
@@ -38,6 +41,56 @@ CREATE INDEX IF NOT EXISTS idx_mm_messages_ts ON mm_messages(ts);
 CREATE INDEX IF NOT EXISTS idx_mm_messages_from ON mm_messages(from_agent);
 CREATE INDEX IF NOT EXISTS idx_mm_messages_archived ON mm_messages(archived_at);
 CREATE INDEX IF NOT EXISTS idx_mm_messages_reply_to ON mm_messages(reply_to);
+
+-- Questions
+CREATE TABLE IF NOT EXISTS mm_questions (
+  guid TEXT PRIMARY KEY,
+  re TEXT NOT NULL,
+  from_agent TEXT NOT NULL,
+  to_agent TEXT,
+  status TEXT DEFAULT 'unasked',
+  thread_guid TEXT,
+  asked_in TEXT,
+  answered_in TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_mm_questions_status ON mm_questions(status);
+CREATE INDEX IF NOT EXISTS idx_mm_questions_thread ON mm_questions(thread_guid);
+
+-- Threads
+CREATE TABLE IF NOT EXISTS mm_threads (
+  guid TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_thread TEXT,
+  status TEXT DEFAULT 'open',
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (parent_thread) REFERENCES mm_threads(guid)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mm_threads_parent ON mm_threads(parent_thread);
+CREATE INDEX IF NOT EXISTS idx_mm_threads_status ON mm_threads(status);
+
+-- Thread subscriptions
+CREATE TABLE IF NOT EXISTS mm_thread_subscriptions (
+  thread_guid TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  subscribed_at INTEGER NOT NULL,
+  PRIMARY KEY (thread_guid, agent_id),
+  FOREIGN KEY (thread_guid) REFERENCES mm_threads(guid)
+);
+
+-- Thread message membership (playlist)
+CREATE TABLE IF NOT EXISTS mm_thread_messages (
+  thread_guid TEXT NOT NULL,
+  message_guid TEXT NOT NULL,
+  added_by TEXT NOT NULL,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (thread_guid, message_guid),
+  FOREIGN KEY (thread_guid) REFERENCES mm_threads(guid)
+);
+
+CREATE INDEX IF NOT EXISTS idx_thread_messages_message ON mm_thread_messages(message_guid);
 
 -- Linked projects for cross-project messaging
 CREATE TABLE IF NOT EXISTS mm_linked_projects (
@@ -355,10 +408,13 @@ func migrateSchema(db DBTX) error {
 				guid TEXT PRIMARY KEY,
 				ts INTEGER NOT NULL,
 				channel_id TEXT,
+				home TEXT DEFAULT 'room',
 				from_agent TEXT NOT NULL,
 				body TEXT NOT NULL,
 				mentions TEXT NOT NULL DEFAULT '[]',
 				type TEXT DEFAULT 'agent',
+				"references" TEXT,
+				surface_message TEXT,
 				reply_to TEXT,
 				edited_at INTEGER,
 				archived_at INTEGER,
@@ -405,16 +461,19 @@ func migrateSchema(db DBTX) error {
 
 			if _, err := db.Exec(`
 				INSERT INTO mm_messages_new (
-					guid, ts, channel_id, from_agent, body, mentions, type, reply_to, edited_at, archived_at, reactions
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					guid, ts, channel_id, home, from_agent, body, mentions, type, "references", surface_message, reply_to, edited_at, archived_at, reactions
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`,
 				idToGUID[msg.ID],
 				msg.TS,
 				nil,
+				"room",
 				msg.FromAgent,
 				msg.Body,
 				msg.Mentions,
 				msgType,
+				nil,
+				nil,
 				replyValue,
 				editedAt,
 				archivedAt,
@@ -431,9 +490,26 @@ func migrateSchema(db DBTX) error {
 			return err
 		}
 	}
-	if len(messageColumns) > 0 && !needsMessageMigration && !hasColumn(messageColumns, "reactions") {
-		if _, err := db.Exec("ALTER TABLE mm_messages ADD COLUMN reactions TEXT NOT NULL DEFAULT '{}'"); err != nil {
-			return err
+	if len(messageColumns) > 0 && !needsMessageMigration {
+		if !hasColumn(messageColumns, "reactions") {
+			if _, err := db.Exec("ALTER TABLE mm_messages ADD COLUMN reactions TEXT NOT NULL DEFAULT '{}'"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(messageColumns, "home") {
+			if _, err := db.Exec("ALTER TABLE mm_messages ADD COLUMN home TEXT DEFAULT 'room'"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(messageColumns, "references") {
+			if _, err := db.Exec("ALTER TABLE mm_messages ADD COLUMN \"references\" TEXT"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(messageColumns, "surface_message") {
+			if _, err := db.Exec("ALTER TABLE mm_messages ADD COLUMN surface_message TEXT"); err != nil {
+				return err
+			}
 		}
 	}
 

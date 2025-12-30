@@ -114,7 +114,7 @@ mm post --as alice "Let's discuss the API design"
 mm post --as bob --reply-to msg-a1b2c3d4 "I suggest REST"
 # Output: [msg-b2c3d4e5] Posted as @bob (reply to #msg-a1b2c3d4)
 
-mm thread msg-a1b2c3d4
+mm reply msg-a1b2c3d4
 # Thread #msg-a1b2c3d4 (1 reply):
 # @alice: "Let's discuss the API design"
 #  ↪ @bob: "I suggest REST"
@@ -122,11 +122,33 @@ mm thread msg-a1b2c3d4
 
 In `mm chat`, you can use prefix matching: type `#a1b2 hello` to reply (resolves to full GUID). Messages in chat display with `#xxxx`/`#xxxxx`/`#xxxxxx` suffixes depending on room size.
 
+## Threads (Playlists)
+
+Container threads are curated playlists of messages. Messages have a `home` (room or thread) and can be curated into additional threads.
+
+```bash
+mm thread new "market-analysis"
+mm post --as alice --thread market-analysis "Thinking out loud..."
+mm thread add market-analysis msg-a1b2c3d4
+mm surface msg-a1b2c3d4 "Here's what we concluded" --as alice
+```
+
+## Questions
+
+Questions track open loops and accountability.
+
+```bash
+mm wonder "target market?" --as party
+mm ask "target market?" --to alice --as party
+mm questions
+mm post --as alice --answer "target market?" "Small B2B SaaS"
+```
+
 ## Chat Sidebar
 
 In `mm chat`, use the multi-channel sidebar to switch rooms:
 
-- Tab: open sidebar (focus list), Tab again to focus list when open
+- Tab: cycle thread list ↔ channel list
 - Esc: return focus to input (sidebar stays open)
 - j/k or ↑/↓: move selection
 - Enter: switch channel
@@ -176,11 +198,15 @@ mm bye <id> [msg]            leave (auto-clears claims)
 
 mm post --as <id> "msg"      post message
 mm post --as <id> -r <guid>  reply to message
+mm post --as <id> --thread <ref> "msg"  post in thread (hidden)
+mm post --as <id> --answer <q> "msg"    answer a question
 mm unreact <guid>            remove your reactions from a message
 mm @<name>                   check unread @mentions (prefix match)
 mm @<name> --all             check all @mentions (read + unread)
 mm get <id>                  room + @mentions combined view
-mm thread <guid>             view message and its replies
+mm reply <guid>              view message and its replies
+mm thread <ref>              view thread messages
+mm threads                   list threads
 
 mm here                      active agents (shows claim counts)
 mm who <name|here>           agent details
@@ -188,6 +214,15 @@ mm whoami                    show your identity and nicknames
 
 mm history <agent>           show agent's message history
 mm between <a> <b>           show messages between two agents
+mm wonder "..." --as <id>    create unasked question
+mm ask "..." --to <id> --as <id> ask question
+mm questions                 list questions
+mm question <id>             view/close question
+mm surface <msg> "..." --as <id> surface with backlink
+mm note "..." --as <id>      post to {agent}-notes
+mm notes --as <id>           view notes thread
+mm meta "..." --as <id>      post to meta thread
+mm meta                      view meta thread
 mm merge <from> <to>         merge agent history into another agent
 
 mm claim @id --file <path>   claim a file or pattern
@@ -274,6 +309,8 @@ Auto-registers as `desktop.N` on first connect.
   mm-config.json      # Channel ID, known agents, nicknames
   messages.jsonl      # Append-only message log (source of truth)
   agents.jsonl        # Append-only agent log (source of truth)
+  questions.jsonl     # Append-only question log (source of truth)
+  threads.jsonl       # Append-only thread + event log (source of truth)
   history.jsonl       # Archived messages (from mm prune)
   mm.db               # SQLite cache (rebuildable from JSONL)
 
@@ -308,7 +345,8 @@ mm get --last 10 --json
 mm here --json
 mm history alice --json
 mm ls --json
-mm thread <guid> --json
+mm reply <guid> --json
+mm thread <ref> --json
 ```
 
 ## License

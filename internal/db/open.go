@@ -64,7 +64,7 @@ func OpenDatabase(project core.Project) (*sql.DB, error) {
 }
 
 func getJSONLMtime(mmDir string) int64 {
-	files := []string{"messages.jsonl", "agents.jsonl"}
+	files := []string{"messages.jsonl", "agents.jsonl", "questions.jsonl", "threads.jsonl"}
 	latest := int64(0)
 	for _, name := range files {
 		path := filepath.Join(mmDir, name)

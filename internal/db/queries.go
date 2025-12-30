@@ -72,6 +72,32 @@ func GetAgentsByPrefix(db *sql.DB, prefix string) ([]types.Agent, error) {
 	return agents, nil
 }
 
+// GetAgents returns all agents.
+func GetAgents(db *sql.DB) ([]types.Agent, error) {
+	rows, err := db.Query(`
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
+		FROM mm_agents
+		ORDER BY agent_id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []types.Agent
+	for rows.Next() {
+		agent, err := scanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		agents = append(agents, agent)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return agents, nil
+}
+
 // CreateAgent inserts a new agent.
 func CreateAgent(db *sql.DB, agent types.Agent) error {
 	guid := agent.GUID
@@ -524,26 +550,34 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 		return types.Message{}, err
 	}
 
+	home := message.Home
+	if home == "" {
+		home = "room"
+	}
+
 	_, err = db.Exec(`
-		INSERT INTO mm_messages (guid, ts, channel_id, from_agent, body, mentions, type, reply_to, edited_at, archived_at, reactions)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
-	`, guid, ts, channelID, message.FromAgent, message.Body, string(mentionsJSON), msgType, message.ReplyTo, string(reactionsJSON))
+		INSERT INTO mm_messages (guid, ts, channel_id, home, from_agent, body, mentions, type, "references", surface_message, reply_to, edited_at, archived_at, reactions)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+	`, guid, ts, channelID, home, message.FromAgent, message.Body, string(mentionsJSON), msgType, message.References, message.SurfaceMessage, message.ReplyTo, string(reactionsJSON))
 	if err != nil {
 		return types.Message{}, err
 	}
 
 	return types.Message{
-		ID:         guid,
-		TS:         ts,
-		ChannelID:  channelID,
-		FromAgent:  message.FromAgent,
-		Body:       message.Body,
-		Mentions:   message.Mentions,
-		Reactions:  normalizeReactions(message.Reactions),
-		Type:       msgType,
-		ReplyTo:    message.ReplyTo,
-		EditedAt:   nil,
-		ArchivedAt: nil,
+		ID:             guid,
+		TS:             ts,
+		ChannelID:      channelID,
+		Home:           home,
+		FromAgent:      message.FromAgent,
+		Body:           message.Body,
+		Mentions:       message.Mentions,
+		Reactions:      normalizeReactions(message.Reactions),
+		Type:           msgType,
+		References:     message.References,
+		SurfaceMessage: message.SurfaceMessage,
+		ReplyTo:        message.ReplyTo,
+		EditedAt:       nil,
+		ArchivedAt:     nil,
 	}, nil
 }
 
@@ -573,10 +607,18 @@ func GetMessages(db *sql.DB, options *types.MessageQueryOptions) ([]types.Messag
 	limit := 0
 	includeArchived := false
 	filter := (*types.Filter)(nil)
+	home := "room"
 	if options != nil {
 		limit = options.Limit
 		includeArchived = options.IncludeArchived
 		filter = options.Filter
+		if options.Home != nil {
+			if *options.Home == "" {
+				home = ""
+			} else {
+				home = *options.Home
+			}
+		}
 	}
 
 	if limit > 0 && sinceCursor == nil && beforeCursor == nil {
@@ -585,6 +627,11 @@ func GetMessages(db *sql.DB, options *types.MessageQueryOptions) ([]types.Messag
 
 		if !includeArchived {
 			conditions = append(conditions, "archived_at IS NULL")
+		}
+
+		if home != "" {
+			conditions = append(conditions, "home = ?")
+			params = append(params, home)
 		}
 
 		if clause, args := buildFilterCondition(filter); clause != "" {
@@ -621,6 +668,11 @@ func GetMessages(db *sql.DB, options *types.MessageQueryOptions) ([]types.Messag
 
 	if !includeArchived {
 		conditions = append(conditions, "archived_at IS NULL")
+	}
+
+	if home != "" {
+		conditions = append(conditions, "home = ?")
+		params = append(params, home)
 	}
 
 	if sinceCursor != nil {
@@ -686,6 +738,7 @@ func GetMessagesWithMention(db *sql.DB, mentionPrefix string, options *types.Mes
 	agentPrefix := mentionPrefix
 	includeArchived := false
 	limit := 0
+	home := "room"
 	if options != nil {
 		filterUnread = options.UnreadOnly
 		if options.AgentPrefix != "" {
@@ -693,6 +746,13 @@ func GetMessagesWithMention(db *sql.DB, mentionPrefix string, options *types.Mes
 		}
 		includeArchived = options.IncludeArchived
 		limit = options.Limit
+		if options.Home != nil {
+			if *options.Home == "" {
+				home = ""
+			} else {
+				home = *options.Home
+			}
+		}
 	}
 
 	query := `
@@ -716,6 +776,10 @@ func GetMessagesWithMention(db *sql.DB, mentionPrefix string, options *types.Mes
 	var conditions []string
 	if !includeArchived {
 		conditions = append(conditions, "m.archived_at IS NULL")
+	}
+	if home != "" {
+		conditions = append(conditions, "m.home = ?")
+		params = append(params, home)
 	}
 	if filterUnread {
 		conditions = append(conditions, "r.message_guid IS NULL")
@@ -754,6 +818,7 @@ func GetMessagesWithMention(db *sql.DB, mentionPrefix string, options *types.Mes
 func GetLastMessageCursor(db *sql.DB) (*types.MessageCursor, error) {
 	row := db.QueryRow(`
 		SELECT guid, ts FROM mm_messages
+		WHERE home = 'room'
 		ORDER BY ts DESC, guid DESC
 		LIMIT 1
 	`)
@@ -1191,8 +1256,8 @@ func ArchiveMessages(db *sql.DB, before *types.MessageCursor, beforeID string) (
 	return result.RowsAffected()
 }
 
-// GetThread returns parent + replies.
-func GetThread(db *sql.DB, messageID string) ([]types.Message, error) {
+// GetReplyChain returns parent + replies.
+func GetReplyChain(db *sql.DB, messageID string) ([]types.Message, error) {
 	rows, err := db.Query(`
 		SELECT * FROM mm_messages
 		WHERE guid = ? OR reply_to = ?
@@ -1214,6 +1279,443 @@ func GetReplyCount(db *sql.DB, messageID string) (int64, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+// QuestionUpdates represents partial question updates.
+type QuestionUpdates struct {
+	Status     types.OptionalString
+	ToAgent    types.OptionalString
+	ThreadGUID types.OptionalString
+	AskedIn    types.OptionalString
+	AnsweredIn types.OptionalString
+}
+
+// CreateQuestion inserts a new question.
+func CreateQuestion(db *sql.DB, question types.Question) (types.Question, error) {
+	guid := question.GUID
+	if guid == "" {
+		var err error
+		guid, err = generateUniqueGUIDForTable(db, "mm_questions", "qstn")
+		if err != nil {
+			return types.Question{}, err
+		}
+	}
+
+	status := question.Status
+	if status == "" {
+		status = types.QuestionStatusUnasked
+	}
+	createdAt := question.CreatedAt
+	if createdAt == 0 {
+		createdAt = time.Now().Unix()
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO mm_questions (guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, guid, question.Re, question.FromAgent, question.ToAgent, string(status), question.ThreadGUID, question.AskedIn, question.AnsweredIn, createdAt)
+	if err != nil {
+		return types.Question{}, err
+	}
+
+	question.GUID = guid
+	question.Status = status
+	question.CreatedAt = createdAt
+	return question, nil
+}
+
+// UpdateQuestion updates question fields.
+func UpdateQuestion(db *sql.DB, guid string, updates QuestionUpdates) (*types.Question, error) {
+	var fields []string
+	var args []any
+
+	if updates.Status.Set {
+		fields = append(fields, "status = ?")
+		args = append(args, nullableValue(updates.Status.Value))
+	}
+	if updates.ToAgent.Set {
+		fields = append(fields, "to_agent = ?")
+		args = append(args, nullableValue(updates.ToAgent.Value))
+	}
+	if updates.ThreadGUID.Set {
+		fields = append(fields, "thread_guid = ?")
+		args = append(args, nullableValue(updates.ThreadGUID.Value))
+	}
+	if updates.AskedIn.Set {
+		fields = append(fields, "asked_in = ?")
+		args = append(args, nullableValue(updates.AskedIn.Value))
+	}
+	if updates.AnsweredIn.Set {
+		fields = append(fields, "answered_in = ?")
+		args = append(args, nullableValue(updates.AnsweredIn.Value))
+	}
+
+	if len(fields) == 0 {
+		return GetQuestion(db, guid)
+	}
+
+	args = append(args, guid)
+	query := fmt.Sprintf("UPDATE mm_questions SET %s WHERE guid = ?", strings.Join(fields, ", "))
+	if _, err := db.Exec(query, args...); err != nil {
+		return nil, err
+	}
+	return GetQuestion(db, guid)
+}
+
+// GetQuestion returns a question by GUID.
+func GetQuestion(db *sql.DB, guid string) (*types.Question, error) {
+	row := db.QueryRow(`
+		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
+		FROM mm_questions WHERE guid = ?
+	`, guid)
+
+	question, err := scanQuestion(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &question, nil
+}
+
+// GetQuestionByPrefix returns the first question matching a GUID prefix.
+func GetQuestionByPrefix(db *sql.DB, prefix string) (*types.Question, error) {
+	rows, err := db.Query(`
+		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
+		FROM mm_questions
+		WHERE guid = ? OR guid LIKE ?
+		ORDER BY created_at DESC
+	`, prefix, fmt.Sprintf("%s%%", prefix))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, nil
+	}
+	question, err := scanQuestion(rows)
+	if err != nil {
+		return nil, err
+	}
+	return &question, nil
+}
+
+// GetQuestionsByRe returns questions matching the provided text.
+func GetQuestionsByRe(db *sql.DB, re string) ([]types.Question, error) {
+	rows, err := db.Query(`
+		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
+		FROM mm_questions
+		WHERE lower(re) = lower(?)
+		ORDER BY created_at ASC
+	`, strings.TrimSpace(re))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanQuestions(rows)
+}
+
+// GetQuestions returns questions filtered by options.
+func GetQuestions(db *sql.DB, options *types.QuestionQueryOptions) ([]types.Question, error) {
+	query := `
+		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
+		FROM mm_questions
+	`
+	var conditions []string
+	var args []any
+
+	if options != nil {
+		if len(options.Statuses) > 0 {
+			placeholders := make([]string, 0, len(options.Statuses))
+			for _, status := range options.Statuses {
+				placeholders = append(placeholders, "?")
+				args = append(args, string(status))
+			}
+			conditions = append(conditions, fmt.Sprintf("status IN (%s)", strings.Join(placeholders, ", ")))
+		}
+		if options.ThreadGUID != nil {
+			conditions = append(conditions, "thread_guid = ?")
+			args = append(args, *options.ThreadGUID)
+		} else if options.RoomOnly {
+			conditions = append(conditions, "thread_guid IS NULL")
+		}
+		if options.ToAgent != nil && *options.ToAgent != "" {
+			conditions = append(conditions, "to_agent = ?")
+			args = append(args, *options.ToAgent)
+		}
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY created_at ASC"
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanQuestions(rows)
+}
+
+// ThreadUpdates represents partial thread updates.
+type ThreadUpdates struct {
+	Name         types.OptionalString
+	Status       types.OptionalString
+	ParentThread types.OptionalString
+}
+
+// CreateThread inserts a new thread.
+func CreateThread(db *sql.DB, thread types.Thread) (types.Thread, error) {
+	guid := thread.GUID
+	if guid == "" {
+		var err error
+		guid, err = generateUniqueGUIDForTable(db, "mm_threads", "thrd")
+		if err != nil {
+			return types.Thread{}, err
+		}
+	}
+
+	status := thread.Status
+	if status == "" {
+		status = types.ThreadStatusOpen
+	}
+	createdAt := thread.CreatedAt
+	if createdAt == 0 {
+		createdAt = time.Now().Unix()
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO mm_threads (guid, name, parent_thread, status, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, guid, thread.Name, thread.ParentThread, string(status), createdAt)
+	if err != nil {
+		return types.Thread{}, err
+	}
+
+	thread.GUID = guid
+	thread.Status = status
+	thread.CreatedAt = createdAt
+	return thread, nil
+}
+
+// UpdateThread updates thread fields.
+func UpdateThread(db *sql.DB, guid string, updates ThreadUpdates) (*types.Thread, error) {
+	var fields []string
+	var args []any
+
+	if updates.Name.Set {
+		fields = append(fields, "name = ?")
+		args = append(args, nullableValue(updates.Name.Value))
+	}
+	if updates.Status.Set {
+		fields = append(fields, "status = ?")
+		args = append(args, nullableValue(updates.Status.Value))
+	}
+	if updates.ParentThread.Set {
+		fields = append(fields, "parent_thread = ?")
+		args = append(args, nullableValue(updates.ParentThread.Value))
+	}
+
+	if len(fields) == 0 {
+		return GetThread(db, guid)
+	}
+
+	args = append(args, guid)
+	query := fmt.Sprintf("UPDATE mm_threads SET %s WHERE guid = ?", strings.Join(fields, ", "))
+	if _, err := db.Exec(query, args...); err != nil {
+		return nil, err
+	}
+	return GetThread(db, guid)
+}
+
+// GetThread returns a thread by GUID.
+func GetThread(db *sql.DB, guid string) (*types.Thread, error) {
+	row := db.QueryRow(`
+		SELECT guid, name, parent_thread, status, created_at
+		FROM mm_threads WHERE guid = ?
+	`, guid)
+
+	thread, err := scanThread(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &thread, nil
+}
+
+// GetThreadByPrefix returns the first thread matching a GUID prefix.
+func GetThreadByPrefix(db *sql.DB, prefix string) (*types.Thread, error) {
+	rows, err := db.Query(`
+		SELECT guid, name, parent_thread, status, created_at
+		FROM mm_threads
+		WHERE guid = ? OR guid LIKE ?
+		ORDER BY created_at ASC
+	`, prefix, fmt.Sprintf("%s%%", prefix))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, nil
+	}
+	thread, err := scanThread(rows)
+	if err != nil {
+		return nil, err
+	}
+	return &thread, nil
+}
+
+// GetThreadByName returns a thread by name and optional parent.
+func GetThreadByName(db *sql.DB, name string, parent *string) (*types.Thread, error) {
+	var row *sql.Row
+	if parent == nil {
+		row = db.QueryRow(`
+			SELECT guid, name, parent_thread, status, created_at
+			FROM mm_threads WHERE name = ? AND parent_thread IS NULL
+		`, name)
+	} else {
+		row = db.QueryRow(`
+			SELECT guid, name, parent_thread, status, created_at
+			FROM mm_threads WHERE name = ? AND parent_thread = ?
+		`, name, *parent)
+	}
+
+	thread, err := scanThread(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &thread, nil
+}
+
+// GetThreads returns threads filtered by options.
+func GetThreads(db *sql.DB, options *types.ThreadQueryOptions) ([]types.Thread, error) {
+	query := `
+		SELECT DISTINCT t.guid, t.name, t.parent_thread, t.status, t.created_at
+		FROM mm_threads t
+	`
+	var conditions []string
+	var args []any
+
+	if options != nil && options.SubscribedAgent != nil {
+		query += " INNER JOIN mm_thread_subscriptions s ON s.thread_guid = t.guid"
+		conditions = append(conditions, "s.agent_id = ?")
+		args = append(args, *options.SubscribedAgent)
+	}
+
+	if options != nil {
+		if options.ParentThread != nil {
+			conditions = append(conditions, "t.parent_thread = ?")
+			args = append(args, *options.ParentThread)
+		}
+		if options.Status != nil {
+			conditions = append(conditions, "t.status = ?")
+			args = append(args, string(*options.Status))
+		} else if !options.IncludeArchived {
+			conditions = append(conditions, "t.status = ?")
+			args = append(args, string(types.ThreadStatusOpen))
+		}
+	} else {
+		conditions = append(conditions, "t.status = ?")
+		args = append(args, string(types.ThreadStatusOpen))
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY t.created_at ASC"
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanThreads(rows)
+}
+
+// SubscribeThread subscribes an agent to a thread.
+func SubscribeThread(db *sql.DB, threadGUID, agentID string, subscribedAt int64) error {
+	if subscribedAt == 0 {
+		subscribedAt = time.Now().Unix()
+	}
+	_, err := db.Exec(`
+		INSERT OR REPLACE INTO mm_thread_subscriptions (thread_guid, agent_id, subscribed_at)
+		VALUES (?, ?, ?)
+	`, threadGUID, agentID, subscribedAt)
+	return err
+}
+
+// UnsubscribeThread unsubscribes an agent from a thread.
+func UnsubscribeThread(db *sql.DB, threadGUID, agentID string) error {
+	_, err := db.Exec(`
+		DELETE FROM mm_thread_subscriptions WHERE thread_guid = ? AND agent_id = ?
+	`, threadGUID, agentID)
+	return err
+}
+
+// AddMessageToThread adds a message to a thread playlist.
+func AddMessageToThread(db *sql.DB, threadGUID, messageGUID, addedBy string, addedAt int64) error {
+	if addedAt == 0 {
+		addedAt = time.Now().Unix()
+	}
+	_, err := db.Exec(`
+		INSERT OR REPLACE INTO mm_thread_messages (thread_guid, message_guid, added_by, added_at)
+		VALUES (?, ?, ?, ?)
+	`, threadGUID, messageGUID, addedBy, addedAt)
+	return err
+}
+
+// RemoveMessageFromThread removes a message from a thread playlist.
+func RemoveMessageFromThread(db *sql.DB, threadGUID, messageGUID string) error {
+	_, err := db.Exec(`
+		DELETE FROM mm_thread_messages WHERE thread_guid = ? AND message_guid = ?
+	`, threadGUID, messageGUID)
+	return err
+}
+
+// GetThreadMessages returns messages in a thread (home or membership).
+func GetThreadMessages(db *sql.DB, threadGUID string) ([]types.Message, error) {
+	rows, err := db.Query(`
+		SELECT DISTINCT m.* FROM mm_messages m
+		LEFT JOIN mm_thread_messages tm ON tm.message_guid = m.guid AND tm.thread_guid = ?
+		WHERE m.home = ? OR tm.thread_guid = ?
+		ORDER BY m.ts ASC, m.guid ASC
+	`, threadGUID, threadGUID, threadGUID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanMessages(rows)
+}
+
+// IsMessageInThread reports whether a message is in a thread (home or membership).
+func IsMessageInThread(db *sql.DB, threadGUID, messageGUID string) (bool, error) {
+	row := db.QueryRow(`
+		SELECT 1 FROM mm_messages WHERE guid = ? AND home = ?
+		UNION
+		SELECT 1 FROM mm_thread_messages WHERE message_guid = ? AND thread_guid = ?
+		LIMIT 1
+	`, messageGUID, threadGUID, messageGUID, threadGUID)
+	var value int
+	if err := row.Scan(&value); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // PruneExpiredClaims removes expired claims.
@@ -1473,10 +1975,56 @@ func scanMessages(rows *sql.Rows) ([]types.Message, error) {
 
 func scanMessage(scanner interface{ Scan(dest ...any) error }) (types.Message, error) {
 	var row messageRow
-	if err := scanner.Scan(&row.GUID, &row.TS, &row.ChannelID, &row.FromAgent, &row.Body, &row.Mentions, &row.MsgType, &row.ReplyTo, &row.EditedAt, &row.ArchivedAt, &row.Reactions); err != nil {
+	if err := scanner.Scan(&row.GUID, &row.TS, &row.ChannelID, &row.Home, &row.FromAgent, &row.Body, &row.Mentions, &row.MsgType, &row.References, &row.SurfaceMessage, &row.ReplyTo, &row.EditedAt, &row.ArchivedAt, &row.Reactions); err != nil {
 		return types.Message{}, err
 	}
 	return row.toMessage()
+}
+
+func scanQuestion(scanner interface{ Scan(dest ...any) error }) (types.Question, error) {
+	var row questionRow
+	if err := scanner.Scan(&row.GUID, &row.Re, &row.FromAgent, &row.ToAgent, &row.Status, &row.ThreadGUID, &row.AskedIn, &row.AnsweredIn, &row.CreatedAt); err != nil {
+		return types.Question{}, err
+	}
+	return row.toQuestion(), nil
+}
+
+func scanQuestions(rows *sql.Rows) ([]types.Question, error) {
+	var questions []types.Question
+	for rows.Next() {
+		question, err := scanQuestion(rows)
+		if err != nil {
+			return nil, err
+		}
+		questions = append(questions, question)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return questions, nil
+}
+
+func scanThread(scanner interface{ Scan(dest ...any) error }) (types.Thread, error) {
+	var row threadRow
+	if err := scanner.Scan(&row.GUID, &row.Name, &row.ParentThread, &row.Status, &row.CreatedAt); err != nil {
+		return types.Thread{}, err
+	}
+	return row.toThread(), nil
+}
+
+func scanThreads(rows *sql.Rows) ([]types.Thread, error) {
+	var threads []types.Thread
+	for rows.Next() {
+		thread, err := scanThread(rows)
+		if err != nil {
+			return nil, err
+		}
+		threads = append(threads, thread)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return threads, nil
 }
 
 func scanAgent(scanner interface{ Scan(dest ...any) error }) (types.Agent, error) {
@@ -1564,17 +2112,72 @@ func isConstraintError(err error) bool {
 }
 
 type messageRow struct {
+	GUID           string
+	TS             int64
+	ChannelID      sql.NullString
+	Home           sql.NullString
+	FromAgent      string
+	Body           string
+	Mentions       string
+	Reactions      string
+	MsgType        sql.NullString
+	References     sql.NullString
+	SurfaceMessage sql.NullString
+	ReplyTo        sql.NullString
+	EditedAt       sql.NullInt64
+	ArchivedAt     sql.NullInt64
+}
+
+type questionRow struct {
 	GUID       string
-	TS         int64
-	ChannelID  sql.NullString
+	Re         string
 	FromAgent  string
-	Body       string
-	Mentions   string
-	Reactions  string
-	MsgType    sql.NullString
-	ReplyTo    sql.NullString
-	EditedAt   sql.NullInt64
-	ArchivedAt sql.NullInt64
+	ToAgent    sql.NullString
+	Status     sql.NullString
+	ThreadGUID sql.NullString
+	AskedIn    sql.NullString
+	AnsweredIn sql.NullString
+	CreatedAt  int64
+}
+
+func (row questionRow) toQuestion() types.Question {
+	status := types.QuestionStatusUnasked
+	if row.Status.Valid && row.Status.String != "" {
+		status = types.QuestionStatus(row.Status.String)
+	}
+	return types.Question{
+		GUID:       row.GUID,
+		Re:         row.Re,
+		FromAgent:  row.FromAgent,
+		ToAgent:    nullStringPtr(row.ToAgent),
+		Status:     status,
+		ThreadGUID: nullStringPtr(row.ThreadGUID),
+		AskedIn:    nullStringPtr(row.AskedIn),
+		AnsweredIn: nullStringPtr(row.AnsweredIn),
+		CreatedAt:  row.CreatedAt,
+	}
+}
+
+type threadRow struct {
+	GUID         string
+	Name         string
+	ParentThread sql.NullString
+	Status       sql.NullString
+	CreatedAt    int64
+}
+
+func (row threadRow) toThread() types.Thread {
+	status := types.ThreadStatusOpen
+	if row.Status.Valid && row.Status.String != "" {
+		status = types.ThreadStatus(row.Status.String)
+	}
+	return types.Thread{
+		GUID:         row.GUID,
+		Name:         row.Name,
+		ParentThread: nullStringPtr(row.ParentThread),
+		Status:       status,
+		CreatedAt:    row.CreatedAt,
+	}
 }
 
 func (row messageRow) toMessage() (types.Message, error) {
@@ -1594,19 +2197,26 @@ func (row messageRow) toMessage() (types.Message, error) {
 	if row.MsgType.Valid && row.MsgType.String != "" {
 		msgType = types.MessageType(row.MsgType.String)
 	}
+	home := "room"
+	if row.Home.Valid && row.Home.String != "" {
+		home = row.Home.String
+	}
 
 	return types.Message{
-		ID:         row.GUID,
-		TS:         row.TS,
-		ChannelID:  nullStringPtr(row.ChannelID),
-		FromAgent:  row.FromAgent,
-		Body:       row.Body,
-		Mentions:   mentions,
-		Reactions:  normalizeReactions(reactions),
-		Type:       msgType,
-		ReplyTo:    nullStringPtr(row.ReplyTo),
-		EditedAt:   nullIntPtr(row.EditedAt),
-		ArchivedAt: nullIntPtr(row.ArchivedAt),
+		ID:             row.GUID,
+		TS:             row.TS,
+		ChannelID:      nullStringPtr(row.ChannelID),
+		Home:           home,
+		FromAgent:      row.FromAgent,
+		Body:           row.Body,
+		Mentions:       mentions,
+		Reactions:      normalizeReactions(reactions),
+		Type:           msgType,
+		References:     nullStringPtr(row.References),
+		SurfaceMessage: nullStringPtr(row.SurfaceMessage),
+		ReplyTo:        nullStringPtr(row.ReplyTo),
+		EditedAt:       nullIntPtr(row.EditedAt),
+		ArchivedAt:     nullIntPtr(row.ArchivedAt),
 	}, nil
 }
 

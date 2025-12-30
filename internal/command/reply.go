@@ -10,11 +10,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewThreadCmd creates the thread command.
-func NewThreadCmd() *cobra.Command {
+// NewReplyCmd creates the reply command.
+func NewReplyCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "thread <id>",
-		Short: "View a message thread (parent + replies)",
+		Use:   "reply <id>",
+		Short: "View a reply chain (parent + replies)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := GetContext(cmd)
@@ -36,7 +36,7 @@ func NewThreadCmd() *cobra.Command {
 				return writeCommandError(cmd, fmt.Errorf("message %s not found", messageID))
 			}
 
-			thread, err := db.GetThread(ctx.DB, messageID)
+			thread, err := db.GetReplyChain(ctx.DB, messageID)
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
@@ -44,7 +44,7 @@ func NewThreadCmd() *cobra.Command {
 			if ctx.JSONMode {
 				payload := map[string]any{
 					"parent_id": messageID,
-					"messages":  renderThreadJSON(thread),
+					"messages":  renderReplyJSON(thread),
 				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 			}
@@ -78,7 +78,7 @@ func NewThreadCmd() *cobra.Command {
 	return cmd
 }
 
-func renderThreadJSON(messages []types.Message) []map[string]any {
+func renderReplyJSON(messages []types.Message) []map[string]any {
 	payload := make([]map[string]any, 0, len(messages))
 	for _, msg := range messages {
 		payload = append(payload, map[string]any{

@@ -16,6 +16,8 @@ MM uses a GUID-based architecture inspired by beads, enabling:
   mm-config.json      # Project config (channel_id, known_agents, nicks)
   messages.jsonl      # Append-only source of truth
   agents.jsonl        # Append-only source of truth
+  questions.jsonl     # Append-only source of truth
+  threads.jsonl       # Append-only source of truth (threads + events)
   history.jsonl       # Pruned messages archive (optional)
   .gitignore          # Ignores *.db files
   mm.db               # SQLite cache (gitignored, rebuildable)
@@ -56,9 +58,11 @@ MM uses a GUID-based architecture inspired by beads, enabling:
 Messages are append-only. Edits and deletes append `message_update` records.
 
 ```jsonl
-{"type":"message","id":"msg-a1b2c3d4","channel_id":"ch-mmdev12","from_agent":"adam","body":"@bob status","mentions":["bob"],"reactions":{"👍":["bob"]},"message_type":"agent","reply_to":null,"ts":1734612000,"edited_at":null,"archived_at":null}
+{"type":"message","id":"msg-a1b2c3d4","channel_id":"ch-mmdev12","home":"room","from_agent":"adam","body":"@bob status","mentions":["bob"],"reactions":{"👍":["bob"]},"message_type":"agent","reply_to":null,"ts":1734612000,"edited_at":null,"archived_at":null}
 {"type":"message_update","id":"msg-a1b2c3d4","body":"@bob updated status","edited_at":1734612600}
 ```
+
+`home` controls visibility: `"room"` is surfaced, thread GUIDs are hidden in the room. `references` and `surface_message` support surfacing (quote-retweet + backlink events). `message_type` can be `surface` for surfaced posts.
 
 ### agents.jsonl
 
@@ -67,6 +71,21 @@ Messages are append-only. Edits and deletes append `message_update` records.
 ```
 
 `active_status` is legacy; current presence is derived from `last_seen`/`left_at` with a staleness window.
+
+### questions.jsonl
+
+```jsonl
+{"type":"question","guid":"qstn-a1b2c3d4","re":"target market","from_agent":"party","to":"alice","status":"unasked","thread_guid":null,"asked_in":null,"answered_in":null,"created_at":1735500000}
+{"type":"question_update","guid":"qstn-a1b2c3d4","status":"open","asked_in":"msg-x1y2z3w4"}
+```
+
+### threads.jsonl
+
+```jsonl
+{"type":"thread","guid":"thrd-b2c3d4e5","name":"market-analysis","parent_thread":null,"subscribed":["alice","bob"],"status":"open","created_at":1735500000}
+{"type":"thread_subscribe","thread_guid":"thrd-b2c3d4e5","agent_id":"charlie","subscribed_at":1735500100}
+{"type":"thread_message","thread_guid":"thrd-b2c3d4e5","message_guid":"msg-aaa","added_by":"alice","added_at":1735500200}
+```
 
 ## Config Files
 
@@ -123,6 +142,12 @@ current channel metadata (`channel_id`, `channel_name`). This is distinct from
 - Global names are stored as `channelName-agentID` for disambiguation.
 - @mention prefix matching uses `.` as a separator; `@all` is a broadcast.
 - `here` is computed from `last_seen`/`left_at` and a staleness window, not stored.
+
+## Threads and Questions
+
+- Threads are playlists. Messages have a single `home` and can be curated into additional threads via `mm_thread_messages`.
+- Thread subscriptions live in `mm_thread_subscriptions` and are rebuilt from `threads.jsonl` (initial `subscribed` list + events).
+- Questions live in `mm_questions`, optionally scoped to a thread via `thread_guid`.
 
 ## Channel System
 
