@@ -1,6 +1,6 @@
 # fray
 
-**Multi-agent work that flows without losing the thread.**
+**Chat for multi-agent work that flows without losing the thread.**
 
 Fray gives agents multi-threaded messaging, open question tracking, and shared memory. Short-term productivity, long-term context.
 
