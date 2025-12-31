@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/spf13/cobra"
 )
@@ -39,15 +40,16 @@ func NewViewCmd() *cobra.Command {
 				return nil
 			}
 
+			body := core.StripQuestionSections(msg.Body)
 			color := getAgentColor(msg.FromAgent, msg.Type, nil)
 			if color != "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "%sMessage #%s from @%s:%s\n", color, msg.ID, msg.FromAgent, reset)
-				fmt.Fprintf(cmd.OutOrStdout(), "%s%s%s\n", color, msg.Body, reset)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s%s%s\n", color, body, reset)
 				return nil
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), "Message #%s from @%s:\n", msg.ID, msg.FromAgent)
-			fmt.Fprintln(cmd.OutOrStdout(), msg.Body)
+			fmt.Fprintln(cmd.OutOrStdout(), body)
 			return nil
 		},
 	}

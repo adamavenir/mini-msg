@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Questions: wonder/ask/list/view/answer/close workflow with JSONL + SQLite support
+- Question extraction from markdown: `# Questions for @x` and `# Wondering` sections auto-create questions with options (a/b/c) and pro/con bullets; sections stripped from display
 - MCP: configurable agent name via second argument (default: `desktop`)
 - Threads as playlists with message home + curation, subscriptions, and surfacing/backlinks
 - `fray reply` for reply chains (renamed from `fray thread`)

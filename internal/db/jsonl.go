@@ -53,16 +53,17 @@ type MessageUpdateJSONLRecord struct {
 
 // QuestionJSONLRecord represents a question entry in JSONL.
 type QuestionJSONLRecord struct {
-	Type       string  `json:"type"`
-	GUID       string  `json:"guid"`
-	Re         string  `json:"re"`
-	FromAgent  string  `json:"from_agent"`
-	ToAgent    *string `json:"to,omitempty"`
-	Status     string  `json:"status"`
-	ThreadGUID *string `json:"thread_guid,omitempty"`
-	AskedIn    *string `json:"asked_in,omitempty"`
-	AnsweredIn *string `json:"answered_in,omitempty"`
-	CreatedAt  int64   `json:"created_at"`
+	Type       string                 `json:"type"`
+	GUID       string                 `json:"guid"`
+	Re         string                 `json:"re"`
+	FromAgent  string                 `json:"from_agent"`
+	ToAgent    *string                `json:"to,omitempty"`
+	Status     string                 `json:"status"`
+	ThreadGUID *string                `json:"thread_guid,omitempty"`
+	AskedIn    *string                `json:"asked_in,omitempty"`
+	AnsweredIn *string                `json:"answered_in,omitempty"`
+	Options    []types.QuestionOption `json:"options,omitempty"`
+	CreatedAt  int64                  `json:"created_at"`
 }
 
 // QuestionUpdateJSONLRecord represents a question update entry in JSONL.
@@ -376,6 +377,7 @@ func AppendQuestion(projectPath string, question types.Question) error {
 		ThreadGUID: question.ThreadGUID,
 		AskedIn:    question.AskedIn,
 		AnsweredIn: question.AnsweredIn,
+		Options:    question.Options,
 		CreatedAt:  question.CreatedAt,
 	}
 	if err := appendJSONLine(filepath.Join(frayDir, questionsFile), record); err != nil {
@@ -1241,13 +1243,21 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	if len(questions) > 0 {
 		insertQuestion := `
 			INSERT OR REPLACE INTO fray_questions (
-				guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, options, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`
 		for _, question := range questions {
 			status := question.Status
 			if status == "" {
 				status = string(types.QuestionStatusUnasked)
+			}
+			optionsJSON := "[]"
+			if len(question.Options) > 0 {
+				optBytes, err := json.Marshal(question.Options)
+				if err != nil {
+					return err
+				}
+				optionsJSON = string(optBytes)
 			}
 			if _, err := db.Exec(insertQuestion,
 				question.GUID,
@@ -1258,6 +1268,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 				question.ThreadGUID,
 				question.AskedIn,
 				question.AnsweredIn,
+				optionsJSON,
 				question.CreatedAt,
 			); err != nil {
 				return err

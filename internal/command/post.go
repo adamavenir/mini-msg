@@ -193,6 +193,62 @@ func NewPostCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
+			// Extract questions from markdown sections
+			sections, _ := core.ExtractQuestionSections(args[0])
+			for _, section := range sections {
+				status := types.QuestionStatusOpen
+				if section.IsWondering {
+					status = types.QuestionStatusUnasked
+				}
+
+				var threadGUID *string
+				if home != "" && home != "room" {
+					threadGUID = &home
+				}
+
+				for _, eq := range section.Questions {
+					// Convert core.QuestionOption to types.QuestionOption
+					var options []types.QuestionOption
+					for _, opt := range eq.Options {
+						options = append(options, types.QuestionOption{
+							Label: opt.Label,
+							Pros:  opt.Pros,
+							Cons:  opt.Cons,
+						})
+					}
+
+					// Create question for each target, or one with no target if none specified
+					targets := section.Targets
+					if len(targets) == 0 {
+						targets = []string{""}
+					}
+
+					for _, target := range targets {
+						var toAgent *string
+						if target != "" {
+							toAgent = &target
+						}
+
+						question, err := db.CreateQuestion(ctx.DB, types.Question{
+							Re:         eq.Text,
+							FromAgent:  agentID,
+							ToAgent:    toAgent,
+							Status:     status,
+							ThreadGUID: threadGUID,
+							AskedIn:    &created.ID,
+							Options:    options,
+							CreatedAt:  now,
+						})
+						if err != nil {
+							return writeCommandError(cmd, err)
+						}
+						if err := db.AppendQuestion(ctx.Project.DBPath, question); err != nil {
+							return writeCommandError(cmd, err)
+						}
+					}
+				}
+			}
+
 			if answerQuestion != nil {
 				statusValue := string(types.QuestionStatusAnswered)
 				updated, err := db.UpdateQuestion(ctx.DB, answerQuestion.GUID, db.QuestionUpdates{

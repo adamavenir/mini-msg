@@ -2361,7 +2361,8 @@ func (m *Model) formatMessage(msg types.Message, prefixLength int, readToMap map
 	}
 
 	sender := renderByline(msg.FromAgent, color)
-	body := highlightCodeBlocks(msg.Body)
+	strippedBody := core.StripQuestionSections(msg.Body)
+	body := highlightCodeBlocks(strippedBody)
 	width := m.mainWidth()
 	if width > 0 {
 		body = ansi.Wrap(body, width, "")

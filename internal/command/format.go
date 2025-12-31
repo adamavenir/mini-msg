@@ -58,16 +58,18 @@ func FormatMessage(msg types.Message, projectName string, agentBases map[string]
 	idBlock := fmt.Sprintf("%s[%s#%s%s %s]%s", dim, bold, projectName, reset, dim+msg.ID+editedSuffix, reset)
 
 	color := getAgentColor(msg.FromAgent, msg.Type, nil)
-	truncated := truncateForDisplay(msg.Body, msg.ID)
+	// Strip question sections from display
+	strippedBody := core.StripQuestionSections(msg.Body)
+	truncated := truncateForDisplay(strippedBody, msg.ID)
 
 	if color != "" {
-		body := colorizeBody(truncated, color, agentBases)
-		body = highlightIssueIDs(body, color)
-		return fmt.Sprintf("%s %s@%s: \"%s\"%s", idBlock, color, msg.FromAgent, body, reset)
+		coloredBody := colorizeBody(truncated, color, agentBases)
+		coloredBody = highlightIssueIDs(coloredBody, color)
+		return fmt.Sprintf("%s %s@%s: \"%s\"%s", idBlock, color, msg.FromAgent, coloredBody, reset)
 	}
 
-	body := highlightIssueIDs(highlightMentions(truncated), "")
-	return fmt.Sprintf("%s @%s: \"%s\"", idBlock, msg.FromAgent, body)
+	highlightedBody := highlightIssueIDs(highlightMentions(truncated), "")
+	return fmt.Sprintf("%s @%s: \"%s\"", idBlock, msg.FromAgent, highlightedBody)
 }
 
 func ansiCode(code string) string {

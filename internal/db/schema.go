@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS fray_questions (
   thread_guid TEXT,
   asked_in TEXT,
   answered_in TEXT,
+  options TEXT DEFAULT '[]',
   created_at INTEGER NOT NULL
 );
 
@@ -584,6 +585,17 @@ func migrateSchema(db DBTX) error {
 			return err
 		}
 		if _, err := db.Exec("ALTER TABLE fray_read_receipts_new RENAME TO fray_read_receipts"); err != nil {
+			return err
+		}
+	}
+
+	// Add options column to questions if missing
+	questionColumns, err := getTableInfo(db, "fray_questions")
+	if err != nil {
+		return err
+	}
+	if len(questionColumns) > 0 && !hasColumn(questionColumns, "options") {
+		if _, err := db.Exec("ALTER TABLE fray_questions ADD COLUMN options TEXT DEFAULT '[]'"); err != nil {
 			return err
 		}
 	}

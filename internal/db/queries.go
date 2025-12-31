@@ -1390,10 +1390,19 @@ func CreateQuestion(db *sql.DB, question types.Question) (types.Question, error)
 		createdAt = time.Now().Unix()
 	}
 
+	optionsJSON := "[]"
+	if len(question.Options) > 0 {
+		optBytes, err := json.Marshal(question.Options)
+		if err != nil {
+			return types.Question{}, err
+		}
+		optionsJSON = string(optBytes)
+	}
+
 	_, err := db.Exec(`
-		INSERT INTO fray_questions (guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, guid, question.Re, question.FromAgent, question.ToAgent, string(status), question.ThreadGUID, question.AskedIn, question.AnsweredIn, createdAt)
+		INSERT INTO fray_questions (guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, options, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, guid, question.Re, question.FromAgent, question.ToAgent, string(status), question.ThreadGUID, question.AskedIn, question.AnsweredIn, optionsJSON, createdAt)
 	if err != nil {
 		return types.Question{}, err
 	}
@@ -1445,7 +1454,7 @@ func UpdateQuestion(db *sql.DB, guid string, updates QuestionUpdates) (*types.Qu
 // GetQuestion returns a question by GUID.
 func GetQuestion(db *sql.DB, guid string) (*types.Question, error) {
 	row := db.QueryRow(`
-		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
+		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, options, created_at
 		FROM fray_questions WHERE guid = ?
 	`, guid)
 
@@ -1462,7 +1471,7 @@ func GetQuestion(db *sql.DB, guid string) (*types.Question, error) {
 // GetQuestionByPrefix returns the first question matching a GUID prefix.
 func GetQuestionByPrefix(db *sql.DB, prefix string) (*types.Question, error) {
 	rows, err := db.Query(`
-		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
+		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, options, created_at
 		FROM fray_questions
 		WHERE guid = ? OR guid LIKE ?
 		ORDER BY created_at DESC
@@ -1485,7 +1494,7 @@ func GetQuestionByPrefix(db *sql.DB, prefix string) (*types.Question, error) {
 // GetQuestionsByRe returns questions matching the provided text.
 func GetQuestionsByRe(db *sql.DB, re string) ([]types.Question, error) {
 	rows, err := db.Query(`
-		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
+		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, options, created_at
 		FROM fray_questions
 		WHERE lower(re) = lower(?)
 		ORDER BY created_at ASC
@@ -1499,32 +1508,32 @@ func GetQuestionsByRe(db *sql.DB, re string) ([]types.Question, error) {
 }
 
 // GetQuestions returns questions filtered by options.
-func GetQuestions(db *sql.DB, options *types.QuestionQueryOptions) ([]types.Question, error) {
+func GetQuestions(db *sql.DB, opts *types.QuestionQueryOptions) ([]types.Question, error) {
 	query := `
-		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, created_at
+		SELECT guid, re, from_agent, to_agent, status, thread_guid, asked_in, answered_in, options, created_at
 		FROM fray_questions
 	`
 	var conditions []string
 	var args []any
 
-	if options != nil {
-		if len(options.Statuses) > 0 {
-			placeholders := make([]string, 0, len(options.Statuses))
-			for _, status := range options.Statuses {
+	if opts != nil {
+		if len(opts.Statuses) > 0 {
+			placeholders := make([]string, 0, len(opts.Statuses))
+			for _, status := range opts.Statuses {
 				placeholders = append(placeholders, "?")
 				args = append(args, string(status))
 			}
 			conditions = append(conditions, fmt.Sprintf("status IN (%s)", strings.Join(placeholders, ", ")))
 		}
-		if options.ThreadGUID != nil {
+		if opts.ThreadGUID != nil {
 			conditions = append(conditions, "thread_guid = ?")
-			args = append(args, *options.ThreadGUID)
-		} else if options.RoomOnly {
+			args = append(args, *opts.ThreadGUID)
+		} else if opts.RoomOnly {
 			conditions = append(conditions, "thread_guid IS NULL")
 		}
-		if options.ToAgent != nil && *options.ToAgent != "" {
+		if opts.ToAgent != nil && *opts.ToAgent != "" {
 			conditions = append(conditions, "to_agent = ?")
-			args = append(args, *options.ToAgent)
+			args = append(args, *opts.ToAgent)
 		}
 	}
 
@@ -2063,7 +2072,7 @@ func scanMessage(scanner interface{ Scan(dest ...any) error }) (types.Message, e
 
 func scanQuestion(scanner interface{ Scan(dest ...any) error }) (types.Question, error) {
 	var row questionRow
-	if err := scanner.Scan(&row.GUID, &row.Re, &row.FromAgent, &row.ToAgent, &row.Status, &row.ThreadGUID, &row.AskedIn, &row.AnsweredIn, &row.CreatedAt); err != nil {
+	if err := scanner.Scan(&row.GUID, &row.Re, &row.FromAgent, &row.ToAgent, &row.Status, &row.ThreadGUID, &row.AskedIn, &row.AnsweredIn, &row.Options, &row.CreatedAt); err != nil {
 		return types.Question{}, err
 	}
 	return row.toQuestion(), nil
@@ -2217,6 +2226,7 @@ type questionRow struct {
 	ThreadGUID sql.NullString
 	AskedIn    sql.NullString
 	AnsweredIn sql.NullString
+	Options    sql.NullString
 	CreatedAt  int64
 }
 
@@ -2224,6 +2234,10 @@ func (row questionRow) toQuestion() types.Question {
 	status := types.QuestionStatusUnasked
 	if row.Status.Valid && row.Status.String != "" {
 		status = types.QuestionStatus(row.Status.String)
+	}
+	var options []types.QuestionOption
+	if row.Options.Valid && row.Options.String != "" && row.Options.String != "[]" {
+		_ = json.Unmarshal([]byte(row.Options.String), &options)
 	}
 	return types.Question{
 		GUID:       row.GUID,
@@ -2234,6 +2248,7 @@ func (row questionRow) toQuestion() types.Question {
 		ThreadGUID: nullStringPtr(row.ThreadGUID),
 		AskedIn:    nullStringPtr(row.AskedIn),
 		AnsweredIn: nullStringPtr(row.AnsweredIn),
+		Options:    options,
 		CreatedAt:  row.CreatedAt,
 	}
 }

@@ -174,17 +174,25 @@ const (
 	QuestionStatusClosed   QuestionStatus = "closed"
 )
 
+// QuestionOption represents a proposed answer with pros/cons.
+type QuestionOption struct {
+	Label string   `json:"label"`
+	Pros  []string `json:"pros,omitempty"`
+	Cons  []string `json:"cons,omitempty"`
+}
+
 // Question represents a tracked question.
 type Question struct {
-	GUID       string         `json:"guid"`
-	Re         string         `json:"re"`
-	FromAgent  string         `json:"from_agent"`
-	ToAgent    *string        `json:"to_agent,omitempty"`
-	Status     QuestionStatus `json:"status"`
-	ThreadGUID *string        `json:"thread_guid,omitempty"`
-	AskedIn    *string        `json:"asked_in,omitempty"`
-	AnsweredIn *string        `json:"answered_in,omitempty"`
-	CreatedAt  int64          `json:"created_at"`
+	GUID       string           `json:"guid"`
+	Re         string           `json:"re"`
+	FromAgent  string           `json:"from_agent"`
+	ToAgent    *string          `json:"to_agent,omitempty"`
+	Status     QuestionStatus   `json:"status"`
+	ThreadGUID *string          `json:"thread_guid,omitempty"`
+	AskedIn    *string          `json:"asked_in,omitempty"`
+	AnsweredIn *string          `json:"answered_in,omitempty"`
+	Options    []QuestionOption `json:"options,omitempty"`
+	CreatedAt  int64            `json:"created_at"`
 }
 
 // ThreadStatus represents thread lifecycle state.
