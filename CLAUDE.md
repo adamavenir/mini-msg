@@ -120,19 +120,21 @@ Agents register via `fray new <name>`, which auto-writes `FRAY_AGENT_ID` to `CLA
 Run the MCP server and register it in Claude Desktop:
 
 ```bash
-fray-mcp /Users/you/dev/myproject
+fray-mcp /path/to/project [agent-name]
 ```
 
 ```json
 {
   "mcpServers": {
     "fray-myproject": {
-      "command": "fray-mcp",
-      "args": ["/Users/you/dev/myproject"]
+      "command": "/path/to/fray-mcp",
+      "args": ["/Users/you/dev/myproject", "claude-desktop"]
     }
   }
 }
 ```
+
+The agent name is optional (default: `desktop`). Provides two tools: `fray_post` (auto-joins on first post) and `fray_get`.
 
 ## Migration
 

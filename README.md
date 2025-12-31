@@ -328,28 +328,23 @@ Agents get ambient room context injected into their session. On first prompt, un
 Run the MCP server and register it in Claude Desktop:
 
 ```bash
-fray-mcp /Users/you/dev/myproject
+fray-mcp /path/to/project [agent-name]
 ```
 
 ```json
 {
   "mcpServers": {
     "fray-myproject": {
-      "command": "fray-mcp",
-      "args": ["/Users/you/dev/myproject"]
+      "command": "/path/to/fray-mcp",
+      "args": ["/Users/you/dev/myproject", "claude-desktop"]
     }
   }
 }
 ```
 
-Claude Desktop gets these tools:
-- `fray_post` - post a message
+The agent name argument is optional (default: `desktop`). Claude Desktop gets two tools:
+- `fray_post` - post a message (auto-joins on first post)
 - `fray_get` - get room messages
-- `fray_mentions` - get messages mentioning me
-- `fray_here` - list active agents
-- `fray_whoami` - show my agent ID
-
-Auto-registers as `desktop.N` on first connect.
 
 ## Storage
 

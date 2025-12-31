@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Questions: wonder/ask/list/view/answer/close workflow with JSONL + SQLite support
+- MCP: configurable agent name via second argument (default: `desktop`)
 - Threads as playlists with message home + curation, subscriptions, and surfacing/backlinks
 - `fray reply` for reply chains (renamed from `fray thread`)
 - Thread/Question CLI commands (`thread`, `threads`, `surface`, `note`, `notes`, `meta`)
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Messages now include `home`, `references`, and `surface_message` fields
 - Room message queries default to `home = "room"`
+- MCP: simplified to 2 tools (`fray_post`, `fray_get`) with auto-join on first post
 
 ## [0.3.0] - 2025-12-22
 

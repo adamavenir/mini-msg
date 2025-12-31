@@ -21,7 +21,7 @@ type Server struct {
 }
 
 // NewServer initializes the MCP server with tools and identity.
-func NewServer(projectPath, version string) (*Server, error) {
+func NewServer(projectPath, agentName, version string) (*Server, error) {
 	project, err := core.DiscoverProject(projectPath)
 	if err != nil {
 		return nil, err
@@ -37,21 +37,15 @@ func NewServer(projectPath, version string) (*Server, error) {
 		return nil, err
 	}
 	logf("Database opened: %s", project.DBPath)
-
-	agentID, err := initializeMcpAgent(dbConn, project)
-	if err != nil {
-		_ = dbConn.Close()
-		return nil, err
-	}
-	logf("Agent initialized: %s", agentID)
+	logf("Agent name: %s", agentName)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	server := mcp.NewServer(&mcp.Implementation{Name: "fray", Title: "Fray", Version: version}, &mcp.ServerOptions{Logger: logger})
 
-	toolCtx := &ToolContext{AgentID: agentID, DB: dbConn, Project: project}
+	toolCtx := &ToolContext{AgentID: agentName, DB: dbConn, Project: project}
 	RegisterTools(server, toolCtx)
 
-	return &Server{server: server, project: project, dbConn: dbConn, agentID: agentID}, nil
+	return &Server{server: server, project: project, dbConn: dbConn, agentID: agentName}, nil
 }
 
 // Run starts the MCP server on stdio.
