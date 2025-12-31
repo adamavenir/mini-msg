@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +37,7 @@ func NewBatchUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "batch-update",
 		Short:   "Batch register or update agents using JSON input",
-		Example: "  mm batch-update --file agents.json\n  echo '{\"agents\":[{\"agent_id\":\"devrel\",\"status\":\"working on docs\",\"purpose\":\"developer relations\",\"nicks\":[\"dr\",\"devrel-alias\"]}]}' | mm batch-update",
+		Example: "  fray batch-update --file agents.json\n  echo '{\"agents\":[{\"agent_id\":\"devrel\",\"status\":\"working on docs\",\"purpose\":\"developer relations\",\"nicks\":[\"dr\",\"devrel-alias\"]}]}' | fray batch-update",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := GetContext(cmd)
 			if err != nil {

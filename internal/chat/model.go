@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,6 +27,7 @@ const suggestionLimit = 8
 const inputMaxHeight = 8
 const inputPadding = 1
 const doubleClickInterval = 400 * time.Millisecond
+const questionStaleSeconds = 7 * 24 * 3600
 
 var (
 	agentPalette = []lipgloss.Color{
@@ -99,6 +100,21 @@ type Model struct {
 	reactionMode        bool
 	lastInputValue      string
 	lastInputPos        int
+	threads             []types.Thread
+	threadIndex         int
+	threadPanelOpen     bool
+	threadPanelFocus    bool
+	threadFilter        string
+	threadMatches       []int
+	threadFilterActive  bool
+	threadSearchResults []types.Thread
+	recentThreads       []types.Thread
+	visitedThreads      map[string]types.Thread
+	currentThread       *types.Thread
+	currentPseudo       pseudoThreadKind
+	threadMessages      []types.Message
+	questionCounts      map[pseudoThreadKind]int
+	pseudoQuestions     []types.Question
 	channels            []channelEntry
 	channelIndex        int
 	sidebarOpen         bool
@@ -113,7 +129,10 @@ type Model struct {
 }
 
 type pollMsg struct {
-	messages []types.Message
+	roomMessages   []types.Message
+	threadMessages []types.Message
+	threadID       string
+	questions      []types.Question
 }
 
 type errMsg struct {
@@ -139,6 +158,32 @@ type channelEntry struct {
 	Path string
 }
 
+type threadEntryKind int
+
+const (
+	threadEntryMain threadEntryKind = iota
+	threadEntryThread
+	threadEntrySeparator
+	threadEntryPseudo
+)
+
+type pseudoThreadKind string
+
+const (
+	pseudoThreadOpen   pseudoThreadKind = "open-qs"
+	pseudoThreadClosed pseudoThreadKind = "closed-qs"
+	pseudoThreadWonder pseudoThreadKind = "wondering"
+	pseudoThreadStale  pseudoThreadKind = "stale-qs"
+)
+
+type threadEntry struct {
+	Kind   threadEntryKind
+	Thread *types.Thread
+	Pseudo pseudoThreadKind
+	Label  string
+	Indent int
+}
+
 // NewModel creates a chat model with recent messages loaded.
 func NewModel(opts Options) (*Model, error) {
 	if opts.Last <= 0 {
@@ -146,6 +191,7 @@ func NewModel(opts Options) (*Model, error) {
 	}
 
 	channels, channelIndex := loadChannels(opts.ProjectRoot)
+	threads, threadIndex := loadThreads(opts.DB, opts.Username)
 
 	colorMap, err := buildColorMap(opts.DB, 50, opts.IncludeArchived)
 	if err != nil {
@@ -172,6 +218,10 @@ func NewModel(opts Options) (*Model, error) {
 		Limit:           opts.Last,
 		IncludeArchived: opts.IncludeArchived,
 	})
+	if err != nil {
+		return nil, err
+	}
+	rawMessages, err = db.ApplyMessageEditCounts(opts.ProjectDBPath, rawMessages)
 	if err != nil {
 		return nil, err
 	}
@@ -211,10 +261,16 @@ func NewModel(opts Options) (*Model, error) {
 		lastLimit:       opts.Last,
 		hasMore:         len(rawMessages) < count,
 		colorMap:        colorMap,
+		threads:            threads,
+		threadIndex:        threadIndex,
+		threadPanelOpen: true,
+		sidebarOpen:     false,
+		visitedThreads:  make(map[string]types.Thread),
 		channels:        channels,
 		channelIndex:    channelIndex,
 		initialScroll:   true,
 	}
+	model.refreshQuestionCounts()
 	return model, nil
 }
 
@@ -237,6 +293,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		if handled, cmd := m.handleSuggestionKeys(msg); handled {
+			return m, cmd
+		}
+		if handled, cmd := m.handleThreadPanelKeys(msg); handled {
 			return m, cmd
 		}
 		if handled, cmd := m.handleSidebarKeys(msg); handled {
@@ -294,7 +353,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.suggestions) > 0 {
 				return m, nil
 			}
-			m.toggleSidebar()
+			m.cyclePanelFocus()
 			return m, nil
 		case tea.KeyPgUp, tea.KeyPgDown, tea.KeyHome, tea.KeyEnd:
 			var cmd tea.Cmd
@@ -305,7 +364,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		var cmd tea.Cmd
-		if !m.sidebarFocus {
+		if !m.sidebarFocus && !m.threadPanelFocus {
 			m.input, cmd = m.input.Update(msg)
 			m.refreshSuggestions()
 			m.resize()
@@ -327,9 +386,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 	case pollMsg:
-		if len(msg.messages) > 0 {
-			incoming := m.filterNewMessages(msg.messages)
-			last := msg.messages[len(msg.messages)-1]
+		if len(msg.roomMessages) > 0 {
+			incoming := m.filterNewMessages(msg.roomMessages)
+			last := msg.roomMessages[len(msg.roomMessages)-1]
 			m.lastCursor = &types.MessageCursor{GUID: last.ID, TS: last.TS}
 
 			if len(incoming) > 0 {
@@ -340,9 +399,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.messageCount++
 					}
 				}
+				if m.currentThread == nil && m.currentPseudo == "" {
+					m.refreshViewport(true)
+				}
+			}
+		}
+
+		if msg.threadID != "" && m.currentThread != nil && m.currentThread.GUID == msg.threadID {
+			m.threadMessages = msg.threadMessages
+			if m.currentPseudo == "" {
 				m.refreshViewport(true)
 			}
 		}
+
+		if msg.questions != nil && m.currentPseudo != "" {
+			m.pseudoQuestions = msg.questions
+			m.refreshViewport(true)
+		}
+		m.refreshQuestionCounts()
+
 		if err := m.refreshReactions(); err != nil {
 			m.status = err.Error()
 		}
@@ -368,12 +443,22 @@ func (m *Model) View() string {
 	lines = append(lines, "", m.renderInput(), statusLine)
 
 	main := lipgloss.JoinVertical(lipgloss.Left, lines...)
-	if !m.sidebarOpen {
+	panels := make([]string, 0, 2)
+	if m.threadPanelOpen {
+		if panel := m.renderThreadPanel(); panel != "" {
+			panels = append(panels, panel)
+		}
+	}
+	if m.sidebarOpen {
+		if panel := m.renderSidebar(); panel != "" {
+			panels = append(panels, panel)
+		}
+	}
+	if len(panels) == 0 {
 		return main
 	}
-
-	sidebar := m.renderSidebar()
-	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, main)
+	left := lipgloss.JoinHorizontal(lipgloss.Top, panels...)
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, main)
 }
 
 func (m *Model) renderInput() string {
@@ -389,9 +474,10 @@ func (m *Model) renderInput() string {
 func (m *Model) statusLine() string {
 	channel := m.channelLabel()
 	right := "? for help"
-	left := fmt.Sprintf("#%s", channel)
+	threadLabel := m.currentThreadLabel()
+	left := fmt.Sprintf("#%s · %s", channel, threadLabel)
 	if m.status != "" {
-		left = fmt.Sprintf("%s · #%s", m.status, channel)
+		left = fmt.Sprintf("%s · #%s · %s", m.status, channel, threadLabel)
 	}
 	return alignStatusLine(left, right, m.mainWidth())
 }
@@ -435,6 +521,11 @@ func (m *Model) handleSubmit(text string) tea.Cmd {
 		}
 	}
 
+	if m.currentPseudo != "" {
+		m.status = "Select a thread or #main to post"
+		return nil
+	}
+
 	agentBases, err := db.GetAgentBases(m.db)
 	if err != nil {
 		m.status = err.Error()
@@ -443,12 +534,22 @@ func (m *Model) handleSubmit(text string) tea.Cmd {
 	mentions := core.ExtractMentions(body, agentBases)
 	mentions = core.ExpandAllMention(mentions, agentBases)
 
+	var replyMsg *types.Message
+	if replyTo != nil && m.currentThread != nil {
+		replyMsg, _ = db.GetMessage(m.db, *replyTo)
+	}
+
+	home := ""
+	if m.currentThread != nil {
+		home = m.currentThread.GUID
+	}
 	created, err := db.CreateMessage(m.db, types.Message{
 		FromAgent: m.username,
 		Body:      body,
 		Mentions:  mentions,
 		Type:      types.MessageTypeUser,
 		ReplyTo:   replyTo,
+		Home:      home,
 	})
 	if err != nil {
 		m.status = err.Error()
@@ -460,12 +561,28 @@ func (m *Model) handleSubmit(text string) tea.Cmd {
 		return nil
 	}
 
-	m.messages = append(m.messages, created)
-	m.lastCursor = &types.MessageCursor{GUID: created.ID, TS: created.TS}
+	if m.currentThread != nil {
+		m.threadMessages = append(m.threadMessages, created)
+	} else {
+		m.messages = append(m.messages, created)
+	}
+	if m.currentThread == nil {
+		m.lastCursor = &types.MessageCursor{GUID: created.ID, TS: created.TS}
+	}
 	if created.ArchivedAt == nil {
 		m.messageCount++
 	}
 	m.status = ""
+	if m.currentThread != nil && replyMsg != nil && replyMsg.Home != m.currentThread.GUID {
+		if err := db.AddMessageToThread(m.db, m.currentThread.GUID, replyMsg.ID, m.username, time.Now().Unix()); err == nil {
+			_ = db.AppendThreadMessage(m.projectDBPath, db.ThreadMessageJSONLRecord{
+				ThreadGUID:  m.currentThread.GUID,
+				MessageGUID: replyMsg.ID,
+				AddedBy:     m.username,
+				AddedAt:     time.Now().Unix(),
+			})
+		}
+	}
 	m.refreshViewport(true)
 
 	return nil
@@ -606,13 +723,31 @@ func (m *Model) removeMessageByID(id string) bool {
 }
 
 func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
-	if m.sidebarOpen && msg.X < m.sidebarWidth() {
-		if msg.Y < lipgloss.Height(m.renderSidebar()) {
-			if index := m.sidebarIndexAtLine(msg.Y); index >= 0 {
-				m.channelIndex = index
-				return true, m.selectChannelCmd()
+	threadWidth := 0
+	if m.threadPanelOpen {
+		threadWidth = m.threadPanelWidth()
+		if msg.X < threadWidth {
+			if msg.Y < lipgloss.Height(m.renderThreadPanel()) {
+				if index := m.threadIndexAtLine(msg.Y); index >= 0 {
+					m.threadIndex = index
+					m.selectThreadEntry()
+					return true, nil
+				}
+				return true, nil
 			}
-			return true, nil
+		}
+	}
+
+	if m.sidebarOpen {
+		sidebarStart := threadWidth
+		if msg.X >= sidebarStart && msg.X < sidebarStart+m.sidebarWidth() {
+			if msg.Y < lipgloss.Height(m.renderSidebar()) {
+				if index := m.sidebarIndexAtLine(msg.Y); index >= 0 {
+					m.channelIndex = index
+					return true, m.selectChannelCmd()
+				}
+				return true, nil
+			}
 		}
 	}
 
@@ -668,19 +803,23 @@ func (m *Model) messageAtLine(line int) (*types.Message, bool) {
 	if line < 0 {
 		return nil, false
 	}
+	if m.currentPseudo != "" {
+		return nil, false
+	}
 	prefixLength := core.GetDisplayPrefixLength(m.messageCount)
 	cursor := 0
-	for i, msg := range m.messages {
+	messages := m.currentMessages()
+	for i, msg := range messages {
 		formatted := m.formatMessage(msg, prefixLength)
 		lines := lipgloss.Height(formatted)
 		if line >= cursor && line < cursor+lines {
 			if msg.Type == types.MessageTypeEvent {
 				return nil, true
 			}
-			return &m.messages[i], true
+			return &messages[i], true
 		}
 		cursor += lines
-		if i < len(m.messages)-1 {
+		if i < len(messages)-1 {
 			if line == cursor {
 				return nil, true
 			}
@@ -785,10 +924,12 @@ func (m *Model) renderSidebar() string {
 		return ""
 	}
 
-	headerStyle := lipgloss.NewStyle().Foreground(userColor).Bold(true)
-	itemStyle := lipgloss.NewStyle().Foreground(metaColor)
-	activeStyle := lipgloss.NewStyle().Foreground(userColor).Bold(true)
+	// White color scheme for channels
+	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true)
+	itemStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")) // dim white
+	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true)
 	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("236")).Bold(true)
+	sectionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true)
 
 	header := " Channels "
 	if m.sidebarFilterActive {
@@ -799,7 +940,7 @@ func (m *Model) renderSidebar() string {
 		}
 	}
 
-	lines := []string{headerStyle.Render(header)}
+	lines := []string{headerStyle.Render(header), ""} // space after header
 	if len(m.channels) == 0 {
 		lines = append(lines, itemStyle.Render(" (none)"))
 	} else {
@@ -832,6 +973,24 @@ func (m *Model) renderSidebar() string {
 		}
 	}
 
+	// Recent threads section (up to 3)
+	if len(m.recentThreads) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, sectionStyle.Render(" Recent threads"))
+		limit := 3
+		if len(m.recentThreads) < limit {
+			limit = len(m.recentThreads)
+		}
+		for i := 0; i < limit; i++ {
+			t := m.recentThreads[i]
+			label := t.Name
+			if width > 0 {
+				label = truncateLine(label, width-3)
+			}
+			lines = append(lines, itemStyle.Render("  "+label))
+		}
+	}
+
 	if m.height > 0 {
 		for len(lines) < m.height-1 {
 			lines = append(lines, "")
@@ -840,13 +999,191 @@ func (m *Model) renderSidebar() string {
 	lines = append(lines, itemStyle.Render(" # - filter"))
 
 	content := strings.Join(lines, "\n")
-	return lipgloss.NewStyle().
-		Width(width).
-		Padding(0, 1).
-		BorderRight(true).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(metaColor).
-		Render(content)
+	return lipgloss.NewStyle().Width(width).Render(content)
+}
+
+func (m *Model) threadEntries() []threadEntry {
+	entries := make([]threadEntry, 0, len(m.threads)+6)
+	entries = append(entries, threadEntry{Kind: threadEntryMain, Label: "#main"})
+
+	children := make(map[string][]types.Thread)
+	roots := make([]types.Thread, 0)
+	for _, thread := range m.threads {
+		if thread.ParentThread == nil || *thread.ParentThread == "" {
+			roots = append(roots, thread)
+			continue
+		}
+		children[*thread.ParentThread] = append(children[*thread.ParentThread], thread)
+	}
+
+	sort.Slice(roots, func(i, j int) bool {
+		return roots[i].Name < roots[j].Name
+	})
+	for key := range children {
+		slice := children[key]
+		sort.Slice(slice, func(i, j int) bool {
+			return slice[i].Name < slice[j].Name
+		})
+		children[key] = slice
+	}
+
+	var walk func(thread types.Thread, indent int)
+	walk = func(thread types.Thread, indent int) {
+		t := thread
+		entries = append(entries, threadEntry{
+			Kind:   threadEntryThread,
+			Thread: &t,
+			Label:  thread.Name,
+			Indent: indent,
+		})
+		if kids, ok := children[thread.GUID]; ok {
+			for _, child := range kids {
+				walk(child, indent+1)
+			}
+		}
+	}
+
+	for _, thread := range roots {
+		walk(thread, 0)
+	}
+
+	// Add visited threads (from search) that aren't in subscribed list
+	if len(m.visitedThreads) > 0 {
+		subscribed := make(map[string]struct{})
+		for _, t := range m.threads {
+			subscribed[t.GUID] = struct{}{}
+		}
+		for guid, thread := range m.visitedThreads {
+			if _, ok := subscribed[guid]; ok {
+				continue
+			}
+			t := thread
+			entries = append(entries, threadEntry{
+				Kind:   threadEntryThread,
+				Thread: &t,
+				Label:  thread.Name,
+				Indent: 0,
+			})
+		}
+	}
+
+	// Pseudo-threads always at bottom (no separator)
+	entries = append(entries,
+		threadEntry{Kind: threadEntryPseudo, Pseudo: pseudoThreadOpen, Label: string(pseudoThreadOpen)},
+		threadEntry{Kind: threadEntryPseudo, Pseudo: pseudoThreadClosed, Label: string(pseudoThreadClosed)},
+		threadEntry{Kind: threadEntryPseudo, Pseudo: pseudoThreadWonder, Label: string(pseudoThreadWonder)},
+		threadEntry{Kind: threadEntryPseudo, Pseudo: pseudoThreadStale, Label: string(pseudoThreadStale)},
+	)
+
+	// Add search results from database (threads not in subscribed list)
+	if len(m.threadSearchResults) > 0 {
+		entries = append(entries, threadEntry{Kind: threadEntrySeparator, Label: "search"})
+		for _, thread := range m.threadSearchResults {
+			t := thread
+			entries = append(entries, threadEntry{
+				Kind:   threadEntryThread,
+				Thread: &t,
+				Label:  thread.Name,
+				Indent: 0,
+			})
+		}
+	}
+
+	return entries
+}
+
+func (m *Model) threadEntryLabel(entry threadEntry) string {
+	switch entry.Kind {
+	case threadEntryMain:
+		return entry.Label
+	case threadEntryThread:
+		prefix := strings.Repeat("  ", entry.Indent)
+		return prefix + entry.Label
+	case threadEntryPseudo:
+		count := m.questionCounts[entry.Pseudo]
+		if count > 0 {
+			return fmt.Sprintf("%s (%d)", entry.Label, count)
+		}
+		return entry.Label
+	default:
+		return ""
+	}
+}
+
+func (m *Model) renderThreadPanel() string {
+	width := m.threadPanelWidth()
+	if width <= 0 {
+		return ""
+	}
+
+	// Blue color scheme for threads
+	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true)  // bright blue
+	itemStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("67"))               // dim blue
+	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true)  // bright blue
+	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("24")).Bold(true)
+
+	header := " Threads "
+	if m.threadFilterActive {
+		if m.threadFilter == "" {
+			header = " Threads (filter) "
+		} else {
+			header = fmt.Sprintf(" Threads (filter: %s) ", m.threadFilter)
+		}
+	}
+
+	lines := []string{headerStyle.Render(header), ""} // space after header
+	entries := m.threadEntries()
+	indices := m.threadMatches
+	if !m.threadFilterActive {
+		indices = make([]int, len(entries))
+		for i := range entries {
+			indices[i] = i
+		}
+	}
+	if len(entries) == 0 {
+		lines = append(lines, itemStyle.Render(" (none)"))
+	} else if len(indices) == 0 {
+		lines = append(lines, itemStyle.Render(" (no matches)"))
+	}
+
+	for _, index := range indices {
+		entry := entries[index]
+		if entry.Kind == threadEntrySeparator {
+			if entry.Label == "search" {
+				lines = append(lines, itemStyle.Render(" Search results:"))
+			} else {
+				lines = append(lines, strings.Repeat("─", width-1))
+			}
+			continue
+		}
+		label := m.threadEntryLabel(entry)
+		line := label
+		if width > 0 {
+			line = truncateLine(label, width-1)
+		}
+		style := itemStyle
+		if entry.Kind == threadEntryThread && m.currentThread != nil && entry.Thread != nil && entry.Thread.GUID == m.currentThread.GUID {
+			style = activeStyle
+		}
+		if entry.Kind == threadEntryMain && m.currentThread == nil && m.currentPseudo == "" {
+			style = activeStyle
+		}
+		if entry.Kind == threadEntryPseudo && entry.Pseudo == m.currentPseudo {
+			style = activeStyle
+		}
+		if index == m.threadIndex && m.threadPanelFocus {
+			style = selectedStyle
+		}
+		lines = append(lines, style.Render(" "+line))
+	}
+
+	if m.height > 0 {
+		for len(lines) < m.height-1 {
+			lines = append(lines, "")
+		}
+	}
+	lines = append(lines, itemStyle.Render(" Space - filter"))
+	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
 }
 
 func (m *Model) channelLabel() string {
@@ -866,26 +1203,32 @@ func (m *Model) channelLabel() string {
 	return "channel"
 }
 
+func (m *Model) currentThreadLabel() string {
+	if m.currentPseudo != "" {
+		return string(m.currentPseudo)
+	}
+	if m.currentThread == nil {
+		return "#main"
+	}
+	path, err := threadPath(m.db, m.currentThread)
+	if err != nil || path == "" {
+		return m.currentThread.GUID
+	}
+	return path
+}
+
 func (m *Model) sidebarWidth() int {
 	if !m.sidebarOpen {
 		return 0
 	}
-	maxLen := len("Channels")
-	for _, ch := range m.channels {
-		label := formatChannelLabel(ch)
-		if len(label) > maxLen {
-			maxLen = len(label)
-		}
+	return 20
+}
+
+func (m *Model) threadPanelWidth() int {
+	if !m.threadPanelOpen {
+		return 0
 	}
-	width := maxLen + 4
-	if width < 16 {
-		width = 16
-	}
-	maxWidth := m.width / 2
-	if maxWidth > 0 && width > maxWidth {
-		width = maxWidth
-	}
-	return width
+	return 20
 }
 
 func (m *Model) mainWidth() int {
@@ -893,6 +1236,9 @@ func (m *Model) mainWidth() int {
 		return 0
 	}
 	width := m.width
+	if m.threadPanelOpen {
+		width -= m.threadPanelWidth()
+	}
 	if m.sidebarOpen {
 		width -= m.sidebarWidth()
 	}
@@ -902,26 +1248,27 @@ func (m *Model) mainWidth() int {
 	return width
 }
 
-func (m *Model) toggleSidebar() {
-	if !m.sidebarOpen {
+func (m *Model) cyclePanelFocus() {
+	// Cycle: threads → channels → hidden → threads
+	// Only one panel visible at a time
+	if m.threadPanelOpen {
+		// threads → channels
+		m.threadPanelOpen = false
+		m.threadPanelFocus = false
+		m.resetThreadFilter()
 		m.sidebarOpen = true
 		m.sidebarFocus = true
+	} else if m.sidebarOpen {
+		// channels → hidden
+		m.sidebarOpen = false
+		m.sidebarFocus = false
 		m.resetSidebarFilter()
-		m.clearSuggestions()
-		m.resize()
-		return
+	} else {
+		// hidden → threads
+		m.threadPanelOpen = true
+		m.threadPanelFocus = true
 	}
-
-	if !m.sidebarFocus {
-		m.sidebarFocus = true
-		m.clearSuggestions()
-		m.resize()
-		return
-	}
-
-	m.sidebarOpen = false
-	m.sidebarFocus = false
-	m.resetSidebarFilter()
+	m.clearSuggestions()
 	m.resize()
 }
 
@@ -1042,6 +1389,267 @@ func (m *Model) handleSidebarKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	}
 
 	return false, nil
+}
+
+func (m *Model) startThreadFilter() {
+	if !m.threadFilterActive {
+		m.threadFilterActive = true
+		m.threadFilter = ""
+	}
+	m.updateThreadMatches()
+}
+
+func (m *Model) resetThreadFilter() {
+	m.threadFilterActive = false
+	m.threadFilter = ""
+	m.threadMatches = nil
+	m.threadSearchResults = nil
+}
+
+func (m *Model) updateThreadMatches() {
+	if !m.threadFilterActive {
+		m.threadMatches = nil
+		m.threadSearchResults = nil
+		return
+	}
+
+	term := strings.ToLower(strings.TrimSpace(m.threadFilter))
+
+	// Search database for threads matching the filter (if we have a term)
+	m.threadSearchResults = nil
+	if term != "" && m.db != nil {
+		allThreads, err := db.GetThreads(m.db, &types.ThreadQueryOptions{})
+		if err == nil {
+			// Build set of subscribed thread GUIDs
+			subscribed := make(map[string]struct{})
+			for _, t := range m.threads {
+				subscribed[t.GUID] = struct{}{}
+			}
+			// Filter to matching threads not already subscribed
+			for _, t := range allThreads {
+				if _, ok := subscribed[t.GUID]; ok {
+					continue
+				}
+				if strings.Contains(strings.ToLower(t.Name), term) {
+					m.threadSearchResults = append(m.threadSearchResults, t)
+				}
+			}
+		}
+	}
+
+	entries := m.threadEntries()
+	matches := make([]int, 0, len(entries))
+	for i, entry := range entries {
+		if entry.Kind == threadEntrySeparator {
+			continue
+		}
+		if term == "" || threadEntryMatchesFilter(entry, term) {
+			matches = append(matches, i)
+		}
+	}
+	m.threadMatches = matches
+	if len(matches) > 0 {
+		m.threadIndex = matches[0]
+	}
+}
+
+func threadEntryMatchesFilter(entry threadEntry, term string) bool {
+	label := strings.ToLower(entry.Label)
+	return strings.Contains(label, term)
+}
+
+func (m *Model) handleThreadPanelKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
+	if !m.threadPanelOpen {
+		return false, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyEsc:
+		if m.threadFilterActive {
+			m.resetThreadFilter()
+			m.resize()
+			return true, nil
+		}
+		m.threadPanelFocus = false
+		m.resize()
+		return true, nil
+	}
+
+	if !m.threadPanelFocus {
+		return false, nil
+	}
+
+	if !m.threadFilterActive {
+		if msg.Type == tea.KeySpace || (msg.Type == tea.KeyRunes && !msg.Paste && msg.String() == " ") {
+			m.startThreadFilter()
+			m.resize()
+			return true, nil
+		}
+	}
+
+	if m.threadFilterActive {
+		switch msg.Type {
+		case tea.KeyBackspace, tea.KeyCtrlH:
+			if m.threadFilter != "" {
+				runes := []rune(m.threadFilter)
+				m.threadFilter = string(runes[:len(runes)-1])
+			}
+			m.updateThreadMatches()
+			m.resize()
+			return true, nil
+		case tea.KeyEnter:
+			if len(m.threadMatches) == 0 {
+				return true, nil
+			}
+		case tea.KeyRunes:
+			if msg.Paste || msg.String() == " " {
+				return true, nil
+			}
+			m.threadFilter += string(msg.Runes)
+			m.updateThreadMatches()
+			m.resize()
+			return true, nil
+		}
+	}
+
+	switch msg.String() {
+	case "j":
+		m.moveThreadSelection(1)
+		return true, nil
+	case "k":
+		m.moveThreadSelection(-1)
+		return true, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyUp:
+		m.moveThreadSelection(-1)
+		return true, nil
+	case tea.KeyDown:
+		m.moveThreadSelection(1)
+		return true, nil
+	case tea.KeyEnter:
+		m.selectThreadEntry()
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (m *Model) threadIndexAtLine(line int) int {
+	if line <= 0 {
+		return -1
+	}
+	entries := m.threadEntries()
+	if len(entries) == 0 {
+		return -1
+	}
+	indices := m.threadMatches
+	if !m.threadFilterActive {
+		indices = make([]int, 0, len(entries))
+		for i, entry := range entries {
+			if entry.Kind == threadEntrySeparator {
+				continue
+			}
+			indices = append(indices, i)
+		}
+	}
+	if len(indices) == 0 {
+		return -1
+	}
+	index := line - 1
+	if index < 0 || index >= len(indices) {
+		return -1
+	}
+	selected := indices[index]
+	if entries[selected].Kind == threadEntrySeparator {
+		return -1
+	}
+	return selected
+}
+
+func (m *Model) moveThreadSelection(delta int) {
+	entries := m.threadEntries()
+	if len(entries) == 0 {
+		return
+	}
+	indices := m.threadMatches
+	if !m.threadFilterActive {
+		indices = make([]int, 0, len(entries))
+		for i, entry := range entries {
+			if entry.Kind == threadEntrySeparator {
+				continue
+			}
+			indices = append(indices, i)
+		}
+	}
+	if len(indices) == 0 {
+		return
+	}
+
+	current := 0
+	for i, index := range indices {
+		if index == m.threadIndex {
+			current = i
+			break
+		}
+	}
+	next := current + delta
+	if next < 0 {
+		next = len(indices) - 1
+	} else if next >= len(indices) {
+		next = 0
+	}
+	m.threadIndex = indices[next]
+}
+
+func (m *Model) selectThreadEntry() {
+	entries := m.threadEntries()
+	if len(entries) == 0 {
+		return
+	}
+	if m.threadIndex < 0 || m.threadIndex >= len(entries) {
+		return
+	}
+	entry := entries[m.threadIndex]
+	switch entry.Kind {
+	case threadEntryMain:
+		m.currentThread = nil
+		m.currentPseudo = ""
+		m.threadMessages = nil
+	case threadEntryThread:
+		m.currentThread = entry.Thread
+		m.currentPseudo = ""
+		// Track visited threads for persistence in list
+		if entry.Thread != nil {
+			m.visitedThreads[entry.Thread.GUID] = *entry.Thread
+			m.addRecentThread(*entry.Thread)
+		}
+	case threadEntryPseudo:
+		m.currentPseudo = entry.Pseudo
+	default:
+		return
+	}
+	m.refreshThreadMessages()
+	m.refreshPseudoQuestions()
+	m.refreshQuestionCounts()
+	m.refreshViewport(true)
+}
+
+func (m *Model) addRecentThread(thread types.Thread) {
+	// Remove if already in list
+	for i, t := range m.recentThreads {
+		if t.GUID == thread.GUID {
+			m.recentThreads = append(m.recentThreads[:i], m.recentThreads[i+1:]...)
+			break
+		}
+	}
+	// Add to front
+	m.recentThreads = append([]types.Thread{thread}, m.recentThreads...)
+	// Keep max 10
+	if len(m.recentThreads) > 10 {
+		m.recentThreads = m.recentThreads[:10]
+	}
 }
 
 func (m *Model) applySuggestion(item suggestionItem) {
@@ -1323,7 +1931,7 @@ func (m *Model) buildReplySuggestions(prefix string) ([]suggestionItem, error) {
 
 	rows, err := m.db.Query(`
 		SELECT guid, from_agent, body
-		FROM mm_messages
+		FROM fray_messages
 		WHERE guid LIKE ?
 		ORDER BY ts DESC, guid DESC
 		LIMIT ?
@@ -1360,15 +1968,80 @@ func (m *Model) pollCmd() tea.Cmd {
 	cursor := m.lastCursor
 	includeArchived := m.includeArchived
 	showUpdates := m.showUpdates
+	currentThread := m.currentThread
+	currentPseudo := m.currentPseudo
 
 	return tea.Tick(pollInterval, func(time.Time) tea.Msg {
 		options := types.MessageQueryOptions{Since: cursor, IncludeArchived: includeArchived}
-		messages, err := db.GetMessages(m.db, &options)
+		roomMessages, err := db.GetMessages(m.db, &options)
 		if err != nil {
 			return errMsg{err: err}
 		}
-		messages = filterUpdates(messages, showUpdates)
-		return pollMsg{messages: messages}
+		roomMessages, err = db.ApplyMessageEditCounts(m.projectDBPath, roomMessages)
+		if err != nil {
+			return errMsg{err: err}
+		}
+		roomMessages = filterUpdates(roomMessages, showUpdates)
+
+		threadID := ""
+		threadMessages := []types.Message(nil)
+		if currentThread != nil {
+			threadID = currentThread.GUID
+			threadMessages, err = db.GetThreadMessages(m.db, currentThread.GUID)
+			if err != nil {
+				return errMsg{err: err}
+			}
+			threadMessages, err = db.ApplyMessageEditCounts(m.projectDBPath, threadMessages)
+			if err != nil {
+				return errMsg{err: err}
+			}
+			threadMessages = filterUpdates(threadMessages, showUpdates)
+		}
+
+		var questions []types.Question
+		if currentPseudo != "" {
+			roomOnly := true
+			var threadGUID *string
+			if currentThread != nil {
+				roomOnly = false
+				threadGUID = &currentThread.GUID
+			}
+			query := types.QuestionQueryOptions{
+				ThreadGUID: threadGUID,
+				RoomOnly:   roomOnly,
+			}
+			switch currentPseudo {
+			case pseudoThreadOpen:
+				query.Statuses = []types.QuestionStatus{types.QuestionStatusOpen}
+			case pseudoThreadClosed:
+				query.Statuses = []types.QuestionStatus{types.QuestionStatusAnswered}
+			case pseudoThreadWonder:
+				query.Statuses = []types.QuestionStatus{types.QuestionStatusUnasked}
+			case pseudoThreadStale:
+				query.Statuses = []types.QuestionStatus{types.QuestionStatusOpen}
+			}
+			questions, err = db.GetQuestions(m.db, &query)
+			if err != nil {
+				return errMsg{err: err}
+			}
+			if currentPseudo == pseudoThreadStale {
+				cutoff := time.Now().Unix() - questionStaleSeconds
+				filtered := make([]types.Question, 0, len(questions))
+				for _, question := range questions {
+					if question.CreatedAt > 0 && question.CreatedAt < cutoff {
+						filtered = append(filtered, question)
+					}
+				}
+				questions = filtered
+			}
+		}
+
+		return pollMsg{
+			roomMessages:   roomMessages,
+			threadMessages: threadMessages,
+			threadID:       threadID,
+			questions:      questions,
+		}
 	})
 }
 
@@ -1392,6 +2065,9 @@ func (m *Model) refreshViewport(scrollToBottom bool) {
 }
 
 func (m *Model) loadOlderMessages() {
+	if m.currentThread != nil || m.currentPseudo != "" {
+		return
+	}
 	if !m.hasMore || m.oldestCursor == nil {
 		return
 	}
@@ -1434,12 +2110,52 @@ func (m *Model) loadOlderMessages() {
 }
 
 func (m *Model) renderMessages() string {
+	if m.currentPseudo != "" {
+		return m.renderQuestions()
+	}
+	messages := m.currentMessages()
 	prefixLength := core.GetDisplayPrefixLength(m.messageCount)
-	chunks := make([]string, 0, len(m.messages))
-	for _, msg := range m.messages {
+	chunks := make([]string, 0, len(messages))
+	for _, msg := range messages {
 		chunks = append(chunks, m.formatMessage(msg, prefixLength))
 	}
 	return strings.Join(chunks, "\n\n")
+}
+
+func (m *Model) currentMessages() []types.Message {
+	if m.currentThread != nil {
+		return m.threadMessages
+	}
+	return m.messages
+}
+
+func (m *Model) renderQuestions() string {
+	if len(m.pseudoQuestions) == 0 {
+		return "No questions"
+	}
+	lines := make([]string, 0, len(m.pseudoQuestions))
+	for _, question := range m.pseudoQuestions {
+		threadLabel := "room"
+		if question.ThreadGUID != nil {
+			thread, _ := db.GetThread(m.db, *question.ThreadGUID)
+			if thread != nil {
+				if path, err := threadPath(m.db, thread); err == nil && path != "" {
+					threadLabel = path
+				} else {
+					threadLabel = thread.GUID
+				}
+			} else {
+				threadLabel = *question.ThreadGUID
+			}
+		}
+		toAgent := "--"
+		if question.ToAgent != nil {
+			toAgent = "@" + *question.ToAgent
+		}
+		lines = append(lines, fmt.Sprintf("[%s] %s @%s → %s (%s)", question.GUID, question.Status, question.FromAgent, toAgent, threadLabel))
+		lines = append(lines, fmt.Sprintf("  %s", question.Re))
+	}
+	return strings.Join(lines, "\n\n")
 }
 
 func (m *Model) refreshReactions() error {
@@ -1637,7 +2353,13 @@ func (m *Model) formatMessage(msg types.Message, prefixLength int) string {
 		body = ansi.Wrap(body, width, "")
 	}
 	bodyLine := lipgloss.NewStyle().Foreground(color).Render(body)
-	meta := lipgloss.NewStyle().Foreground(color).Faint(true).Render(fmt.Sprintf("#%s", core.GetGUIDPrefix(msg.ID, prefixLength)))
+	editedSuffix := ""
+	if msg.Edited || msg.EditCount > 0 || msg.EditedAt != nil {
+		editedSuffix = " (edited)"
+	}
+	meta := lipgloss.NewStyle().Foreground(color).Faint(true).Render(
+		fmt.Sprintf("#%s%s", core.GetGUIDPrefix(msg.ID, prefixLength), editedSuffix),
+	)
 
 	lines := []string{}
 	if msg.ReplyTo != nil {
@@ -1657,7 +2379,7 @@ func (m *Model) formatMessage(msg types.Message, prefixLength int) string {
 
 func (m *Model) replyContext(replyTo string, prefixLength int) string {
 	row := m.db.QueryRow(`
-		SELECT from_agent, body FROM mm_messages WHERE guid = ?
+		SELECT from_agent, body FROM fray_messages WHERE guid = ?
 	`, replyTo)
 	var fromAgent string
 	var body string
@@ -1855,8 +2577,116 @@ func filterUpdates(messages []types.Message, showUpdates bool) []types.Message {
 	return filtered
 }
 
+func (m *Model) refreshThreadMessages() {
+	if m.currentThread == nil {
+		m.threadMessages = nil
+		return
+	}
+	messages, err := db.GetThreadMessages(m.db, m.currentThread.GUID)
+	if err != nil {
+		m.status = err.Error()
+		return
+	}
+	messages, err = db.ApplyMessageEditCounts(m.projectDBPath, messages)
+	if err != nil {
+		m.status = err.Error()
+		return
+	}
+	m.threadMessages = filterUpdates(messages, m.showUpdates)
+}
+
+func (m *Model) refreshQuestionCounts() {
+	if m.questionCounts == nil {
+		m.questionCounts = make(map[pseudoThreadKind]int)
+	}
+	threadGUID, roomOnly := m.questionScope()
+
+	openQuestions, err := db.GetQuestions(m.db, &types.QuestionQueryOptions{
+		Statuses:   []types.QuestionStatus{types.QuestionStatusOpen},
+		ThreadGUID: threadGUID,
+		RoomOnly:   roomOnly,
+	})
+	if err == nil {
+		m.questionCounts[pseudoThreadOpen] = len(openQuestions)
+		stale := 0
+		cutoff := time.Now().Unix() - questionStaleSeconds
+		for _, question := range openQuestions {
+			if question.CreatedAt > 0 && question.CreatedAt < cutoff {
+				stale++
+			}
+		}
+		m.questionCounts[pseudoThreadStale] = stale
+	}
+
+	answeredQuestions, err := db.GetQuestions(m.db, &types.QuestionQueryOptions{
+		Statuses:   []types.QuestionStatus{types.QuestionStatusAnswered},
+		ThreadGUID: threadGUID,
+		RoomOnly:   roomOnly,
+	})
+	if err == nil {
+		m.questionCounts[pseudoThreadClosed] = len(answeredQuestions)
+	}
+
+	unaskedQuestions, err := db.GetQuestions(m.db, &types.QuestionQueryOptions{
+		Statuses:   []types.QuestionStatus{types.QuestionStatusUnasked},
+		ThreadGUID: threadGUID,
+		RoomOnly:   roomOnly,
+	})
+	if err == nil {
+		m.questionCounts[pseudoThreadWonder] = len(unaskedQuestions)
+	}
+}
+
+func (m *Model) refreshPseudoQuestions() {
+	if m.currentPseudo == "" {
+		m.pseudoQuestions = nil
+		return
+	}
+	threadGUID, roomOnly := m.questionScope()
+	options := types.QuestionQueryOptions{
+		ThreadGUID: threadGUID,
+		RoomOnly:   roomOnly,
+	}
+
+	switch m.currentPseudo {
+	case pseudoThreadOpen:
+		options.Statuses = []types.QuestionStatus{types.QuestionStatusOpen}
+	case pseudoThreadClosed:
+		options.Statuses = []types.QuestionStatus{types.QuestionStatusAnswered}
+	case pseudoThreadWonder:
+		options.Statuses = []types.QuestionStatus{types.QuestionStatusUnasked}
+	case pseudoThreadStale:
+		options.Statuses = []types.QuestionStatus{types.QuestionStatusOpen}
+	}
+
+	questions, err := db.GetQuestions(m.db, &options)
+	if err != nil {
+		m.status = err.Error()
+		return
+	}
+	if m.currentPseudo == pseudoThreadStale {
+		cutoff := time.Now().Unix() - questionStaleSeconds
+		filtered := make([]types.Question, 0, len(questions))
+		for _, question := range questions {
+			if question.CreatedAt > 0 && question.CreatedAt < cutoff {
+				filtered = append(filtered, question)
+			}
+		}
+		m.pseudoQuestions = filtered
+		return
+	}
+	m.pseudoQuestions = questions
+}
+
+func (m *Model) questionScope() (*string, bool) {
+	if m.currentThread != nil {
+		return &m.currentThread.GUID, false
+	}
+	return nil, true
+}
+
 func countMessages(dbConn *sql.DB, includeArchived bool) (int, error) {
-	query := "SELECT COUNT(*) FROM mm_messages"
+	query := "SELECT COUNT(*) FROM fray_messages"
 	if !includeArchived {
 		query += " WHERE archived_at IS NULL"
 	}
@@ -1884,10 +2714,10 @@ func truncateLine(value string, maxLen int) string {
 	if len(runes) <= maxLen {
 		return value
 	}
-	if maxLen <= 3 {
+	if maxLen <= 1 {
 		return string(runes[:maxLen])
 	}
-	return string(runes[:maxLen-3]) + "..."
+	return string(runes[:maxLen-1]) + "…"
 }
 
 func loadChannels(currentRoot string) ([]channelEntry, int) {
@@ -1920,6 +2750,44 @@ func loadChannels(currentRoot string) ([]channelEntry, int) {
 		}
 	}
 	return entries, index
+}
+
+func loadThreads(dbConn *sql.DB, username string) ([]types.Thread, int) {
+	if dbConn == nil || username == "" {
+		return nil, 0
+	}
+	threads, err := db.GetThreads(dbConn, &types.ThreadQueryOptions{
+		SubscribedAgent: &username,
+	})
+	if err != nil {
+		return nil, 0
+	}
+	return threads, 0
+}
+
+func threadPath(dbConn *sql.DB, thread *types.Thread) (string, error) {
+	if thread == nil {
+		return "", nil
+	}
+	names := []string{thread.Name}
+	parent := thread.ParentThread
+	seen := map[string]struct{}{thread.GUID: {}}
+	for parent != nil && *parent != "" {
+		if _, ok := seen[*parent]; ok {
+			return "", fmt.Errorf("thread path loop detected")
+		}
+		seen[*parent] = struct{}{}
+		parentThread, err := db.GetThread(dbConn, *parent)
+		if err != nil {
+			return "", err
+		}
+		if parentThread == nil {
+			break
+		}
+		names = append([]string{parentThread.Name}, names...)
+		parent = parentThread.ParentThread
+	}
+	return strings.Join(names, "/"), nil
 }
 
 func formatChannelLabel(entry channelEntry) string {
@@ -2032,7 +2900,7 @@ func (m *Model) switchChannel(entry channelEntry) error {
 }
 
 func projectFromRoot(rootPath string) (core.Project, error) {
-	dbPath := filepath.Join(rootPath, ".mm", "mm.db")
+	dbPath := filepath.Join(rootPath, ".fray", "fray.db")
 	if _, err := os.Stat(dbPath); err != nil {
 		return core.Project{}, fmt.Errorf("channel database not found at %s", dbPath)
 	}

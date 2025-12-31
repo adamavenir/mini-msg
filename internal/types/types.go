@@ -4,9 +4,10 @@ package types
 type MessageType string
 
 const (
-	MessageTypeAgent MessageType = "agent"
-	MessageTypeUser  MessageType = "user"
-	MessageTypeEvent MessageType = "event"
+	MessageTypeAgent   MessageType = "agent"
+	MessageTypeUser    MessageType = "user"
+	MessageTypeEvent   MessageType = "event"
+	MessageTypeSurface MessageType = "surface"
 )
 
 // Agent represents agent identity and presence.
@@ -22,32 +23,58 @@ type Agent struct {
 
 // Message represents a room message.
 type Message struct {
-	ID         string              `json:"id"`
-	TS         int64               `json:"ts"`
-	ChannelID  *string             `json:"channel_id,omitempty"`
-	FromAgent  string              `json:"from_agent"`
-	Body       string              `json:"body"`
-	Mentions   []string            `json:"mentions"`
-	Reactions  map[string][]string `json:"reactions"`
-	Type       MessageType         `json:"type"`
-	ReplyTo    *string             `json:"reply_to,omitempty"`
-	EditedAt   *int64              `json:"edited_at,omitempty"`
-	ArchivedAt *int64              `json:"archived_at,omitempty"`
+	ID             string              `json:"id"`
+	TS             int64               `json:"ts"`
+	ChannelID      *string             `json:"channel_id,omitempty"`
+	Home           string              `json:"home,omitempty"`
+	FromAgent      string              `json:"from_agent"`
+	Body           string              `json:"body"`
+	Mentions       []string            `json:"mentions"`
+	Reactions      map[string][]string `json:"reactions"`
+	Type           MessageType         `json:"type"`
+	References     *string             `json:"references,omitempty"`
+	SurfaceMessage *string             `json:"surface_message,omitempty"`
+	ReplyTo        *string             `json:"reply_to,omitempty"`
+	EditedAt       *int64              `json:"edited_at,omitempty"`
+	Edited         bool                `json:"edited,omitempty"`
+	EditCount      int                 `json:"edit_count,omitempty"`
+	ArchivedAt     *int64              `json:"archived_at,omitempty"`
+}
+
+// MessageVersion represents a version of a message body.
+type MessageVersion struct {
+	Version    int    `json:"version"`
+	Body       string `json:"body"`
+	Timestamp  int64  `json:"timestamp"`
+	Reason     string `json:"reason,omitempty"`
+	IsOriginal bool   `json:"is_original,omitempty"`
+	IsCurrent  bool   `json:"is_current,omitempty"`
+}
+
+// MessageVersionHistory summarizes all versions of a message.
+type MessageVersionHistory struct {
+	MessageID    string           `json:"message_id"`
+	VersionCount int              `json:"version_count"`
+	IsArchived   bool             `json:"is_archived,omitempty"`
+	Versions     []MessageVersion `json:"versions"`
 }
 
 // MessageRow is a raw database row representation of a message.
 type MessageRow struct {
-	GUID       string
-	TS         int64
-	ChannelID  *string
-	FromAgent  string
-	Body       string
-	Mentions   string
-	Reactions  string
-	Type       MessageType
-	ReplyTo    *string
-	EditedAt   *int64
-	ArchivedAt *int64
+	GUID           string
+	TS             int64
+	ChannelID      *string
+	Home           string
+	FromAgent      string
+	Body           string
+	Mentions       string
+	Reactions      string
+	Type           MessageType
+	References     *string
+	SurfaceMessage *string
+	ReplyTo        *string
+	EditedAt       *int64
+	ArchivedAt     *int64
 }
 
 // LinkedProject represents a cross-project link.
@@ -88,10 +115,27 @@ type MessageQueryOptions struct {
 	SinceID         string
 	Before          *MessageCursor
 	BeforeID        string
+	Home            *string
 	Filter          *Filter
 	Unfiltered      bool
 	UnreadOnly      bool
 	AgentPrefix     string
+	IncludeArchived bool
+}
+
+// QuestionQueryOptions controls question queries.
+type QuestionQueryOptions struct {
+	Statuses   []QuestionStatus
+	ThreadGUID *string
+	RoomOnly   bool
+	ToAgent    *string
+}
+
+// ThreadQueryOptions controls thread queries.
+type ThreadQueryOptions struct {
+	SubscribedAgent *string
+	ParentThread    *string
+	Status          *ThreadStatus
 	IncludeArchived bool
 }
 
@@ -118,6 +162,61 @@ type ReadReceipt struct {
 	MessageGUID string `json:"message_guid"`
 	AgentPrefix string `json:"agent_prefix"`
 	ReadAt      int64  `json:"read_at"`
+}
+
+// QuestionStatus represents question lifecycle state.
+type QuestionStatus string
+
+const (
+	QuestionStatusUnasked  QuestionStatus = "unasked"
+	QuestionStatusOpen     QuestionStatus = "open"
+	QuestionStatusAnswered QuestionStatus = "answered"
+	QuestionStatusClosed   QuestionStatus = "closed"
+)
+
+// Question represents a tracked question.
+type Question struct {
+	GUID       string         `json:"guid"`
+	Re         string         `json:"re"`
+	FromAgent  string         `json:"from_agent"`
+	ToAgent    *string        `json:"to_agent,omitempty"`
+	Status     QuestionStatus `json:"status"`
+	ThreadGUID *string        `json:"thread_guid,omitempty"`
+	AskedIn    *string        `json:"asked_in,omitempty"`
+	AnsweredIn *string        `json:"answered_in,omitempty"`
+	CreatedAt  int64          `json:"created_at"`
+}
+
+// ThreadStatus represents thread lifecycle state.
+type ThreadStatus string
+
+const (
+	ThreadStatusOpen     ThreadStatus = "open"
+	ThreadStatusArchived ThreadStatus = "archived"
+)
+
+// Thread represents a container thread.
+type Thread struct {
+	GUID         string       `json:"guid"`
+	Name         string       `json:"name"`
+	ParentThread *string      `json:"parent_thread,omitempty"`
+	Status       ThreadStatus `json:"status"`
+	CreatedAt    int64        `json:"created_at"`
+}
+
+// ThreadSubscription records a thread subscription.
+type ThreadSubscription struct {
+	ThreadGUID   string `json:"thread_guid"`
+	AgentID      string `json:"agent_id"`
+	SubscribedAt int64  `json:"subscribed_at"`
+}
+
+// ThreadMessage records membership of a message in a thread.
+type ThreadMessage struct {
+	ThreadGUID  string `json:"thread_guid"`
+	MessageGUID string `json:"message_guid"`
+	AddedBy     string `json:"added_by"`
+	AddedAt     int64  `json:"added_at"`
 }
 
 // ClaimType represents a claim category.

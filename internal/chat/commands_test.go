@@ -3,7 +3,7 @@ package chat
 import "testing"
 
 func TestParseEditCommand(t *testing.T) {
-	id, body, err := parseEditCommand("/edit #msg-123 hello world")
+	id, body, reason, err := parseEditCommand("/edit #msg-123 hello world -m fixed typo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -13,8 +13,11 @@ func TestParseEditCommand(t *testing.T) {
 	if body != "hello world" {
 		t.Fatalf("body: got %q want %q", body, "hello world")
 	}
+	if reason != "fixed typo" {
+		t.Fatalf("reason: got %q want %q", reason, "fixed typo")
+	}
 
-	_, _, err = parseEditCommand("/edit 123")
+	_, _, _, err = parseEditCommand("/edit 123")
 	if err == nil {
 		t.Fatalf("expected error for missing body")
 	}

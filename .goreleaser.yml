@@ -1,14 +1,14 @@
 version: 2
 
-project_name: mini-msg
+project_name: fray
 
 builds:
-  - id: mm
-    main: ./cmd/mm
-    binary: mm
+  - id: fray
+    main: ./cmd/fray
+    binary: fray
     ldflags:
       - -s -w
-      - -X github.com/adamavenir/mini-msg/internal/command.Version={{ .Version }}
+      - -X github.com/adamavenir/fray/internal/command.Version={{ .Version }}
     goos:
       - linux
       - darwin
@@ -16,12 +16,12 @@ builds:
     goarch:
       - amd64
       - arm64
-  - id: mm-mcp
-    main: ./cmd/mm-mcp
-    binary: mm-mcp
+  - id: fray-mcp
+    main: ./cmd/fray-mcp
+    binary: fray-mcp
     ldflags:
       - -s -w
-      - -X github.com/adamavenir/mini-msg/cmd/mm-mcp.Version={{ .Version }}
+      - -X github.com/adamavenir/fray/cmd/fray-mcp.Version={{ .Version }}
     goos:
       - linux
       - darwin
@@ -31,11 +31,11 @@ builds:
       - arm64
 
 archives:
-  - name_template: "mini-msg_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - name_template: "fray_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
     builds:
-      - mm
-      - mm-mcp
+      - fray
+      - fray-mcp
     files:
       - LICENSE
       - README.md
@@ -44,15 +44,15 @@ checksum:
   name_template: "checksums.txt"
 
 brews:
-  - name: mini-msg
+  - name: fray
     directory: Formula
     repository:
       owner: adamavenir
-      name: mini-msg
+      name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    homepage: "https://github.com/adamavenir/mini-msg"
-    description: "Lightweight agent-to-agent messaging CLI."
+    homepage: "https://fray.so"
+    description: "Multi-agent work that flows without losing the thread."
     license: "MIT"
     install: |
-      bin.install "mm"
-      bin.install "mm-mcp"
+      bin.install "fray"
+      bin.install "fray-mcp"

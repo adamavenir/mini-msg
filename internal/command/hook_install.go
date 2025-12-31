@@ -16,11 +16,11 @@ type hookSettings struct {
 	Hooks map[string]any `json:"hooks,omitempty"`
 }
 
-// NewHookInstallCmd installs Claude Code hooks for mm integration.
+// NewHookInstallCmd installs Claude Code hooks for fray integration.
 func NewHookInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "hook-install",
-		Short: "Install Claude Code hooks for mm integration",
+		Short: "Install Claude Code hooks for fray integration",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			precommit, _ := cmd.Flags().GetBool("precommit")
@@ -44,7 +44,7 @@ func NewHookInstallCmd() *cobra.Command {
 							"matcher": "startup",
 							"hooks": []any{map[string]any{
 								"type":    "command",
-								"command": "mm hook-session startup",
+								"command": "fray hook-session startup",
 								"timeout": 10,
 							}},
 						},
@@ -52,7 +52,7 @@ func NewHookInstallCmd() *cobra.Command {
 							"matcher": "resume",
 							"hooks": []any{map[string]any{
 								"type":    "command",
-								"command": "mm hook-session resume",
+								"command": "fray hook-session resume",
 								"timeout": 10,
 							}},
 						},
@@ -61,7 +61,7 @@ func NewHookInstallCmd() *cobra.Command {
 						map[string]any{
 							"hooks": []any{map[string]any{
 								"type":    "command",
-								"command": "mm hook-prompt",
+								"command": "fray hook-prompt",
 								"timeout": 5,
 							}},
 						},
@@ -140,10 +140,10 @@ func installPrecommitHook(projectDir string, dryRun bool, outWriter io.Writer) {
 
 	hookScript := strings.Join([]string{
 		"#!/bin/sh",
-		"# mm pre-commit hook - detects file claim conflicts",
-		"# Installed by: mm hook-install --precommit",
+		"# fray pre-commit hook - detects file claim conflicts",
+		"# Installed by: fray hook-install --precommit",
 		"",
-		"mm hook-precommit",
+		"fray hook-precommit",
 		"",
 	}, "\n")
 
@@ -155,19 +155,19 @@ func installPrecommitHook(projectDir string, dryRun bool, outWriter io.Writer) {
 	}
 
 	if data, err := os.ReadFile(precommitPath); err == nil {
-		if strings.Contains(string(data), "mm hook-precommit") {
+		if strings.Contains(string(data), "fray hook-precommit") {
 			fmt.Fprintln(outWriter, "")
 			fmt.Fprintln(outWriter, "Git pre-commit hook already installed")
 			return
 		}
-		updated := strings.TrimRight(string(data), "\n") + "\n\n# mm file claim conflict detection\nmm hook-precommit\n"
+		updated := strings.TrimRight(string(data), "\n") + "\n\n# fray file claim conflict detection\nmm hook-precommit\n"
 		if err := os.WriteFile(precommitPath, []byte(updated), 0o755); err != nil {
 			fmt.Fprintln(outWriter, "")
 			fmt.Fprintf(outWriter, "Failed to update pre-commit hook: %v\n", err)
 			return
 		}
 		fmt.Fprintln(outWriter, "")
-		fmt.Fprintf(outWriter, "Added mm hook to existing pre-commit hook at %s\n", precommitPath)
+		fmt.Fprintf(outWriter, "Added fray hook to existing pre-commit hook at %s\n", precommitPath)
 		return
 	}
 

@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/adamavenir/mini-msg/internal/mcp"
+	"github.com/adamavenir/fray/internal/mcp"
 )
 
 // Version is overwritten at build time using -ldflags.
@@ -45,16 +45,16 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, "Usage: mm-mcp <project-path>")
+	fmt.Fprintln(os.Stderr, "Usage: fray-mcp <project-path>")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintln(os.Stderr, "  mm-mcp /Users/adam/dev/myproject")
+	fmt.Fprintln(os.Stderr, "  fray-mcp /Users/adam/dev/myproject")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Configure in Claude Desktop (~/Library/Application Support/Claude/claude_desktop_config.json):")
 	fmt.Fprintln(os.Stderr, "  {")
 	fmt.Fprintln(os.Stderr, "    \"mcpServers\": {")
-	fmt.Fprintln(os.Stderr, "      \"mm-myproject\": {")
-	fmt.Fprintln(os.Stderr, "        \"command\": \"mm-mcp\",")
+	fmt.Fprintln(os.Stderr, "      \"fray-myproject\": {")
+	fmt.Fprintln(os.Stderr, "        \"command\": \"fray-mcp\",")
 	fmt.Fprintln(os.Stderr, "        \"args\": [\"/Users/adam/dev/myproject\"]")
 	fmt.Fprintln(os.Stderr, "      }")
 	fmt.Fprintln(os.Stderr, "    }")

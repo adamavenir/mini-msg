@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -130,9 +130,9 @@ func NewWhoamiCmd() *cobra.Command {
 			}
 			defer ctx.DB.Close()
 
-			envAgent := os.Getenv("MM_AGENT_ID")
+			envAgent := os.Getenv("FRAY_AGENT_ID")
 			if envAgent == "" {
-				return writeCommandError(cmd, fmt.Errorf("MM_AGENT_ID not set. Run `mm new` or `mm back` first."))
+				return writeCommandError(cmd, fmt.Errorf("FRAY_AGENT_ID not set. Run `fray new` or `fray back` first."))
 			}
 
 			found := findKnownAgent(ctx.ProjectConfig, envAgent)

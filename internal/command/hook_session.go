@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +43,7 @@ func NewHookSessionCmd() *cobra.Command {
 				return writeHookOutput(cmd, output)
 			}
 
-			agentID := os.Getenv("MM_AGENT_ID")
+			agentID := os.Getenv("FRAY_AGENT_ID")
 			if agentID == "" {
 				output.AdditionalContext = buildHookRegistrationContext(dbConn)
 				return writeHookOutput(cmd, output)
@@ -70,9 +70,9 @@ func buildHookRegistrationContext(dbConn *sql.DB) string {
 	}
 
 	var builder strings.Builder
-	builder.WriteString("[mm] This project uses mm for agent coordination.\n")
+	builder.WriteString("[fray] This project uses fray for agent coordination.\n")
 	builder.WriteString("You are not registered. To join the room:\n\n")
-	builder.WriteString("  mm new <name> --goal \"your current task\"\n\n")
+	builder.WriteString("  fray new <name> --goal \"your current task\"\n\n")
 
 	if len(activeAgents) > 0 {
 		builder.WriteString("Active agents: ")
@@ -84,7 +84,7 @@ func buildHookRegistrationContext(dbConn *sql.DB) string {
 		}
 		builder.WriteString("\n")
 	}
-	builder.WriteString("Use /skill mm-chat for conversation guidance.")
+	builder.WriteString("Use /skill fray-chat for conversation guidance.")
 	return builder.String()
 }
 
@@ -127,7 +127,7 @@ func fetchHookMessages(dbConn *sql.DB, agentID string, roomLimit, mentionLimit i
 
 func buildHookSessionContext(event, agentID, agentBase string, roomMessages, mentionMessages []types.Message) string {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("[mm] You are %s. Session %s.\n\n", agentID, event))
+	builder.WriteString(fmt.Sprintf("[fray] You are %s. Session %s.\n\n", agentID, event))
 
 	if len(roomMessages) > 0 {
 		builder.WriteString("ROOM:\n")
@@ -146,7 +146,7 @@ func buildHookSessionContext(event, agentID, agentBase string, roomMessages, men
 		}
 	}
 
-	builder.WriteString(fmt.Sprintf("\nPost: mm post --as %s \"message\"", agentID))
+	builder.WriteString(fmt.Sprintf("\nPost: fray post --as %s \"message\"", agentID))
 	return builder.String()
 }
 

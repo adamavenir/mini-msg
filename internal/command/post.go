@@ -3,12 +3,11 @@ package command
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +26,8 @@ func NewPostCmd() *cobra.Command {
 
 			agentRef, _ := cmd.Flags().GetString("as")
 			replyTo, _ := cmd.Flags().GetString("reply-to")
+			threadRef, _ := cmd.Flags().GetString("thread")
+			answerRef, _ := cmd.Flags().GetString("answer")
 			silent, _ := cmd.Flags().GetBool("silent")
 
 			if agentRef == "" {
@@ -42,27 +43,77 @@ func NewPostCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 			if agent == nil {
-				return writeCommandError(cmd, fmt.Errorf("agent not found: @%s. Use 'mm new' first", agentID))
+				return writeCommandError(cmd, fmt.Errorf("agent not found: @%s. Use 'fray new' first", agentID))
 			}
 			if agent.LeftAt != nil {
-				return writeCommandError(cmd, fmt.Errorf("agent @%s has left. Use 'mm back @%s' to resume", agentID, agentID))
+				return writeCommandError(cmd, fmt.Errorf("agent @%s has left. Use 'fray back @%s' to resume", agentID, agentID))
 			}
 
-			var replyID *string
-			if replyTo != "" {
-				trimmed := strings.TrimSpace(strings.TrimPrefix(replyTo, "#"))
-				msg, err := db.GetMessage(ctx.DB, trimmed)
+			var answerQuestion *types.Question
+			if answerRef != "" {
+				question, matches, err := matchQuestionForAnswer(ctx.DB, answerRef)
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
-				if msg == nil {
-					return writeCommandError(cmd, fmt.Errorf("message %s not found", trimmed))
+				if len(matches) > 0 {
+					if ctx.JSONMode {
+						payload := map[string]any{
+							"ambiguous": true,
+							"matches":   matches,
+						}
+						return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
+					}
+
+					out := cmd.OutOrStdout()
+					fmt.Fprintf(out, "Multiple questions match %q:\n", answerRef)
+					for _, match := range matches {
+						threadLabel := "room"
+						if match.ThreadGUID != nil {
+							thread, _ := db.GetThread(ctx.DB, *match.ThreadGUID)
+							if thread != nil {
+								if path, err := buildThreadPath(ctx.DB, thread); err == nil && path != "" {
+									threadLabel = path
+								} else {
+									threadLabel = thread.GUID
+								}
+							} else {
+								threadLabel = *match.ThreadGUID
+							}
+						}
+						fmt.Fprintf(out, "  [%s] %s (%s) %s\n", match.GUID, match.Status, threadLabel, match.Re)
+					}
+					return nil
 				}
-				replyID = &trimmed
+				answerQuestion = question
+				if answerQuestion.Status == types.QuestionStatusClosed {
+					return writeCommandError(cmd, fmt.Errorf("question %s is closed", answerQuestion.GUID))
+				}
+				if threadRef == "" && answerQuestion.ThreadGUID != nil {
+					threadRef = *answerQuestion.ThreadGUID
+				}
+			}
+
+			var thread *types.Thread
+			if threadRef != "" {
+				thread, err = resolveThreadRef(ctx.DB, threadRef)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+			}
+
+			var replyID *string
+			var replyMsg *types.Message
+			if replyTo != "" {
+				msg, err := resolveMessageRef(ctx.DB, replyTo)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				replyMsg = msg
+				replyID = &msg.ID
 			}
 
 			reactionText := ""
-			if replyID != nil {
+			if replyID != nil && answerRef == "" {
 				if reaction, ok := core.NormalizeReactionText(args[0]); ok {
 					reactionText = reaction
 				}
@@ -117,11 +168,16 @@ func NewPostCmd() *cobra.Command {
 			mentions = core.ExpandAllMention(mentions, bases)
 
 			now := time.Now().Unix()
+			home := ""
+			if thread != nil {
+				home = thread.GUID
+			}
 			created, err := db.CreateMessage(ctx.DB, types.Message{
 				TS:        now,
 				FromAgent: agentID,
 				Body:      args[0],
 				Mentions:  mentions,
+				Home:      home,
 				ReplyTo:   replyID,
 			})
 			if err != nil {
@@ -135,6 +191,44 @@ func NewPostCmd() *cobra.Command {
 			updates := db.AgentUpdates{LastSeen: types.OptionalInt64{Set: true, Value: &now}}
 			if err := db.UpdateAgent(ctx.DB, agentID, updates); err != nil {
 				return writeCommandError(cmd, err)
+			}
+
+			if answerQuestion != nil {
+				statusValue := string(types.QuestionStatusAnswered)
+				updated, err := db.UpdateQuestion(ctx.DB, answerQuestion.GUID, db.QuestionUpdates{
+					Status:     types.OptionalString{Set: true, Value: &statusValue},
+					AnsweredIn: types.OptionalString{Set: true, Value: &created.ID},
+				})
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if err := db.AppendQuestionUpdate(ctx.Project.DBPath, db.QuestionUpdateJSONLRecord{
+					GUID:       updated.GUID,
+					Status:     &statusValue,
+					AnsweredIn: &created.ID,
+				}); err != nil {
+					return writeCommandError(cmd, err)
+				}
+			}
+
+			if thread != nil && replyMsg != nil && replyMsg.Home != thread.GUID {
+				inThread, err := db.IsMessageInThread(ctx.DB, thread.GUID, replyMsg.ID)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if !inThread {
+					if err := db.AddMessageToThread(ctx.DB, thread.GUID, replyMsg.ID, agentID, now); err != nil {
+						return writeCommandError(cmd, err)
+					}
+					if err := db.AppendThreadMessage(ctx.Project.DBPath, db.ThreadMessageJSONLRecord{
+						ThreadGUID:  thread.GUID,
+						MessageGUID: replyMsg.ID,
+						AddedBy:     agentID,
+						AddedAt:     now,
+					}); err != nil {
+						return writeCommandError(cmd, err)
+					}
+				}
 			}
 
 			if silent {
@@ -216,6 +310,8 @@ func NewPostCmd() *cobra.Command {
 
 	cmd.Flags().String("as", "", "agent ID to post as")
 	cmd.Flags().StringP("reply-to", "r", "", "reply to message GUID (threading)")
+	cmd.Flags().String("thread", "", "post in thread (guid, name, or path)")
+	cmd.Flags().String("answer", "", "answer a question by guid or text")
 	cmd.Flags().BoolP("silent", "s", false, "suppress output including unread mentions")
 
 	_ = cmd.MarkFlagRequired("as")

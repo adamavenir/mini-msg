@@ -1,4 +1,4 @@
-module github.com/adamavenir/mini-msg
+module github.com/adamavenir/fray
 
 go 1.24.5
 

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func TestCreateAndGetMessage(t *testing.T) {
@@ -169,5 +169,84 @@ func TestClaimsConflicts(t *testing.T) {
 	}
 	if len(conflicts) != 1 {
 		t.Fatalf("expected 1 conflict, got %d", len(conflicts))
+	}
+}
+
+func TestCreateAndUpdateQuestion(t *testing.T) {
+	db := openTestDB(t)
+	requireSchema(t, db)
+
+	question, err := CreateQuestion(db, types.Question{
+		Re:        "target market?",
+		FromAgent: "alice",
+		Status:    types.QuestionStatusUnasked,
+	})
+	if err != nil {
+		t.Fatalf("create question: %v", err)
+	}
+
+	status := string(types.QuestionStatusAnswered)
+	answerID := "msg-abc12345"
+	updated, err := UpdateQuestion(db, question.GUID, QuestionUpdates{
+		Status:     types.OptionalString{Set: true, Value: &status},
+		AnsweredIn: types.OptionalString{Set: true, Value: &answerID},
+	})
+	if err != nil {
+		t.Fatalf("update question: %v", err)
+	}
+	if updated.Status != types.QuestionStatusAnswered {
+		t.Fatalf("expected answered status")
+	}
+	if updated.AnsweredIn == nil || *updated.AnsweredIn != answerID {
+		t.Fatalf("expected answered_in set")
+	}
+}
+
+func TestThreadMessagesIncludeHomeAndMembership(t *testing.T) {
+	db := openTestDB(t)
+	requireSchema(t, db)
+
+	thread, err := CreateThread(db, types.Thread{
+		Name:   "analysis",
+		Status: types.ThreadStatusOpen,
+	})
+	if err != nil {
+		t.Fatalf("create thread: %v", err)
+	}
+
+	roomMsg, err := CreateMessage(db, types.Message{
+		FromAgent: "alice",
+		Body:      "room message",
+		Mentions:  []string{},
+	})
+	if err != nil {
+		t.Fatalf("create room message: %v", err)
+	}
+	threadMsg, err := CreateMessage(db, types.Message{
+		FromAgent: "alice",
+		Body:      "thread message",
+		Mentions:  []string{},
+		Home:      thread.GUID,
+	})
+	if err != nil {
+		t.Fatalf("create thread message: %v", err)
+	}
+
+	if err := AddMessageToThread(db, thread.GUID, roomMsg.ID, "alice", 0); err != nil {
+		t.Fatalf("add message to thread: %v", err)
+	}
+
+	messages, err := GetThreadMessages(db, thread.GUID)
+	if err != nil {
+		t.Fatalf("get thread messages: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(messages))
+	}
+	if messages[0].ID != roomMsg.ID && messages[1].ID != roomMsg.ID {
+		t.Fatalf("expected room message in thread")
+	}
+	if messages[0].ID != threadMsg.ID && messages[1].ID != threadMsg.ID {
+		t.Fatalf("expected thread message in thread")
 	}
 }

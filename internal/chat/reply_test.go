@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/db"
 	_ "modernc.org/sqlite"
 )
 
@@ -70,7 +70,7 @@ func openChatDB(t *testing.T) *sql.DB {
 func seedMessage(t *testing.T, dbConn *sql.DB, guid string, ts int64, fromAgent, body string) {
 	t.Helper()
 	_, err := dbConn.Exec(`
-		INSERT INTO mm_messages (
+		INSERT INTO fray_messages (
 			guid, ts, channel_id, from_agent, body, mentions, type, reply_to, edited_at, archived_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, guid, ts, nil, fromAgent, body, "[]", "agent", nil, nil, nil)

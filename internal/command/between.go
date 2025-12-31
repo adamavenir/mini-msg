@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -66,6 +66,10 @@ func NewBetweenCmd() *cobra.Command {
 					rows = append(rows, msg)
 				}
 			}
+			rows, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, rows)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 
 			if ctx.JSONMode {
 				payload := buildBetweenPayload(agentA, agentB, rows)
@@ -117,6 +121,8 @@ func buildBetweenPayload(agentA, agentB *types.Agent, rows []types.Message) map[
 			"age_seconds": maxInt64(0, now-row.TS),
 			"mentions":    row.Mentions,
 			"reply_to":    row.ReplyTo,
+			"edited":      row.Edited,
+			"edit_count":  row.EditCount,
 		})
 	}
 

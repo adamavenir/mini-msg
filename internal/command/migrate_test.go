@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamavenir/mini-msg/internal/core"
+	"github.com/adamavenir/fray/internal/core"
 )
 
 func TestMigrateCommandFailsWhenConfigExists(t *testing.T) {
@@ -20,7 +20,7 @@ func TestMigrateCommandFailsWhenConfigExists(t *testing.T) {
 		t.Fatalf("write db: %v", err)
 	}
 
-	configPath := filepath.Join(filepath.Dir(project.DBPath), "mm-config.json")
+	configPath := filepath.Join(filepath.Dir(project.DBPath), "fray-config.json")
 	if err := os.WriteFile(configPath, []byte("{}\n"), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestMigrateCommandFailsWhenConfigExists(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got output: %q", output)
 	}
-	if !strings.Contains(output, "mm-config.json already exists") {
+	if !strings.Contains(output, "fray-config.json already exists") {
 		t.Fatalf("unexpected output: %q", output)
 	}
 }

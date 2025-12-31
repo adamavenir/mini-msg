@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ func NewHookPromptCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			output := hookOutput{}
 
-			agentID := os.Getenv("MM_AGENT_ID")
+			agentID := os.Getenv("FRAY_AGENT_ID")
 			if agentID == "" {
 				return writeHookOutput(cmd, output)
 			}
@@ -76,6 +76,6 @@ func buildHookPromptContext(agentID string, roomMessages, mentionMessages []type
 		}
 	}
 
-	context := fmt.Sprintf("[mm %s] %s (mm get %s for full view)", agentID, strings.Join(parts, " | "), agentID)
+	context := fmt.Sprintf("[fray %s] %s (fray get %s for full view)", agentID, strings.Join(parts, " | "), agentID)
 	return context
 }

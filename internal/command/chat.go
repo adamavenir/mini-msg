@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/chat"
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/chat"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +24,9 @@ func NewChatCmd() *cobra.Command {
 			}
 
 			last, _ := cmd.Flags().GetInt("last")
-			showUpdates, _ := cmd.Flags().GetBool("show-updates")
+			hideEvents, _ := cmd.Flags().GetBool("hide-events")
+			showEvents, _ := cmd.Flags().GetBool("show-events")
+			showUpdatesFlag, _ := cmd.Flags().GetBool("show-updates")
 			archived, _ := cmd.Flags().GetBool("archived")
 			force, _ := cmd.Flags().GetBool("force")
 
@@ -87,6 +89,15 @@ func NewChatCmd() *cobra.Command {
 				}
 			}
 
+			showUpdates := true
+			if hideEvents {
+				showUpdates = false
+			} else if showEvents {
+				showUpdates = true
+			} else if showUpdatesFlag {
+				showUpdates = true
+			}
+
 			options := chat.Options{
 				DB:              ctx.DB,
 				ProjectName:     GetProjectName(ctx.Project.Root),
@@ -103,7 +114,9 @@ func NewChatCmd() *cobra.Command {
 	}
 
 	cmd.Flags().Int("last", 20, "show last N messages")
-	cmd.Flags().Bool("show-updates", false, "include system event messages")
+	cmd.Flags().Bool("hide-events", false, "hide event messages")
+	cmd.Flags().Bool("show-events", false, "show event messages")
+	cmd.Flags().Bool("show-updates", false, "include event messages (deprecated)")
 	cmd.Flags().Bool("archived", false, "include archived messages")
 
 	return cmd
@@ -114,7 +127,7 @@ func shouldInitPrompt(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	return strings.Contains(msg, "not initialized") || strings.Contains(msg, "mm init") || strings.Contains(msg, "no channel context")
+	return strings.Contains(msg, "not initialized") || strings.Contains(msg, "fray init") || strings.Contains(msg, "no channel context")
 }
 
 func initForChat(cmd *cobra.Command) (*CommandContext, error) {
@@ -134,7 +147,7 @@ func initForChat(cmd *cobra.Command) (*CommandContext, error) {
 		_ = dbConn.Close()
 		return nil, err
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), "Initialized .mm/")
+	fmt.Fprintln(cmd.OutOrStdout(), "Initialized .fray/")
 
 	return &CommandContext{DB: dbConn, Project: project}, nil
 }
@@ -151,7 +164,7 @@ func promptInit() bool {
 		return false
 	}
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Fprintf(os.Stdout, "Run `mm init`? [Y/n] ")
+	fmt.Fprintf(os.Stdout, "Run `fray init`? [Y/n] ")
 	text, _ := reader.ReadString('\n')
 	trimmed := strings.ToLower(strings.TrimSpace(text))
 	return trimmed == "" || trimmed == "y" || trimmed == "yes"

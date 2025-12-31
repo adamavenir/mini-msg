@@ -1,8 +1,8 @@
-# MM Architecture: GUID-Based Multi-Channel System
+# FRAY Architecture: GUID-Based Multi-Channel System
 
 ## Overview
 
-MM uses a GUID-based architecture inspired by beads, enabling:
+FRAY uses a GUID-based architecture inspired by beads, enabling:
 - Multi-machine coordination (git-mergeable)
 - Cross-channel operations via a global channel registry
 - Stable identifiers (GUIDs) with short display prefixes in UI
@@ -12,18 +12,20 @@ MM uses a GUID-based architecture inspired by beads, enabling:
 ## Storage Structure
 
 ```
-.mm/
-  mm-config.json      # Project config (channel_id, known_agents, nicks)
+.fray/
+  fray-config.json      # Project config (channel_id, known_agents, nicks)
   messages.jsonl      # Append-only source of truth
   agents.jsonl        # Append-only source of truth
+  questions.jsonl     # Append-only source of truth
+  threads.jsonl       # Append-only source of truth (threads + events)
   history.jsonl       # Pruned messages archive (optional)
   .gitignore          # Ignores *.db files
-  mm.db               # SQLite cache (gitignored, rebuildable)
-  mm.db-wal           # SQLite write-ahead log (gitignored)
-  mm.db-shm           # SQLite shared memory (gitignored)
+  fray.db               # SQLite cache (gitignored, rebuildable)
+  fray.db-wal           # SQLite write-ahead log (gitignored)
+  fray.db-shm           # SQLite shared memory (gitignored)
 
-~/.config/mm/
-  mm-config.json      # Global channel registry
+~/.config/fray/
+  fray-config.json      # Global channel registry
 ```
 
 ## ID System
@@ -34,7 +36,7 @@ MM uses a GUID-based architecture inspired by beads, enabling:
 
 - Messages: `msg-a1b2c3d4`
 - Agents: `usr-x9y8z7w6`
-- Channels: `ch-mmdev12`
+- Channels: `ch-fraydev12`
 
 **Why short GUIDs?**
 - 8 chars base36 = large space (36^8)
@@ -56,33 +58,50 @@ MM uses a GUID-based architecture inspired by beads, enabling:
 Messages are append-only. Edits and deletes append `message_update` records.
 
 ```jsonl
-{"type":"message","id":"msg-a1b2c3d4","channel_id":"ch-mmdev12","from_agent":"adam","body":"@bob status","mentions":["bob"],"reactions":{"👍":["bob"]},"message_type":"agent","reply_to":null,"ts":1734612000,"edited_at":null,"archived_at":null}
+{"type":"message","id":"msg-a1b2c3d4","channel_id":"ch-fraydev12","home":"room","from_agent":"adam","body":"@bob status","mentions":["bob"],"reactions":{"👍":["bob"]},"message_type":"agent","reply_to":null,"ts":1734612000,"edited_at":null,"archived_at":null}
 {"type":"message_update","id":"msg-a1b2c3d4","body":"@bob updated status","edited_at":1734612600}
 ```
+
+`home` controls visibility: `"room"` is surfaced, thread GUIDs are hidden in the room. `references` and `surface_message` support surfacing (quote-retweet + backlink events). `message_type` can be `surface` for surfaced posts.
 
 ### agents.jsonl
 
 ```jsonl
-{"type":"agent","id":"usr-x9y8z7w6","name":"adam","global_name":"mm-adam","home_channel":"ch-mmdev12","created_at":"2025-12-19T09:00:00Z","active_status":"active","agent_id":"adam","status":"working","purpose":"developer relations","registered_at":1734608400,"last_seen":1734609000,"left_at":null}
+{"type":"agent","id":"usr-x9y8z7w6","name":"adam","global_name":"fray-adam","home_channel":"ch-fraydev12","created_at":"2025-12-19T09:00:00Z","active_status":"active","agent_id":"adam","status":"working","purpose":"developer relations","registered_at":1734608400,"last_seen":1734609000,"left_at":null}
 ```
 
 `active_status` is legacy; current presence is derived from `last_seen`/`left_at` with a staleness window.
 
+### questions.jsonl
+
+```jsonl
+{"type":"question","guid":"qstn-a1b2c3d4","re":"target market","from_agent":"party","to":"alice","status":"unasked","thread_guid":null,"asked_in":null,"answered_in":null,"created_at":1735500000}
+{"type":"question_update","guid":"qstn-a1b2c3d4","status":"open","asked_in":"msg-x1y2z3w4"}
+```
+
+### threads.jsonl
+
+```jsonl
+{"type":"thread","guid":"thrd-b2c3d4e5","name":"market-analysis","parent_thread":null,"subscribed":["alice","bob"],"status":"open","created_at":1735500000}
+{"type":"thread_subscribe","thread_guid":"thrd-b2c3d4e5","agent_id":"charlie","subscribed_at":1735500100}
+{"type":"thread_message","thread_guid":"thrd-b2c3d4e5","message_guid":"msg-aaa","added_by":"alice","added_at":1735500200}
+```
+
 ## Config Files
 
-### Project config (.mm/mm-config.json)
+### Project config (.fray/fray-config.json)
 
 ```json
 {
   "version": 1,
-  "channel_id": "ch-mmdev12",
-  "channel_name": "mm",
+  "channel_id": "ch-fraydev12",
+  "channel_name": "fray",
   "created_at": "2025-12-19T10:00:00Z",
   "known_agents": {
     "usr-x9y8z7w6": {
       "name": "adam",
-      "global_name": "mm-adam",
-      "home_channel": "ch-mmdev12",
+      "global_name": "fray-adam",
+      "home_channel": "ch-fraydev12",
       "created_at": "2025-12-19T09:00:00Z",
       "status": "working",
       "nicks": ["devrel"]
@@ -91,15 +110,15 @@ Messages are append-only. Edits and deletes append `message_update` records.
 }
 ```
 
-### Global config (~/.config/mm/mm-config.json)
+### Global config (~/.config/fray/fray-config.json)
 
 ```json
 {
   "version": 1,
   "channels": {
-    "ch-mmdev12": {
-      "name": "mm",
-      "path": "/Users/adam/dev/mini-msg"
+    "ch-fraydev12": {
+      "name": "fray",
+      "path": "/Users/adam/dev/fray"
     },
     "ch-party": {
       "name": "party",
@@ -109,48 +128,54 @@ Messages are append-only. Edits and deletes append `message_update` records.
 }
 ```
 
-### SQLite config (mm_config table)
+### SQLite config (fray_config table)
 
 The SQLite cache stores runtime config like `username`, `stale_hours`, and the
 current channel metadata (`channel_id`, `channel_name`). This is distinct from
-`.mm/mm-config.json` and the global registry.
+`.fray/fray-config.json` and the global registry.
 
 ## Agent Identity & Mentions
 
 - Agent IDs are lowercase and may include numbers, hyphens, and dot segments
   (e.g., `alice`, `frontend-dev`, `alice.frontend`, `pm.3.sub`).
-- Known agents are stored in `.mm/mm-config.json` to resolve nicks.
+- Known agents are stored in `.fray/fray-config.json` to resolve nicks.
 - Global names are stored as `channelName-agentID` for disambiguation.
 - @mention prefix matching uses `.` as a separator; `@all` is a broadcast.
 - `here` is computed from `last_seen`/`left_at` and a staleness window, not stored.
+
+## Threads and Questions
+
+- Threads are playlists. Messages have a single `home` and can be curated into additional threads via `fray_thread_messages`.
+- Thread subscriptions live in `fray_thread_subscriptions` and are rebuilt from `threads.jsonl` (initial `subscribed` list + events).
+- Questions live in `fray_questions`, optionally scoped to a thread via `thread_guid`.
 
 ## Channel System
 
 ### Registration Flow
 
 ```bash
-cd ~/dev/mini-msg
-mm init
-# Prompts for a channel name, creates .mm/, registers in global config.
+cd ~/dev/fray
+fray init
+# Prompts for a channel name, creates .fray/, registers in global config.
 ```
 
 ### Cross-Channel Operations
 
 ```bash
-mm post --as adam "update" --in party
-mm get --in party --last 10
-mm chat party
+fray post --as adam "update" --in party
+fray get --in party --last 10
+fray chat party
 ```
 
 **Channel context resolution:**
 1. `--in <channel>` (matches by ID or name in global config)
-2. Local `.mm/` project config
+2. Local `.fray/` project config
 
 ### Channel Commands
 
 ```bash
-mm ls           # List registered channels
-mm init         # Create .mm/, register globally
+fray ls           # List registered channels
+fray init         # Create .fray/, register globally
 ```
 
 ## Prune Strategy
@@ -158,9 +183,9 @@ mm init         # Create .mm/, register globally
 ### Cold Storage Pattern
 
 ```bash
-mm prune              # Keep last 100 messages, archive rest
-mm prune --all        # Wipe history.jsonl too
-mm prune --keep 50    # Keep last 50 messages
+fray prune              # Keep last 100 messages, archive rest
+fray prune --all        # Wipe history.jsonl too
+fray prune --keep 50    # Keep last 50 messages
 ```
 
 **What happens:**
@@ -170,7 +195,7 @@ mm prune --keep 50    # Keep last 50 messages
 4. Rebuild SQLite from messages.jsonl
 
 **Guardrails:**
-- Requires a clean `.mm/` git state
+- Requires a clean `.fray/` git state
 - If the repo has an upstream, it must be in sync
 
 ## Chat UX
@@ -200,14 +225,14 @@ mm prune --keep 50    # Keep last 50 messages
 ### Migration Command
 
 ```bash
-mm migrate
+fray migrate
 ```
 
 **What it does:**
-1. Copies `.mm/` to `.mm.bak/`
+1. Copies `.fray/` to `.fray.bak/`
 2. Generates GUIDs for agents/messages if missing
 3. Creates `messages.jsonl` and `agents.jsonl`
-4. Writes `.mm/mm-config.json`
+4. Writes `.fray/fray-config.json`
 5. Rebuilds SQLite from JSONL and restores read receipts
 6. Registers the channel in global config
 
@@ -217,15 +242,15 @@ mm migrate
 
 ```bash
 # Machine A
-mm post @dev "update"
-git add .mm/messages.jsonl .mm/agents.jsonl
+fray post @dev "update"
+git add .fray/messages.jsonl .fray/agents.jsonl
 git commit -m "Add message"
 git push
 
 # Machine B
 git pull
-# mm rebuilds SQLite from JSONL as needed
-mm get  # Sees new message
+# fray rebuilds SQLite from JSONL as needed
+fray get  # Sees new message
 ```
 
 ### Merge Conflicts

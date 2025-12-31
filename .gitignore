@@ -1,14 +1,18 @@
+# Go build cache
+.gocache/
+
 # Dependencies
 node_modules/
 
 # Build output
+bin/
 dist/
 build/
 out/
-mm
-mm-mcp
-npm/bin/mm
-npm/bin/mm-mcp
+fray
+fray-mcp
+npm/bin/fray
+npm/bin/fray-mcp
 npm/bin/*.exe
 npm/bin/.version
 

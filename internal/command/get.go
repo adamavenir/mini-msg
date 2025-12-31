@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +35,11 @@ func NewGetCmd() *cobra.Command {
 			mentions, _ := cmd.Flags().GetString("mentions")
 			unfiltered, _ := cmd.Flags().GetBool("unfiltered")
 			archived, _ := cmd.Flags().GetBool("archived")
+			hideEvents, _ := cmd.Flags().GetBool("hide-events")
+			showEvents, _ := cmd.Flags().GetBool("show-events")
+			if showEvents {
+				hideEvents = false
+			}
 
 			isQueryMode := last != "" || since != "" || before != "" || from != "" || to != "" || all
 
@@ -112,6 +117,13 @@ func NewGetCmd() *cobra.Command {
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
+				messages, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, messages)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if hideEvents {
+					messages = filterEventMessages(messages)
+				}
 
 				if ctx.JSONMode {
 					return json.NewEncoder(cmd.OutOrStdout()).Encode(messages)
@@ -136,6 +148,13 @@ func NewGetCmd() *cobra.Command {
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
+				roomMessages, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, roomMessages)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if hideEvents {
+					roomMessages = filterEventMessages(roomMessages)
+				}
 
 				agentBase := resolvedAgentID
 				if strings.Contains(resolvedAgentID, ".") {
@@ -149,6 +168,13 @@ func NewGetCmd() *cobra.Command {
 				})
 				if err != nil {
 					return writeCommandError(cmd, err)
+				}
+				mentionMessages, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, mentionMessages)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if hideEvents {
+					mentionMessages = filterEventMessages(mentionMessages)
 				}
 
 				roomIDs := map[string]struct{}{}
@@ -239,11 +265,11 @@ func NewGetCmd() *cobra.Command {
 
 				fmt.Fprintln(out, "")
 				fmt.Fprintln(out, "---")
-				fmt.Fprintf(out, "More: mm get --last 50 | mm @%s --all | mm get --since <guid>\n", agentBase)
+				fmt.Fprintf(out, "More: fray get --last 50 | fray @%s --all | fray get --since <guid>\n", agentBase)
 				return nil
 			}
 
-			return writeCommandError(cmd, fmt.Errorf("usage: mm get <agent>        Combined room + @mentions view\n       mm get --last <n>     Last N messages\n       mm get --since <guid> Messages after GUID\n       mm get --all          All messages"))
+			return writeCommandError(cmd, fmt.Errorf("usage: fray get <agent>        Combined room + @mentions view\n       fray get --last <n>     Last N messages\n       fray get --since <guid> Messages after GUID\n       fray get --all          All messages"))
 		},
 	}
 
@@ -257,6 +283,8 @@ func NewGetCmd() *cobra.Command {
 	cmd.Flags().String("mentions", "3", "number of @mentions in combined view")
 	cmd.Flags().Bool("unfiltered", false, "bypass saved filter, show all messages")
 	cmd.Flags().Bool("archived", false, "include archived messages")
+	cmd.Flags().Bool("hide-events", false, "hide event messages")
+	cmd.Flags().Bool("show-events", false, "show event messages")
 
 	return cmd
 }

@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"unicode"
+	"time"
 
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -78,14 +79,14 @@ func buildHelpText() string {
 		formatHelpRow(
 			helpItemStyle+"Ctrl-C"+helpResetStyle+" - clear text",
 			helpItemStyle+"Up"+helpResetStyle+" - edit last",
-			helpItemStyle+"Tab"+helpResetStyle+" - channel picker",
+			helpItemStyle+"Tab"+helpResetStyle+" - thread/channel list",
 			25,
 			22,
 		),
 		"",
 		helpLabelStyle + "Commands" + helpResetStyle,
 		formatHelpRow(
-			helpItemStyle+"/edit <id>"+helpResetStyle,
+			helpItemStyle+"/edit <id> <text> -m <reason>"+helpResetStyle,
 			helpItemStyle+"/delete <id>"+helpResetStyle,
 			helpItemStyle+"/prune [--keep N]"+helpResetStyle,
 			25,
@@ -132,7 +133,7 @@ func (m *Model) prefillEditCommand() bool {
 	}
 
 	body := strings.ReplaceAll(msg.Body, "\n", " ")
-	value := fmt.Sprintf("/edit #%s %s", msg.ID, body)
+	value := fmt.Sprintf("/edit #%s %s -m ", msg.ID, body)
 	m.input.SetValue(value)
 	m.input.CursorEnd()
 	m.clearSuggestions()
@@ -160,7 +161,7 @@ func (m *Model) lastUserMessage() *types.Message {
 }
 
 func (m *Model) runEditCommand(input string) error {
-	msgID, body, err := parseEditCommand(input)
+	msgID, body, reason, err := parseEditCommand(input)
 	if err != nil {
 		return err
 	}
@@ -182,11 +183,46 @@ func (m *Model) runEditCommand(input string) error {
 		return fmt.Errorf("message %s not found", msg.ID)
 	}
 
-	if err := m.appendMessageUpdate(*updated); err != nil {
+	if err := m.appendMessageEditUpdate(*updated, reason); err != nil {
 		return err
 	}
 
+	annotated, err := db.ApplyMessageEditCounts(m.projectDBPath, []types.Message{*updated})
+	if err != nil {
+		return err
+	}
+	if len(annotated) > 0 {
+		*updated = annotated[0]
+	}
+
+	prefixLength := core.GetDisplayPrefixLength(m.messageCount)
+	eventBody := fmt.Sprintf("edited #%s: %s", core.GetGUIDPrefix(updated.ID, prefixLength), reason)
+	eventTS := time.Now().Unix()
+	if updated.EditedAt != nil {
+		eventTS = *updated.EditedAt
+	}
+	reference := updated.ID
+	eventMessage, err := db.CreateMessage(m.db, types.Message{
+		TS:         eventTS,
+		FromAgent:  m.username,
+		Body:       eventBody,
+		Type:       types.MessageTypeEvent,
+		References: &reference,
+		Home:       "room",
+	})
+	if err != nil {
+		return err
+	}
+	if err := db.AppendMessage(m.projectDBPath, eventMessage); err != nil {
+		return err
+	}
+	m.messageCount++
+	m.lastCursor = &types.MessageCursor{GUID: eventMessage.ID, TS: eventMessage.TS}
+
 	m.applyMessageUpdate(*updated)
+	if m.showUpdates {
+		m.messages = append(m.messages, eventMessage)
+	}
 	m.refreshViewport(false)
 	m.status = fmt.Sprintf("Edited #%s", updated.ID)
 	return nil
@@ -307,6 +343,15 @@ func (m *Model) appendMessageUpdate(msg types.Message) error {
 	return db.AppendMessageUpdate(m.projectDBPath, update)
 }
 
+func (m *Model) appendMessageEditUpdate(msg types.Message, reason string) error {
+	body := msg.Body
+	update := db.MessageUpdateJSONLRecord{ID: msg.ID, Body: &body, Reason: &reason}
+	if msg.EditedAt != nil {
+		update.EditedAt = msg.EditedAt
+	}
+	return db.AppendMessageUpdate(m.projectDBPath, update)
+}
+
 func (m *Model) applyMessageUpdate(msg types.Message) {
 	for i := range m.messages {
 		if m.messages[i].ID != msg.ID {
@@ -314,9 +359,20 @@ func (m *Model) applyMessageUpdate(msg types.Message) {
 		}
 		if !m.includeArchived && msg.ArchivedAt != nil {
 			m.messages = append(m.messages[:i], m.messages[i+1:]...)
-			return
+			break
 		}
 		m.messages[i] = msg
+		break
+	}
+	for i := range m.threadMessages {
+		if m.threadMessages[i].ID != msg.ID {
+			continue
+		}
+		if !m.includeArchived && msg.ArchivedAt != nil {
+			m.threadMessages = append(m.threadMessages[:i], m.threadMessages[i+1:]...)
+			return
+		}
+		m.threadMessages[i] = msg
 		return
 	}
 }
@@ -335,6 +391,10 @@ func (m *Model) reloadMessages() error {
 		Limit:           m.lastLimit,
 		IncludeArchived: m.includeArchived,
 	})
+	if err != nil {
+		return err
+	}
+	rawMessages, err = db.ApplyMessageEditCounts(m.projectDBPath, rawMessages)
 	if err != nil {
 		return err
 	}
@@ -372,30 +432,45 @@ func (m *Model) reloadMessages() error {
 	return nil
 }
 
-func parseEditCommand(input string) (string, string, error) {
+func parseEditCommand(input string) (string, string, string, error) {
 	trimmed := strings.TrimSpace(input)
 	if !strings.HasPrefix(trimmed, "/edit") {
-		return "", "", fmt.Errorf("usage: /edit <msgid> <text>")
+		return "", "", "", fmt.Errorf("usage: /edit <msgid> <text> -m <reason>")
 	}
 
 	rest := strings.TrimSpace(strings.TrimPrefix(trimmed, "/edit"))
 	if rest == "" {
-		return "", "", fmt.Errorf("usage: /edit <msgid> <text>")
+		return "", "", "", fmt.Errorf("usage: /edit <msgid> <text> -m <reason>")
 	}
 
-	idx := strings.IndexFunc(rest, unicode.IsSpace)
-	if idx == -1 {
-		return "", "", fmt.Errorf("usage: /edit <msgid> <text>")
+	fields := strings.Fields(rest)
+	if len(fields) < 4 {
+		return "", "", "", fmt.Errorf("usage: /edit <msgid> <text> -m <reason>")
 	}
 
-	id := strings.TrimSpace(rest[:idx])
-	body := strings.TrimSpace(rest[idx:])
-	if id == "" || body == "" {
-		return "", "", fmt.Errorf("usage: /edit <msgid> <text>")
+	id := strings.TrimSpace(fields[0])
+	bodyParts := []string{}
+	reasonParts := []string{}
+	seenFlag := false
+	for i := 1; i < len(fields); i++ {
+		if fields[i] == "-m" || fields[i] == "--message" {
+			seenFlag = true
+			reasonParts = fields[i+1:]
+			break
+		}
+		bodyParts = append(bodyParts, fields[i])
+	}
+	if !seenFlag || len(bodyParts) == 0 || len(reasonParts) == 0 {
+		return "", "", "", fmt.Errorf("usage: /edit <msgid> <text> -m <reason>")
+	}
+	body := strings.TrimSpace(strings.Join(bodyParts, " "))
+	reason := strings.TrimSpace(strings.Join(reasonParts, " "))
+	if body == "" || reason == "" || id == "" {
+		return "", "", "", fmt.Errorf("usage: /edit <msgid> <text> -m <reason>")
 	}
 
 	id = strings.TrimPrefix(id, "#")
-	return id, body, nil
+	return id, body, reason, nil
 }
 
 func parseDeleteCommand(input string) (string, error) {

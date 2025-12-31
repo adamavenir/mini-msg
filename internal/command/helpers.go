@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func formatRelative(ts int64) string {
@@ -86,7 +87,7 @@ func splitCommaList(value string) []string {
 func getMessageCounts(dbConn *sql.DB) (map[string]int64, error) {
 	rows, err := dbConn.Query(`
 		SELECT from_agent as agent_id, COUNT(*) as count
-		FROM mm_messages
+		FROM fray_messages
 		GROUP BY from_agent
 	`)
 	if err != nil {
@@ -110,7 +111,7 @@ func getMessageCounts(dbConn *sql.DB) (map[string]int64, error) {
 }
 
 func getTotalMessageCount(dbConn *sql.DB) (int64, error) {
-	row := dbConn.QueryRow("SELECT COUNT(*) FROM mm_messages")
+	row := dbConn.QueryRow("SELECT COUNT(*) FROM fray_messages")
 	var count int64
 	if err := row.Scan(&count); err != nil {
 		return 0, err
@@ -119,7 +120,7 @@ func getTotalMessageCount(dbConn *sql.DB) (int64, error) {
 }
 
 func getLastMessageTS(dbConn *sql.DB) (*int64, error) {
-	row := dbConn.QueryRow("SELECT MAX(ts) FROM mm_messages")
+	row := dbConn.QueryRow("SELECT MAX(ts) FROM fray_messages")
 	var ts sql.NullInt64
 	if err := row.Scan(&ts); err != nil {
 		return nil, err
@@ -194,4 +195,15 @@ func formatAgentLabel(agentID string, nicks []string) string {
 		return "@" + agentID
 	}
 	return fmt.Sprintf("@%s (aka %s)", agentID, strings.Join(formatted, ", "))
+}
+
+func filterEventMessages(messages []types.Message) []types.Message {
+	filtered := make([]types.Message, 0, len(messages))
+	for _, msg := range messages {
+		if msg.Type == types.MessageTypeEvent {
+			continue
+		}
+		filtered = append(filtered, msg)
+	}
+	return filtered
 }

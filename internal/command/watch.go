@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -52,6 +52,10 @@ func NewWatchCmd() *cobra.Command {
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
+				recent, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, recent)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
 				if len(recent) > 0 {
 					if ctx.JSONMode {
 						for _, msg := range recent {
@@ -81,6 +85,10 @@ func NewWatchCmd() *cobra.Command {
 					return nil
 				case <-ticker.C:
 					newMessages, err := db.GetMessages(ctx.DB, &types.MessageQueryOptions{Since: cursor, IncludeArchived: includeArchived})
+					if err != nil {
+						return writeCommandError(cmd, err)
+					}
+					newMessages, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, newMessages)
 					if err != nil {
 						return writeCommandError(cmd, err)
 					}

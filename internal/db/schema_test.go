@@ -19,7 +19,7 @@ func TestInitSchemaCreatesTables(t *testing.T) {
 
 	rows, err := db.Query(`
 		SELECT name FROM sqlite_master
-		WHERE type='table' AND name LIKE 'mm_%'
+		WHERE type='table' AND name LIKE 'fray_%'
 		ORDER BY name
 	`)
 	if err != nil {
@@ -39,7 +39,7 @@ func TestInitSchemaCreatesTables(t *testing.T) {
 		t.Fatalf("rows: %v", err)
 	}
 
-	for _, table := range []string{"mm_agents", "mm_messages", "mm_linked_projects", "mm_config"} {
+	for _, table := range []string{"fray_agents", "fray_messages", "fray_linked_projects", "fray_config"} {
 		if !seen[table] {
 			t.Fatalf("expected table %s", table)
 		}
@@ -50,7 +50,7 @@ func TestDefaultConfigInserted(t *testing.T) {
 	db := openTestDB(t)
 	requireSchema(t, db)
 
-	row := db.QueryRow("SELECT value FROM mm_config WHERE key = 'stale_hours'")
+	row := db.QueryRow("SELECT value FROM fray_config WHERE key = 'stale_hours'")
 	var value string
 	if err := row.Scan(&value); err != nil {
 		t.Fatalf("read config: %v", err)
@@ -67,7 +67,7 @@ func TestSchemaIdempotent(t *testing.T) {
 		t.Fatalf("init schema again: %v", err)
 	}
 
-	row := db.QueryRow("SELECT COUNT(*) FROM mm_config WHERE key = 'stale_hours'")
+	row := db.QueryRow("SELECT COUNT(*) FROM fray_config WHERE key = 'stale_hours'")
 	var count int
 	if err := row.Scan(&count); err != nil {
 		t.Fatalf("count config: %v", err)
@@ -81,7 +81,7 @@ func TestAgentColumns(t *testing.T) {
 	db := openTestDB(t)
 	requireSchema(t, db)
 
-	rows, err := db.Query("PRAGMA table_info(mm_agents)")
+	rows, err := db.Query("PRAGMA table_info(fray_agents)")
 	if err != nil {
 		t.Fatalf("table info: %v", err)
 	}

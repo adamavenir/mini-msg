@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 func TestFormatMessageColors(t *testing.T) {
@@ -43,7 +43,7 @@ func TestFormatMessageTruncation(t *testing.T) {
 		Type:      types.MessageTypeAgent,
 	}
 	output := FormatMessage(msg, "demo", nil)
-	if !strings.Contains(output, "mm view "+msg.ID) {
+	if !strings.Contains(output, "fray view "+msg.ID) {
 		t.Fatalf("expected truncation hint, got %q", output)
 	}
 }

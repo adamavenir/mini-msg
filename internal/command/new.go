@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -97,7 +97,7 @@ func NewNewCmd() *cobra.Command {
 					return writeCommandError(cmd, err)
 				}
 				if active {
-					return writeCommandError(cmd, fmt.Errorf("agent @%s is currently active.\n\nOptions:\n  - Use a different name: mm new @other-name\n  - Generate a random name: mm new\n  - If this is you rejoining: mm back @%s", agentID, agentID))
+					return writeCommandError(cmd, fmt.Errorf("agent @%s is currently active.\n\nOptions:\n  - Use a different name: fray new @other-name\n  - Generate a random name: fray new\n  - If this is you rejoining: fray back @%s", agentID, agentID))
 				}
 
 				isRejoin = true
@@ -270,7 +270,7 @@ func NewNewCmd() *cobra.Command {
 			if wroteEnv {
 				fmt.Fprintln(out, "  Registered with Claude hooks")
 			} else {
-				fmt.Fprintf(out, "  Post with: mm post --as %s \"message\"\n", agentID)
+				fmt.Fprintf(out, "  Post with: fray post --as %s \"message\"\n", agentID)
 			}
 
 			return nil

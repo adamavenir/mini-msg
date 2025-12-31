@@ -1,8 +1,8 @@
 package command
 
 import (
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
 )
 
 func findKnownAgent(config *db.ProjectConfig, ref string) *knownAgentMatch {

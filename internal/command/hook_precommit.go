@@ -7,9 +7,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/gobwas/glob"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +30,7 @@ func NewHookPrecommitCmd() *cobra.Command {
 }
 
 func runHookPrecommit(cmd *cobra.Command) int {
-	agentID := os.Getenv("MM_AGENT_ID")
+	agentID := os.Getenv("FRAY_AGENT_ID")
 
 	projectPath := os.Getenv("CLAUDE_PROJECT_DIR")
 	project, err := core.DiscoverProject(projectPath)
@@ -67,13 +67,13 @@ func runHookPrecommit(cmd *cobra.Command) int {
 
 	if strictMode {
 		fmt.Fprintln(cmd.ErrOrStderr(), "Commit blocked (precommit_strict mode enabled).")
-		fmt.Fprintln(cmd.ErrOrStderr(), "Use \"mm config precommit_strict false\" to disable strict mode.")
+		fmt.Fprintln(cmd.ErrOrStderr(), "Use \"fray config precommit_strict false\" to disable strict mode.")
 		fmt.Fprintln(cmd.ErrOrStderr(), "")
 		return 1
 	}
 
 	fmt.Fprintln(cmd.ErrOrStderr(), "Proceeding with commit (advisory mode).")
-	fmt.Fprintln(cmd.ErrOrStderr(), "Use \"mm config precommit_strict true\" to block commits with conflicts.")
+	fmt.Fprintln(cmd.ErrOrStderr(), "Use \"fray config precommit_strict true\" to block commits with conflicts.")
 	fmt.Fprintln(cmd.ErrOrStderr(), "")
 	return 0
 }
@@ -131,7 +131,7 @@ func printPrecommitConflicts(errOut io.Writer, byAgent map[string][]claimMatch) 
 
 	fmt.Fprintln(errOut, "")
 	fmt.Fprintln(errOut, "Consider coordinating with these agents before committing.")
-	fmt.Fprintln(errOut, "Use \"mm claims\" to see all active claims.")
+	fmt.Fprintln(errOut, "Use \"fray claims\" to see all active claims.")
 	fmt.Fprintln(errOut, "")
 }
 

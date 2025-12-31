@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Server wraps the MCP SDK server with mm context.
+// Server wraps the MCP SDK server with fray context.
 type Server struct {
 	server  *mcp.Server
 	project core.Project
@@ -46,7 +46,7 @@ func NewServer(projectPath, version string) (*Server, error) {
 	logf("Agent initialized: %s", agentID)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	server := mcp.NewServer(&mcp.Implementation{Name: "mm", Title: "Mini Messenger", Version: version}, &mcp.ServerOptions{Logger: logger})
+	server := mcp.NewServer(&mcp.Implementation{Name: "fray", Title: "Fray", Version: version}, &mcp.ServerOptions{Logger: logger})
 
 	toolCtx := &ToolContext{AgentID: agentID, DB: dbConn, Project: project}
 	RegisterTools(server, toolCtx)
@@ -70,5 +70,5 @@ func (s *Server) Close() error {
 }
 
 func logf(format string, args ...any) {
-	_, _ = fmt.Fprintf(os.Stderr, "[mm-mcp] %s\n", fmt.Sprintf(format, args...))
+	_, _ = fmt.Fprintf(os.Stderr, "[fray-mcp] %s\n", fmt.Sprintf(format, args...))
 }

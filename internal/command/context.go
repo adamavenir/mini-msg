@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/db"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -50,7 +50,7 @@ func GetContext(cmd *cobra.Command) (*CommandContext, error) {
 			return nil, err
 		}
 		if linked == nil {
-			return nil, fmt.Errorf("linked project '%s' not found. Use 'mm link' first", projectAlias)
+			return nil, fmt.Errorf("linked project '%s' not found. Use 'fray link' first", projectAlias)
 		}
 		if _, err := os.Stat(linked.Path); err != nil {
 			return nil, fmt.Errorf("linked project '%s' database not found at %s", projectAlias, linked.Path)
@@ -170,7 +170,7 @@ func ResolveChannelContext(channelRef string, cwd string) (*ChannelContext, erro
 		return nil, err
 	}
 	if localConfig == nil || localConfig.ChannelID == "" {
-		return nil, errors.New("no channel context: local .mm/ directory has no channel_id")
+		return nil, errors.New("no channel context: local .fray/ directory has no channel_id")
 	}
 
 	return &ChannelContext{
@@ -208,7 +208,7 @@ func ResolveAgentRef(ref string, config *db.ProjectConfig) string {
 }
 
 func projectFromRoot(rootPath string) (core.Project, error) {
-	dbPath := filepath.Join(rootPath, ".mm", "mm.db")
+	dbPath := filepath.Join(rootPath, ".fray", "fray.db")
 	if _, err := os.Stat(dbPath); err != nil {
 		return core.Project{}, fmt.Errorf("channel database not found at %s", dbPath)
 	}
@@ -216,8 +216,8 @@ func projectFromRoot(rootPath string) (core.Project, error) {
 }
 
 func projectFromDBPath(dbPath string) (core.Project, error) {
-	mmDir := filepath.Dir(dbPath)
-	root := filepath.Dir(mmDir)
+	frayDir := filepath.Dir(dbPath)
+	root := filepath.Dir(frayDir)
 	if _, err := os.Stat(dbPath); err != nil {
 		return core.Project{}, err
 	}

@@ -9,8 +9,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/adamavenir/mini-msg/internal/core"
-	"github.com/adamavenir/mini-msg/internal/types"
+	"github.com/adamavenir/fray/internal/core"
+	"github.com/adamavenir/fray/internal/types"
 )
 
 const maxDisplayLines = 20
@@ -51,7 +51,11 @@ func GetProjectName(projectRoot string) string {
 
 // FormatMessage formats a message for display.
 func FormatMessage(msg types.Message, projectName string, agentBases map[string]struct{}) string {
-	idBlock := fmt.Sprintf("%s[%s#%s%s %s]%s", dim, bold, projectName, reset, dim+msg.ID, reset)
+	editedSuffix := ""
+	if msg.Edited || msg.EditCount > 0 || msg.EditedAt != nil {
+		editedSuffix = " (edited)"
+	}
+	idBlock := fmt.Sprintf("%s[%s#%s%s %s]%s", dim, bold, projectName, reset, dim+msg.ID+editedSuffix, reset)
 
 	color := getAgentColor(msg.FromAgent, msg.Type, nil)
 	truncated := truncateForDisplay(msg.Body, msg.ID)
@@ -232,7 +236,7 @@ func truncateForDisplay(body, msgID string) string {
 
 	truncated := strings.Join(lines[:maxDisplayLines], "\n")
 	remaining := len(lines) - maxDisplayLines
-	return fmt.Sprintf("%s\n... (%d more lines. Use 'mm view %s' to see full)", truncated, remaining, msgID)
+	return fmt.Sprintf("%s\n... (%d more lines. Use 'fray view %s' to see full)", truncated, remaining, msgID)
 }
 
 func isAlphaNum(r rune) bool {

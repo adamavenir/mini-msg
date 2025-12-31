@@ -4,7 +4,7 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-const binName = process.platform === 'win32' ? 'mm.exe' : 'mm';
+const binName = process.platform === 'win32' ? 'fray.exe' : 'fray';
 const binPath = path.join(__dirname, binName);
 
 const result = spawnSync(binPath, process.argv.slice(2), {
@@ -12,7 +12,7 @@ const result = spawnSync(binPath, process.argv.slice(2), {
 });
 
 if (result.error) {
-  console.error(`mini-msg: failed to run ${binName}: ${result.error.message}`);
+  console.error(`fray: failed to run ${binName}: ${result.error.message}`);
   process.exit(1);
 }
 
