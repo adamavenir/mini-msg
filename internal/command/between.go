@@ -70,6 +70,7 @@ func NewBetweenCmd() *cobra.Command {
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
+			rows = filterDeletedMessages(rows)
 
 			if ctx.JSONMode {
 				payload := buildBetweenPayload(agentA, agentB, rows)

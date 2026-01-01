@@ -207,3 +207,14 @@ func filterEventMessages(messages []types.Message) []types.Message {
 	}
 	return filtered
 }
+
+func filterDeletedMessages(messages []types.Message) []types.Message {
+	filtered := make([]types.Message, 0, len(messages))
+	for _, msg := range messages {
+		if msg.ArchivedAt != nil && msg.Body == "[deleted]" {
+			continue
+		}
+		filtered = append(filtered, msg)
+	}
+	return filtered
+}

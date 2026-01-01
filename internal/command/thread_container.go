@@ -40,6 +40,7 @@ func NewThreadCmd() *cobra.Command {
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
+			messages = filterDeletedMessages(messages)
 
 			path, err := buildThreadPath(ctx.DB, thread)
 			if err != nil {

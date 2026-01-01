@@ -157,6 +157,7 @@ func NewNotesCmd() *cobra.Command {
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
+			messages = filterDeletedMessages(messages)
 
 			if ctx.JSONMode {
 				payload := map[string]any{
