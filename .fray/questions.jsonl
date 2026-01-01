@@ -5,3 +5,30 @@
 {"type":"question_update","guid":"qstn-m0ccmkvh","status":"open","to":"adam","asked_in":"msg-pejrb60e"}
 {"type":"question","guid":"qstn-d82om2zp","re":"Should 'fray neo' auto-subscribe agent to meta thread if not already subscribed?","from_agent":"designer","to":"adam","status":"open","created_at":1767210015}
 {"type":"question_update","guid":"qstn-d82om2zp","status":"open","to":"adam","asked_in":"msg-rvlvjuk9"}
+{"type":"question","guid":"qstn-waezextv","re":"Is the extraction working now?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-eon33yxq","options":[{"label":"Yes","pros":["It's great"]},{"label":"No"}],"created_at":1767223780}
+{"type":"question","guid":"qstn-vccm2y1u","re":"What about this?","from_agent":"opus","status":"unasked","asked_in":"msg-eon33yxq","created_at":1767223780}
+{"type":"question_update","guid":"qstn-waezextv","status":"closed"}
+{"type":"question","guid":"qstn-f4e6mvjm","re":"Which color scheme should we use for the sidebar?","from_agent":"gpt52","to":"opus","status":"open","asked_in":"msg-iz1yaykg","options":[{"label":"Blue theme","pros":["Matches existing brand"],"cons":["Might be too corporate"]},{"label":"Green theme","pros":["Fresh and modern"],"cons":["Less contrast"]},{"label":"Keep current gray","pros":["No changes needed"],"cons":["Boring"]}],"created_at":1767225452}
+{"type":"question_update","guid":"qstn-f4e6mvjm","status":"answered","answered_in":"msg-0crsgd56"}
+{"type":"question","guid":"qstn-vvi0bxnn","re":"Should we add unit tests?","from_agent":"gpt52","to":"opus","status":"open","asked_in":"msg-8vxgsxks","created_at":1767225477}
+{"type":"question","guid":"qstn-5o6z01xn","re":"What framework should we use?","from_agent":"gpt52","to":"opus","status":"open","asked_in":"msg-8vxgsxks","options":[{"label":"Jest"},{"label":"Vitest"}],"created_at":1767225477}
+{"type":"question_update","guid":"qstn-5o6z01xn","status":"answered","answered_in":"msg-uscj8ymd"}
+{"type":"question_update","guid":"qstn-vvi0bxnn","status":"answered","answered_in":"msg-d6m2ckzz"}
+{"type":"question","guid":"qstn-sppi7heq","re":"Should we use Redis or Memcached?","from_agent":"gpt52","to":"opus","status":"open","asked_in":"msg-sok87vnz","options":[{"label":"Redis","pros":["More features"]},{"label":"Memcached","pros":["Simpler"]}],"created_at":1767226571}
+{"type":"question_update","guid":"qstn-sppi7heq","status":"answered","answered_in":"msg-21985488"}
+{"type":"question","guid":"qstn-lh4k8e4n","re":"What should the default behavior be when running bare `fray` with pending questions?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-spexdbf8","options":[{"label":"Show question count in status, don't prompt","pros":["Non-intrusive"],"cons":["Easy to miss"]},{"label":"Prompt to enter answer mode (press Enter to answer, any key to skip)","pros":["Encourages engagement"],"cons":["Could be annoying"]},{"label":"Auto-enter answer mode","pros":["Forces attention"],"cons":["Too aggressive"]}],"created_at":1767226701}
+{"type":"question","guid":"qstn-9bm9rc0o","re":"Should agents be able to use the interactive answer mode via `--as`?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-spexdbf8","options":[{"label":"Yes, keep it available","pros":["Flexibility for testing"]},{"label":"No, restrict to direct mode only","pros":["Cleaner separation of concerns"]}],"created_at":1767226701}
+{"type":"question","guid":"qstn-2fwh62bd","re":"For the accept/close flow: should user answers require explicit accept from the asking agent?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-spexdbf8","created_at":1767226701}
+{"type":"question_update","guid":"qstn-lh4k8e4n","status":"answered","answered_in":"msg-ounmr3sr"}
+{"type":"question_update","guid":"qstn-9bm9rc0o","status":"answered","answered_in":"msg-lzigetgu"}
+{"type":"question_update","guid":"qstn-2fwh62bd","status":"answered","answered_in":"msg-ktswr8rc"}
+{"type":"question_update","guid":"qstn-d82om2zp","status":"answered","answered_in":"msg-9ppuauj2"}
+{"type":"question_update","guid":"qstn-m0ccmkvh","status":"answered","answered_in":"msg-164ru7ns"}
+{"type":"question","guid":"qstn-3cxf6wk2","re":"Do you like the new Q\u0026A format?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-lhwwftzc","created_at":1767229447}
+{"type":"question","guid":"qstn-eslwd0u2","re":"Should we add more styling?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-lhwwftzc","created_at":1767229447}
+{"type":"question_update","guid":"qstn-3cxf6wk2","status":"answered","answered_in":"msg-80jxnh7e"}
+{"type":"question_update","guid":"qstn-eslwd0u2","status":"answered","answered_in":"msg-80jxnh7e"}
+{"type":"question","guid":"qstn-akyivbyh","re":"Does this Q\u0026A format look better?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-6no87r9g","created_at":1767231085}
+{"type":"question","guid":"qstn-zcykyl26","re":"Should the question ID be more or less prominent?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-6no87r9g","created_at":1767231085}
+{"type":"question_update","guid":"qstn-akyivbyh","status":"answered","answered_in":"msg-xrnd8zb5"}
+{"type":"question_update","guid":"qstn-zcykyl26","status":"answered","answered_in":"msg-xrnd8zb5"}
