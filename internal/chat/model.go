@@ -20,7 +20,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-const pollInterval = time.Second
 const doubleClickInterval = 400 * time.Millisecond
 const questionStaleSeconds = 7 * 24 * 3600
 
@@ -113,13 +112,6 @@ type Model struct {
 	initialScroll       bool
 	lastClickID         string
 	lastClickAt         time.Time
-}
-
-type pollMsg struct {
-	roomMessages   []types.Message
-	threadMessages []types.Message
-	threadID       string
-	questions      []types.Question
 }
 
 type errMsg struct {
@@ -1403,155 +1395,6 @@ func (m *Model) addRecentThread(thread types.Thread) {
 	}
 }
 
-func (m *Model) pollCmd() tea.Cmd {
-	cursor := m.lastCursor
-	includeArchived := m.includeArchived
-	showUpdates := m.showUpdates
-	currentThread := m.currentThread
-	currentPseudo := m.currentPseudo
-
-	return tea.Tick(pollInterval, func(time.Time) tea.Msg {
-		options := types.MessageQueryOptions{Since: cursor, IncludeArchived: includeArchived}
-		roomMessages, err := db.GetMessages(m.db, &options)
-		if err != nil {
-			return errMsg{err: err}
-		}
-		roomMessages, err = db.ApplyMessageEditCounts(m.projectDBPath, roomMessages)
-		if err != nil {
-			return errMsg{err: err}
-		}
-		roomMessages = filterUpdates(roomMessages, showUpdates)
-
-		threadID := ""
-		threadMessages := []types.Message(nil)
-		if currentThread != nil {
-			threadID = currentThread.GUID
-			threadMessages, err = db.GetThreadMessages(m.db, currentThread.GUID)
-			if err != nil {
-				return errMsg{err: err}
-			}
-			threadMessages, err = db.ApplyMessageEditCounts(m.projectDBPath, threadMessages)
-			if err != nil {
-				return errMsg{err: err}
-			}
-			threadMessages = filterUpdates(threadMessages, showUpdates)
-		}
-
-		var questions []types.Question
-		if currentPseudo != "" {
-			roomOnly := true
-			var threadGUID *string
-			if currentThread != nil {
-				roomOnly = false
-				threadGUID = &currentThread.GUID
-			}
-			query := types.QuestionQueryOptions{
-				ThreadGUID: threadGUID,
-				RoomOnly:   roomOnly,
-			}
-			switch currentPseudo {
-			case pseudoThreadOpen:
-				query.Statuses = []types.QuestionStatus{types.QuestionStatusOpen}
-			case pseudoThreadClosed:
-				query.Statuses = []types.QuestionStatus{types.QuestionStatusAnswered}
-			case pseudoThreadWonder:
-				query.Statuses = []types.QuestionStatus{types.QuestionStatusUnasked}
-			case pseudoThreadStale:
-				query.Statuses = []types.QuestionStatus{types.QuestionStatusOpen}
-			}
-			questions, err = db.GetQuestions(m.db, &query)
-			if err != nil {
-				return errMsg{err: err}
-			}
-			if currentPseudo == pseudoThreadStale {
-				cutoff := time.Now().Unix() - questionStaleSeconds
-				filtered := make([]types.Question, 0, len(questions))
-				for _, question := range questions {
-					if question.CreatedAt > 0 && question.CreatedAt < cutoff {
-						filtered = append(filtered, question)
-					}
-				}
-				questions = filtered
-			}
-		}
-
-		return pollMsg{
-			roomMessages:   roomMessages,
-			threadMessages: threadMessages,
-			threadID:       threadID,
-			questions:      questions,
-		}
-	})
-}
-
-func (m *Model) refreshViewport(scrollToBottom bool) {
-	content := m.renderMessages()
-	m.viewport.SetContent(content)
-	if scrollToBottom {
-		m.viewport.GotoBottom()
-		return
-	}
-	if m.viewport.Height <= 0 {
-		return
-	}
-	maxOffset := lipgloss.Height(content) - m.viewport.Height
-	if maxOffset < 0 {
-		maxOffset = 0
-	}
-	if m.viewport.YOffset > maxOffset {
-		m.viewport.SetYOffset(maxOffset)
-	}
-}
-
-func (m *Model) nearTop() bool {
-	return m.viewport.YOffset <= 5
-}
-
-func (m *Model) loadOlderMessages() {
-	if m.currentThread != nil || m.currentPseudo != "" {
-		return
-	}
-	if !m.hasMore || m.oldestCursor == nil {
-		return
-	}
-
-	options := &types.MessageQueryOptions{
-		Before:          m.oldestCursor,
-		Limit:           m.lastLimit,
-		IncludeArchived: m.includeArchived,
-	}
-
-	prevHeight := lipgloss.Height(m.renderMessages())
-	rawMessages, err := db.GetMessages(m.db, options)
-	if err != nil {
-		m.status = err.Error()
-		return
-	}
-	if len(rawMessages) == 0 {
-		m.hasMore = false
-		return
-	}
-
-	first := rawMessages[0]
-	m.oldestCursor = &types.MessageCursor{GUID: first.ID, TS: first.TS}
-	if len(rawMessages) < m.lastLimit {
-		m.hasMore = false
-	}
-
-	older := filterUpdates(rawMessages, m.showUpdates)
-	if len(older) == 0 {
-		return
-	}
-
-	m.messages = append(older, m.messages...)
-	m.refreshViewport(false)
-	newHeight := lipgloss.Height(m.renderMessages())
-	delta := newHeight - prevHeight
-	if delta > 0 {
-		m.viewport.SetYOffset(m.viewport.YOffset + delta)
-	}
-}
-
 func (m *Model) renderMessages() string {
 	if m.currentPseudo != "" {
 		return m.renderQuestions()
@@ -1576,27 +1419,6 @@ func (m *Model) renderMessages() string {
 		chunks = append(chunks, m.formatMessage(msg, prefixLength, readToMap))
 	}
 	return strings.Join(chunks, "\n\n")
-}
-
-func (m *Model) currentMessages() []types.Message {
-	var messages []types.Message
-	if m.currentThread != nil {
-		messages = m.threadMessages
-	} else {
-		messages = m.messages
-	}
-	return filterDeletedMessages(messages)
-}
-
-func filterDeletedMessages(messages []types.Message) []types.Message {
-	filtered := make([]types.Message, 0, len(messages))
-	for _, msg := range messages {
-		if msg.ArchivedAt != nil && msg.Body == "[deleted]" {
-			continue
-		}
-		filtered = append(filtered, msg)
-	}
-	return filtered
 }
 
 func (m *Model) renderQuestions() string {
@@ -1674,24 +1496,6 @@ func (m *Model) refreshReactions() error {
 		m.refreshViewport(true)
 	}
 	return nil
-}
-
-func (m *Model) filterNewMessages(incoming []types.Message) []types.Message {
-	if len(incoming) == 0 {
-		return nil
-	}
-	existing := make(map[string]struct{}, len(m.messages))
-	for _, msg := range m.messages {
-		existing[msg.ID] = struct{}{}
-	}
-	filtered := make([]types.Message, 0, len(incoming))
-	for _, msg := range incoming {
-		if _, ok := existing[msg.ID]; ok {
-			continue
-		}
-		filtered = append(filtered, msg)
-	}
-	return filtered
 }
 
 func diffReactions(before, after map[string][]string) map[string][]string {
@@ -1917,24 +1721,6 @@ func filterUpdates(messages []types.Message, showUpdates bool) []types.Message {
 		filtered = append(filtered, msg)
 	}
 	return filtered
-}
-
-func (m *Model) refreshThreadMessages() {
-	if m.currentThread == nil {
-		m.threadMessages = nil
-		return
-	}
-	messages, err := db.GetThreadMessages(m.db, m.currentThread.GUID)
-	if err != nil {
-		m.status = err.Error()
-		return
-	}
-	messages, err = db.ApplyMessageEditCounts(m.projectDBPath, messages)
-	if err != nil {
-		m.status = err.Error()
-		return
-	}
-	m.threadMessages = filterUpdates(messages, m.showUpdates)
 }
 
 func (m *Model) refreshQuestionCounts() {
