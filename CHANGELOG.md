@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0 (unreleased)]
 
+### Changed
+- `fray get <agent>`: defaults to unread room messages (since watermark); use `--last N` for explicit last N
+- `fray get <agent>`: mentions now include replies to agent's messages and filter to unread-only
+
 ### Added
 - Questions: wonder/ask/list/view/answer/close workflow with JSONL + SQLite support
 - Question extraction from markdown: `# Questions for @x` and `# Wondering` sections auto-create questions with options (a/b/c) and pro/con bullets; sections stripped from display
