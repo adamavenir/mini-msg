@@ -739,6 +739,7 @@ func GetMessagesWithMention(db *sql.DB, mentionPrefix string, options *types.Mes
 	includeArchived := false
 	limit := 0
 	home := "room"
+	includeReplies := ""
 	if options != nil {
 		filterUnread = options.UnreadOnly
 		if options.AgentPrefix != "" {
@@ -753,50 +754,92 @@ func GetMessagesWithMention(db *sql.DB, mentionPrefix string, options *types.Mes
 				home = *options.Home
 			}
 		}
+		includeReplies = options.IncludeRepliesToAgent
 	}
 
-	query := `
-		SELECT DISTINCT m.* FROM fray_messages m, json_each(m.mentions) j
-	`
-	var params []any
-
-	if filterUnread {
-		query += `
-		LEFT JOIN fray_read_receipts r
-		  ON m.guid = r.message_guid AND r.agent_prefix = ?
-		`
-		params = append(params, agentPrefix)
-	}
-
-	query += `
-		WHERE (j.value = 'all' OR j.value = ? OR j.value LIKE ?)
-	`
-	params = append(params, mentionPrefix, fmt.Sprintf("%s.%%", mentionPrefix))
-
-	var conditions []string
+	// Build common conditions
+	var commonConditions []string
+	var commonParams []any
 	if !includeArchived {
-		conditions = append(conditions, "m.archived_at IS NULL")
+		commonConditions = append(commonConditions, "m.archived_at IS NULL")
 	}
 	if home != "" {
-		conditions = append(conditions, "m.home = ?")
-		params = append(params, home)
-	}
-	if filterUnread {
-		conditions = append(conditions, "r.message_guid IS NULL")
+		commonConditions = append(commonConditions, "m.home = ?")
+		commonParams = append(commonParams, home)
 	}
 	if sinceCursor != nil {
 		clause, args := buildCursorCondition("m.", ">", sinceCursor)
-		conditions = append(conditions, clause)
-		params = append(params, args...)
+		commonConditions = append(commonConditions, clause)
+		commonParams = append(commonParams, args...)
 	}
 	if beforeCursor != nil {
 		clause, args := buildCursorCondition("m.", "<", beforeCursor)
-		conditions = append(conditions, clause)
-		params = append(params, args...)
+		commonConditions = append(commonConditions, clause)
+		commonParams = append(commonParams, args...)
 	}
 
-	if len(conditions) > 0 {
-		query += " AND " + strings.Join(conditions, " AND ")
+	conditionStr := ""
+	if len(commonConditions) > 0 {
+		conditionStr = " AND " + strings.Join(commonConditions, " AND ")
+	}
+
+	var query string
+	var params []any
+
+	if includeReplies != "" {
+		// Use EXISTS for mentions + OR for replies to avoid cross-join issues
+		query = `
+		SELECT m.* FROM fray_messages m
+		`
+		if filterUnread {
+			query += `
+			LEFT JOIN fray_read_receipts r
+			  ON m.guid = r.message_guid AND r.agent_prefix = ?
+			`
+			params = append(params, agentPrefix)
+		}
+		query += `
+		WHERE (
+			EXISTS (
+				SELECT 1 FROM json_each(m.mentions) j
+				WHERE j.value = 'all' OR j.value = ? OR j.value LIKE ?
+			)
+			OR m.reply_to IN (
+				SELECT guid FROM fray_messages
+				WHERE from_agent = ? OR from_agent LIKE ?
+			)
+		)
+		`
+		params = append(params, mentionPrefix, fmt.Sprintf("%s.%%", mentionPrefix))
+		params = append(params, includeReplies, fmt.Sprintf("%s.%%", includeReplies))
+
+		if filterUnread {
+			query += " AND r.message_guid IS NULL"
+		}
+		query += conditionStr
+		params = append(params, commonParams...)
+	} else {
+		// Original query for mentions only
+		query = `
+		SELECT DISTINCT m.* FROM fray_messages m, json_each(m.mentions) j
+		`
+		if filterUnread {
+			query += `
+			LEFT JOIN fray_read_receipts r
+			  ON m.guid = r.message_guid AND r.agent_prefix = ?
+			`
+			params = append(params, agentPrefix)
+		}
+		query += `
+		WHERE (j.value = 'all' OR j.value = ? OR j.value LIKE ?)
+		`
+		params = append(params, mentionPrefix, fmt.Sprintf("%s.%%", mentionPrefix))
+
+		if filterUnread {
+			query += " AND r.message_guid IS NULL"
+		}
+		query += conditionStr
+		params = append(params, commonParams...)
 	}
 
 	query += " ORDER BY m.ts ASC, m.guid ASC"

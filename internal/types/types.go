@@ -110,17 +110,18 @@ type OptionalInt64 struct {
 
 // MessageQueryOptions controls message queries.
 type MessageQueryOptions struct {
-	Limit           int
-	Since           *MessageCursor
-	SinceID         string
-	Before          *MessageCursor
-	BeforeID        string
-	Home            *string
-	Filter          *Filter
-	Unfiltered      bool
-	UnreadOnly      bool
-	AgentPrefix     string
-	IncludeArchived bool
+	Limit                 int
+	Since                 *MessageCursor
+	SinceID               string
+	Before                *MessageCursor
+	BeforeID              string
+	Home                  *string
+	Filter                *Filter
+	Unfiltered            bool
+	UnreadOnly            bool
+	AgentPrefix           string
+	IncludeArchived       bool
+	IncludeRepliesToAgent string // Include replies to messages from this agent prefix
 }
 
 // QuestionQueryOptions controls question queries.

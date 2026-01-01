@@ -41,7 +41,9 @@ func NewGetCmd() *cobra.Command {
 				hideEvents = false
 			}
 
-			isQueryMode := last != "" || since != "" || before != "" || from != "" || to != "" || all
+			// Query mode when no agent provided and using explicit range/limit flags
+			// If agent is provided with --last, we stay in agent mode but use --last as room limit
+			isQueryMode := (last != "" && len(args) == 0) || since != "" || before != "" || from != "" || to != "" || all
 
 			projectName := GetProjectName(ctx.Project.Root)
 			var agentBases map[string]struct{}
@@ -141,10 +143,40 @@ func NewGetCmd() *cobra.Command {
 			}
 
 			if resolvedAgentID != "" {
-				roomLimit := parseOptionalInt(room, 10)
 				mentionsLimit := parseOptionalInt(mentions, 3)
 
-				roomMessages, err := db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
+				agentBase := resolvedAgentID
+				if strings.Contains(resolvedAgentID, ".") {
+					idx := strings.LastIndex(resolvedAgentID, ".")
+					agentBase = resolvedAgentID[:idx]
+				}
+
+				// Get watermark for this agent
+				watermark, err := db.GetReadTo(ctx.DB, agentBase, "room")
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+
+				var roomMessages []types.Message
+				if last != "" {
+					// Explicit --last flag: use that limit
+					roomLimit, err := strconv.Atoi(last)
+					if err != nil {
+						return writeCommandError(cmd, fmt.Errorf("invalid --last value"))
+					}
+					roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
+				} else if watermark != nil {
+					// Has watermark: get only unread messages (since watermark)
+					roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{
+						Since:           &types.MessageCursor{GUID: watermark.MessageGUID, TS: watermark.MessageTS},
+						Filter:          filter,
+						IncludeArchived: archived,
+					})
+				} else {
+					// No watermark (first time): show last N as default
+					roomLimit := parseOptionalInt(room, 10)
+					roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
+				}
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
@@ -156,15 +188,12 @@ func NewGetCmd() *cobra.Command {
 					roomMessages = filterEventMessages(roomMessages)
 				}
 
-				agentBase := resolvedAgentID
-				if strings.Contains(resolvedAgentID, ".") {
-					idx := strings.LastIndex(resolvedAgentID, ".")
-					agentBase = resolvedAgentID[:idx]
-				}
-
 				mentionMessages, err := db.GetMessagesWithMention(ctx.DB, agentBase, &types.MessageQueryOptions{
-					Limit:           mentionsLimit + roomLimit,
-					IncludeArchived: archived,
+					Limit:                 mentionsLimit + len(roomMessages),
+					IncludeArchived:       archived,
+					IncludeRepliesToAgent: agentBase,
+					UnreadOnly:            true,
+					AgentPrefix:           agentBase,
 				})
 				if err != nil {
 					return writeCommandError(cmd, err)
@@ -279,7 +308,7 @@ func NewGetCmd() *cobra.Command {
 				return nil
 			}
 
-			return writeCommandError(cmd, fmt.Errorf("usage: fray get <agent>        Combined room + @mentions view\n       fray get --last <n>     Last N messages\n       fray get --since <guid> Messages after GUID\n       fray get --all          All messages"))
+			return writeCommandError(cmd, fmt.Errorf("usage: fray get <agent>           Unread room + @mentions (default)\n       fray get <agent> --last <n> Last N room messages\n       fray get --last <n>         Last N messages (no agent)\n       fray get --since <guid>     Messages after GUID\n       fray get --all              All messages"))
 		},
 	}
 
