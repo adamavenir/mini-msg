@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `fray get <agent>`: defaults to unread room messages (since watermark); use `--last N` for explicit last N
 - `fray get <agent>`: mentions now include replies to agent's messages and filter to unread-only
+- Deleted messages filtered from `notes`, `thread`, `history`, `between`, `meta` commands
+- Chat sidebar: only shows open-qs and stale-qs (removed closed-qs, wondering)
 
 ### Added
 - Questions: wonder/ask/list/view/answer/close workflow with JSONL + SQLite support
