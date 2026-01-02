@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fray answer`: interactive mode now uses full TUI with multiline input (Ctrl+J for newlines)
 
 ### Added
+- `fray react <emoji> <msg>`: explicit reaction command with optional `--reply` for chained comments
 - Thread anchors: `fray thread anchor <ref> <msg>` sets TL;DR message shown at top of thread display
 - Message pins: `fray pin/unpin <msg>` for per-thread pinning; `fray thread <ref> --pinned` to filter
 - Message moves: `fray mv <msg...> <dest>` relocates messages between threads/room
@@ -44,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Driver support for claude, codex, opencode CLIs with configurable prompt delivery
 - Presence tracking: active, spawning, idle, error, offline states
 - Session lifecycle events in agents.jsonl (session_start, session_end)
+
+### Removed
+- `fray unreact`: reactions are permanent (no removal)
 
 ### Changed
 - Messages now include `home`, `references`, and `surface_message` fields
