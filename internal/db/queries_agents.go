@@ -126,6 +126,18 @@ func CreateAgent(db *sql.DB, agent types.Agent) error {
 	return err
 }
 
+// UpdateAgentWatermark updates the mention watermark for an agent.
+func UpdateAgentWatermark(db *sql.DB, agentID, msgID string) error {
+	_, err := db.Exec(`UPDATE fray_agents SET mention_watermark = ? WHERE agent_id = ?`, msgID, agentID)
+	return err
+}
+
+// UpdateAgentPresence updates the presence state for an agent.
+func UpdateAgentPresence(db *sql.DB, agentID string, presence types.PresenceState) error {
+	_, err := db.Exec(`UPDATE fray_agents SET presence = ? WHERE agent_id = ?`, string(presence), agentID)
+	return err
+}
+
 // UpdateAgent updates agent fields.
 func UpdateAgent(db *sql.DB, agentID string, updates AgentUpdates) error {
 	var fields []string
