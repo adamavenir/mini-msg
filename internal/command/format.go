@@ -51,6 +51,15 @@ func GetProjectName(projectRoot string) string {
 
 // FormatMessage formats a message for display.
 func FormatMessage(msg types.Message, projectName string, agentBases map[string]struct{}) string {
+	return formatMessageWithOptions(msg, projectName, agentBases, true)
+}
+
+// FormatMessageFull formats a message without truncation (for anchors).
+func FormatMessageFull(msg types.Message, projectName string, agentBases map[string]struct{}) string {
+	return formatMessageWithOptions(msg, projectName, agentBases, false)
+}
+
+func formatMessageWithOptions(msg types.Message, projectName string, agentBases map[string]struct{}, truncate bool) string {
 	editedSuffix := ""
 	if msg.Edited || msg.EditCount > 0 || msg.EditedAt != nil {
 		editedSuffix = " (edited)"
@@ -65,15 +74,18 @@ func FormatMessage(msg types.Message, projectName string, agentBases map[string]
 	color := getAgentColor(msg.FromAgent, msg.Type, nil)
 	// Strip question sections from display
 	strippedBody := core.StripQuestionSections(msg.Body)
-	truncated := truncateForDisplay(strippedBody, msg.ID)
+	displayBody := strippedBody
+	if truncate {
+		displayBody = truncateForDisplay(strippedBody, msg.ID)
+	}
 
 	if color != "" {
-		coloredBody := colorizeBody(truncated, color, agentBases)
+		coloredBody := colorizeBody(displayBody, color, agentBases)
 		coloredBody = highlightIssueIDs(coloredBody, color)
 		return fmt.Sprintf("%s %s@%s: \"%s\"%s", idBlock, color, msg.FromAgent, coloredBody, reset)
 	}
 
-	highlightedBody := highlightIssueIDs(highlightMentions(truncated), "")
+	highlightedBody := highlightIssueIDs(highlightMentions(displayBody), "")
 	return fmt.Sprintf("%s @%s: \"%s\"", idBlock, msg.FromAgent, highlightedBody)
 }
 

@@ -165,8 +165,8 @@ func ReadMessages(projectPath string) ([]MessageJSONLRecord, error) {
 	return messages, nil
 }
 
-// messagePinEvent represents a pin or unpin event for rebuild.
-type messagePinEvent struct {
+// MessagePinEvent represents a pin or unpin event for rebuild.
+type MessagePinEvent struct {
 	Type        string
 	MessageGUID string
 	ThreadGUID  string
@@ -176,14 +176,14 @@ type messagePinEvent struct {
 }
 
 // ReadMessagePins reads message pin events from JSONL for rebuilding the database.
-func ReadMessagePins(projectPath string) ([]messagePinEvent, error) {
+func ReadMessagePins(projectPath string) ([]MessagePinEvent, error) {
 	frayDir := resolveFrayDir(projectPath)
 	lines, err := readJSONLLines(filepath.Join(frayDir, messagesFile))
 	if err != nil {
 		return nil, err
 	}
 
-	var events []messagePinEvent
+	var events []MessagePinEvent
 
 	for _, line := range lines {
 		var envelope struct {
@@ -199,7 +199,7 @@ func ReadMessagePins(projectPath string) ([]messagePinEvent, error) {
 			if err := json.Unmarshal([]byte(line), &pin); err != nil {
 				continue
 			}
-			events = append(events, messagePinEvent{
+			events = append(events, MessagePinEvent{
 				Type:        pin.Type,
 				MessageGUID: pin.MessageGUID,
 				ThreadGUID:  pin.ThreadGUID,
@@ -211,7 +211,7 @@ func ReadMessagePins(projectPath string) ([]messagePinEvent, error) {
 			if err := json.Unmarshal([]byte(line), &unpin); err != nil {
 				continue
 			}
-			events = append(events, messagePinEvent{
+			events = append(events, MessagePinEvent{
 				Type:        unpin.Type,
 				MessageGUID: unpin.MessageGUID,
 				ThreadGUID:  unpin.ThreadGUID,

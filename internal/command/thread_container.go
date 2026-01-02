@@ -33,6 +33,8 @@ func NewThreadCmd() *cobra.Command {
 			}
 
 			pinnedOnly, _ := cmd.Flags().GetBool("pinned")
+			lastStr, _ := cmd.Flags().GetString("last")
+			sinceStr, _ := cmd.Flags().GetString("since")
 
 			var messages []types.Message
 			if pinnedOnly {
@@ -48,6 +50,34 @@ func NewThreadCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 			messages = filterDeletedMessages(messages)
+
+			// Apply --since filter
+			if sinceStr != "" {
+				cursor, err := core.ParseTimeExpression(ctx.DB, sinceStr, "since")
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				var filtered []types.Message
+				for _, msg := range messages {
+					if cursor.ID != "" && msg.ID > cursor.ID {
+						filtered = append(filtered, msg)
+					} else if cursor.Timestamp != nil && msg.Timestamp > *cursor.Timestamp {
+						filtered = append(filtered, msg)
+					}
+				}
+				messages = filtered
+			}
+
+			// Apply --last limit
+			if lastStr != "" {
+				limit, err := strconv.Atoi(lastStr)
+				if err != nil {
+					return writeCommandError(cmd, fmt.Errorf("invalid --last value: %s", lastStr))
+				}
+				if limit > 0 && len(messages) > limit {
+					messages = messages[len(messages)-limit:]
+				}
+			}
 
 			path, err := buildThreadPath(ctx.DB, thread)
 			if err != nil {
@@ -82,10 +112,11 @@ func NewThreadCmd() *cobra.Command {
 			}
 			projectName := GetProjectName(ctx.Project.Root)
 
-			// Display anchor at top with thread metadata tree
+			// Display anchor at top with thread metadata tree (full content, no truncation)
 			if anchorMsg != nil {
 				fmt.Fprintln(out)
-				fmt.Fprintln(out, FormatMessage(*anchorMsg, projectName, bases))
+				fmt.Fprintf(out, "%sANCHOR:%s\n", dim, reset)
+				fmt.Fprintln(out, FormatMessageFull(*anchorMsg, projectName, bases))
 
 				// Build thread metadata tree
 				participants := collectParticipants(messages)
@@ -119,6 +150,8 @@ func NewThreadCmd() *cobra.Command {
 	}
 
 	cmd.Flags().Bool("pinned", false, "show only pinned messages")
+	cmd.Flags().String("last", "", "show last N messages")
+	cmd.Flags().String("since", "", "show messages after time or GUID")
 
 	cmd.AddCommand(
 		NewThreadNewCmd(),

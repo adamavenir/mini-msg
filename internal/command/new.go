@@ -236,6 +236,20 @@ func NewNewCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
+			// Create default DM thread between agent and user (if username configured)
+			var dmThread *types.Thread
+			if !isRejoin {
+				username, _ := db.GetConfig(ctx.DB, "username")
+				if username != "" {
+					threadName := fmt.Sprintf("dm-%s", agentID)
+					subscribers := []string{agentID, username}
+					dmThread, err = ensureThread(ctx, threadName, nil, subscribers)
+					if err != nil {
+						return writeCommandError(cmd, err)
+					}
+				}
+			}
+
 			// Post optional user message
 			var posted *types.Message
 			if message != "" {
@@ -272,6 +286,9 @@ func NewNewCmd() *cobra.Command {
 				if posted != nil {
 					payload["message_id"] = posted.ID
 				}
+				if dmThread != nil {
+					payload["dm_thread"] = dmThread.GUID
+				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 			}
 
@@ -289,6 +306,9 @@ func NewNewCmd() *cobra.Command {
 			}
 			if posted != nil {
 				fmt.Fprintf(out, "  Posted: [%s] %s\n", posted.ID, message)
+			}
+			if dmThread != nil {
+				fmt.Fprintf(out, "  DM thread: %s (%s)\n", dmThread.Name, dmThread.GUID)
 			}
 			if wroteEnv {
 				fmt.Fprintln(out, "  Registered with Claude hooks")
