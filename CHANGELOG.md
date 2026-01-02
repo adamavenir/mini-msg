@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0 (unreleased)]
 
+### Fixed
+- `fray history`: now accepts users as well as agents
+- `fray @agent`: includes mentions from thread messages, not just room
+- Chat: Enter key now submits message immediately (was requiring double-enter when suggestions shown)
+
 ### Changed
 - `fray get <agent>`: defaults to unread room messages (since watermark); use `--last N` for explicit last N
 - `fray get <agent>`: mentions now include replies to agent's messages and filter to unread-only
