@@ -10,15 +10,49 @@ const (
 	MessageTypeSurface MessageType = "surface"
 )
 
+// PresenceState represents the agent's daemon-managed presence.
+type PresenceState string
+
+const (
+	PresenceActive   PresenceState = "active"
+	PresenceSpawning PresenceState = "spawning"
+	PresenceIdle     PresenceState = "idle"
+	PresenceError    PresenceState = "error"
+	PresenceOffline  PresenceState = "offline"
+)
+
+// PromptDelivery specifies how prompts are passed to CLI.
+type PromptDelivery string
+
+const (
+	PromptDeliveryArgs     PromptDelivery = "args"
+	PromptDeliveryStdin    PromptDelivery = "stdin"
+	PromptDeliveryTempfile PromptDelivery = "tempfile"
+)
+
+// InvokeConfig holds driver-specific configuration for spawning agents.
+type InvokeConfig struct {
+	Driver         string         `json:"driver,omitempty"`          // claude, codex, opencode
+	Config         map[string]any `json:"config,omitempty"`          // driver-specific config
+	PromptDelivery PromptDelivery `json:"prompt_delivery,omitempty"` // args, stdin, tempfile
+	SpawnTimeoutMs int64          `json:"spawn_timeout_ms,omitempty"` // max time in 'spawning' before 'error' (default: 30000)
+	IdleAfterMs    int64          `json:"idle_after_ms,omitempty"`    // time since activity before 'idle' (default: 5000)
+	MaxRuntimeMs   int64          `json:"max_runtime_ms,omitempty"`   // forced termination timeout (default: 600000)
+}
+
 // Agent represents agent identity and presence.
 type Agent struct {
-	GUID         string  `json:"guid"`
-	AgentID      string  `json:"agent_id"`
-	Status       *string `json:"status,omitempty"`
-	Purpose      *string `json:"purpose,omitempty"`
-	RegisteredAt int64   `json:"registered_at"`
-	LastSeen     int64   `json:"last_seen"`
-	LeftAt       *int64  `json:"left_at,omitempty"`
+	GUID             string         `json:"guid"`
+	AgentID          string         `json:"agent_id"`
+	Status           *string        `json:"status,omitempty"`
+	Purpose          *string        `json:"purpose,omitempty"`
+	RegisteredAt     int64          `json:"registered_at"`
+	LastSeen         int64          `json:"last_seen"`
+	LeftAt           *int64         `json:"left_at,omitempty"`
+	Managed          bool           `json:"managed,omitempty"`           // whether daemon controls this agent
+	Invoke           *InvokeConfig  `json:"invoke,omitempty"`            // daemon invocation config
+	Presence         PresenceState  `json:"presence,omitempty"`          // daemon-tracked presence state
+	MentionWatermark *string        `json:"mention_watermark,omitempty"` // last processed mention msg_id
 }
 
 // Message represents a room message.
@@ -255,4 +289,30 @@ type ClaimInput struct {
 	Pattern   string    `json:"pattern"`
 	Reason    *string   `json:"reason,omitempty"`
 	ExpiresAt *int64    `json:"expires_at,omitempty"`
+}
+
+// SessionStart records when a daemon spawns an agent session.
+type SessionStart struct {
+	AgentID     string  `json:"agent_id"`
+	SessionID   string  `json:"session_id"`
+	TriggeredBy *string `json:"triggered_by,omitempty"` // msg_id that triggered spawn
+	ThreadGUID  *string `json:"thread_guid,omitempty"`  // thread context if applicable
+	StartedAt   int64   `json:"started_at"`
+}
+
+// SessionEnd records when an agent session completes.
+type SessionEnd struct {
+	AgentID    string `json:"agent_id"`
+	SessionID  string `json:"session_id"`
+	ExitCode   int    `json:"exit_code"`
+	DurationMs int64  `json:"duration_ms"`
+	EndedAt    int64  `json:"ended_at"`
+}
+
+// SessionHeartbeat records periodic session health updates.
+type SessionHeartbeat struct {
+	AgentID   string        `json:"agent_id"`
+	SessionID string        `json:"session_id"`
+	Status    PresenceState `json:"status"`
+	At        int64         `json:"at"`
 }

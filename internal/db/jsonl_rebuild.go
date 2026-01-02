@@ -162,6 +162,9 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	if _, err := db.Exec("DROP TABLE IF EXISTS fray_messages"); err != nil {
 		return err
 	}
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_agent_sessions"); err != nil {
+		return err
+	}
 	if _, err := db.Exec("DROP TABLE IF EXISTS fray_agents"); err != nil {
 		return err
 	}
@@ -197,8 +200,8 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 
 	insertAgent := `
 		INSERT OR REPLACE INTO fray_agents (
-			guid, agent_id, status, purpose, registered_at, last_seen, left_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
+			guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	for _, agent := range agents {
@@ -211,6 +214,26 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 			purpose = agent.Bio
 		}
 
+		var invokeJSON *string
+		if agent.Invoke != nil {
+			data, err := json.Marshal(agent.Invoke)
+			if err != nil {
+				return err
+			}
+			s := string(data)
+			invokeJSON = &s
+		}
+
+		managed := 0
+		if agent.Managed {
+			managed = 1
+		}
+
+		presence := agent.Presence
+		if presence == "" {
+			presence = "offline"
+		}
+
 		if _, err := db.Exec(insertAgent,
 			agent.ID,
 			agent.AgentID,
@@ -219,6 +242,10 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 			agent.RegisteredAt,
 			agent.LastSeen,
 			agent.LeftAt,
+			managed,
+			invokeJSON,
+			presence,
+			agent.MentionWatermark,
 		); err != nil {
 			return err
 		}

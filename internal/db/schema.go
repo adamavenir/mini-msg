@@ -16,8 +16,28 @@ CREATE TABLE IF NOT EXISTS fray_agents (
   purpose TEXT,                        -- static identity/role info
   registered_at INTEGER NOT NULL,      -- unix timestamp
   last_seen INTEGER NOT NULL,          -- updated on post
-  left_at INTEGER                      -- set by "bye", null if active
+  left_at INTEGER,                     -- set by "bye", null if active
+  managed INTEGER NOT NULL DEFAULT 0,  -- whether daemon controls this agent
+  invoke TEXT,                         -- JSON: driver config for spawning
+  presence TEXT DEFAULT 'offline',     -- active, spawning, idle, error, offline
+  mention_watermark TEXT               -- last processed mention msg_id
 );
+
+-- Agent sessions (daemon-managed)
+CREATE TABLE IF NOT EXISTS fray_agent_sessions (
+  session_id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  triggered_by TEXT,                   -- msg_id that triggered spawn
+  thread_guid TEXT,                    -- thread context if applicable
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  exit_code INTEGER,
+  duration_ms INTEGER,
+  FOREIGN KEY (agent_id) REFERENCES fray_agents(agent_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fray_agent_sessions_agent ON fray_agent_sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_fray_agent_sessions_started ON fray_agent_sessions(started_at);
 
 -- Room messages
 CREATE TABLE IF NOT EXISTS fray_messages (
@@ -597,6 +617,34 @@ func migrateSchema(db DBTX) error {
 	if len(questionColumns) > 0 && !hasColumn(questionColumns, "options") {
 		if _, err := db.Exec("ALTER TABLE fray_questions ADD COLUMN options TEXT DEFAULT '[]'"); err != nil {
 			return err
+		}
+	}
+
+	// Add managed agent columns if missing
+	agentColumns, err = getTableInfo(db, "fray_agents")
+	if err != nil {
+		return err
+	}
+	if len(agentColumns) > 0 {
+		if !hasColumn(agentColumns, "managed") {
+			if _, err := db.Exec("ALTER TABLE fray_agents ADD COLUMN managed INTEGER NOT NULL DEFAULT 0"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(agentColumns, "invoke") {
+			if _, err := db.Exec("ALTER TABLE fray_agents ADD COLUMN invoke TEXT"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(agentColumns, "presence") {
+			if _, err := db.Exec("ALTER TABLE fray_agents ADD COLUMN presence TEXT DEFAULT 'offline'"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(agentColumns, "mention_watermark") {
+			if _, err := db.Exec("ALTER TABLE fray_agents ADD COLUMN mention_watermark TEXT"); err != nil {
+				return err
+			}
 		}
 	}
 

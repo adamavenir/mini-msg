@@ -20,7 +20,7 @@ type AgentUpdates struct {
 // GetAgent returns an agent by exact ID.
 func GetAgent(db *sql.DB, agentID string) (*types.Agent, error) {
 	row := db.QueryRow(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark
 		FROM fray_agents
 		WHERE agent_id = ?
 	`, agentID)
@@ -38,7 +38,7 @@ func GetAgent(db *sql.DB, agentID string) (*types.Agent, error) {
 // GetAgentsByPrefix returns agents matching a prefix.
 func GetAgentsByPrefix(db *sql.DB, prefix string) ([]types.Agent, error) {
 	rows, err := db.Query(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark
 		FROM fray_agents
 		WHERE agent_id = ? OR agent_id LIKE ?
 		ORDER BY agent_id
@@ -65,7 +65,7 @@ func GetAgentsByPrefix(db *sql.DB, prefix string) ([]types.Agent, error) {
 // GetAgents returns all agents.
 func GetAgents(db *sql.DB) ([]types.Agent, error) {
 	rows, err := db.Query(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark
 		FROM fray_agents
 		ORDER BY agent_id
 	`)
@@ -99,10 +99,30 @@ func CreateAgent(db *sql.DB, agent types.Agent) error {
 		}
 	}
 
+	var invokeJSON *string
+	if agent.Invoke != nil {
+		data, err := json.Marshal(agent.Invoke)
+		if err != nil {
+			return err
+		}
+		s := string(data)
+		invokeJSON = &s
+	}
+
+	managed := 0
+	if agent.Managed {
+		managed = 1
+	}
+
+	presence := string(agent.Presence)
+	if presence == "" {
+		presence = string(types.PresenceOffline)
+	}
+
 	_, err := db.Exec(`
-		INSERT INTO fray_agents (guid, agent_id, status, purpose, registered_at, last_seen, left_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, guid, agent.AgentID, agent.Status, agent.Purpose, agent.RegisteredAt, agent.LastSeen, agent.LeftAt)
+		INSERT INTO fray_agents (guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, guid, agent.AgentID, agent.Status, agent.Purpose, agent.RegisteredAt, agent.LastSeen, agent.LeftAt, managed, invokeJSON, presence, agent.MentionWatermark)
 	return err
 }
 
@@ -141,7 +161,7 @@ func UpdateAgent(db *sql.DB, agentID string, updates AgentUpdates) error {
 // GetActiveAgents returns non-stale agents.
 func GetActiveAgents(db *sql.DB, staleHours int) ([]types.Agent, error) {
 	rows, err := db.Query(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark
 		FROM fray_agents
 		WHERE left_at IS NULL
 		  AND last_seen > (strftime('%s', 'now') - ? * 3600)
@@ -169,7 +189,7 @@ func GetActiveAgents(db *sql.DB, staleHours int) ([]types.Agent, error) {
 // GetAllAgents returns all agents.
 func GetAllAgents(db *sql.DB) ([]types.Agent, error) {
 	rows, err := db.Query(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark
 		FROM fray_agents
 		ORDER BY agent_id
 	`)
@@ -505,30 +525,46 @@ func NextVersion(db *sql.DB, base string) (int, error) {
 
 func scanAgent(scanner interface{ Scan(dest ...any) error }) (types.Agent, error) {
 	var row agentRow
-	if err := scanner.Scan(&row.GUID, &row.AgentID, &row.Status, &row.Purpose, &row.RegisteredAt, &row.LastSeen, &row.LeftAt); err != nil {
+	if err := scanner.Scan(&row.GUID, &row.AgentID, &row.Status, &row.Purpose, &row.RegisteredAt, &row.LastSeen, &row.LeftAt, &row.Managed, &row.Invoke, &row.Presence, &row.MentionWatermark); err != nil {
 		return types.Agent{}, err
 	}
 	return row.toAgent(), nil
 }
 
 type agentRow struct {
-	GUID         string
-	AgentID      string
-	Status       sql.NullString
-	Purpose      sql.NullString
-	RegisteredAt int64
-	LastSeen     int64
-	LeftAt       sql.NullInt64
+	GUID             string
+	AgentID          string
+	Status           sql.NullString
+	Purpose          sql.NullString
+	RegisteredAt     int64
+	LastSeen         int64
+	LeftAt           sql.NullInt64
+	Managed          int
+	Invoke           sql.NullString
+	Presence         sql.NullString
+	MentionWatermark sql.NullString
 }
 
 func (row agentRow) toAgent() types.Agent {
-	return types.Agent{
-		GUID:         row.GUID,
-		AgentID:      row.AgentID,
-		Status:       nullStringPtr(row.Status),
-		Purpose:      nullStringPtr(row.Purpose),
-		RegisteredAt: row.RegisteredAt,
-		LastSeen:     row.LastSeen,
-		LeftAt:       nullIntPtr(row.LeftAt),
+	agent := types.Agent{
+		GUID:             row.GUID,
+		AgentID:          row.AgentID,
+		Status:           nullStringPtr(row.Status),
+		Purpose:          nullStringPtr(row.Purpose),
+		RegisteredAt:     row.RegisteredAt,
+		LastSeen:         row.LastSeen,
+		LeftAt:           nullIntPtr(row.LeftAt),
+		Managed:          row.Managed != 0,
+		MentionWatermark: nullStringPtr(row.MentionWatermark),
 	}
+	if row.Presence.Valid {
+		agent.Presence = types.PresenceState(row.Presence.String)
+	}
+	if row.Invoke.Valid && row.Invoke.String != "" {
+		var invoke types.InvokeConfig
+		if err := json.Unmarshal([]byte(row.Invoke.String), &invoke); err == nil {
+			agent.Invoke = &invoke
+		}
+	}
+	return agent
 }

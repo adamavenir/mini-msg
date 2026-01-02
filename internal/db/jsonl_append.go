@@ -104,25 +104,93 @@ func AppendAgent(projectPath string, agent types.Agent) error {
 	}
 
 	record := AgentJSONLRecord{
-		Type:         "agent",
-		ID:           agent.GUID,
-		Name:         name,
-		GlobalName:   &globalName,
-		HomeChannel:  nil,
-		CreatedAt:    &createdAt,
-		ActiveStatus: &activeStatus,
-		AgentID:      agent.AgentID,
-		Status:       agent.Status,
-		Purpose:      agent.Purpose,
-		RegisteredAt: agent.RegisteredAt,
-		LastSeen:     agent.LastSeen,
-		LeftAt:       agent.LeftAt,
+		Type:             "agent",
+		ID:               agent.GUID,
+		Name:             name,
+		GlobalName:       &globalName,
+		HomeChannel:      nil,
+		CreatedAt:        &createdAt,
+		ActiveStatus:     &activeStatus,
+		AgentID:          agent.AgentID,
+		Status:           agent.Status,
+		Purpose:          agent.Purpose,
+		RegisteredAt:     agent.RegisteredAt,
+		LastSeen:         agent.LastSeen,
+		LeftAt:           agent.LeftAt,
+		Managed:          agent.Managed,
+		Invoke:           agent.Invoke,
+		Presence:         string(agent.Presence),
+		MentionWatermark: agent.MentionWatermark,
 	}
 
 	if channelID != "" {
 		record.HomeChannel = &channelID
 	}
 
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendAgentUpdate appends an agent update record to JSONL.
+func AppendAgentUpdate(projectPath string, update AgentUpdateJSONLRecord) error {
+	frayDir := resolveFrayDir(projectPath)
+	update.Type = "agent_update"
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), update); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendSessionStart appends a session start event to JSONL.
+func AppendSessionStart(projectPath string, event types.SessionStart) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := SessionStartJSONLRecord{
+		Type:        "session_start",
+		AgentID:     event.AgentID,
+		SessionID:   event.SessionID,
+		TriggeredBy: event.TriggeredBy,
+		ThreadGUID:  event.ThreadGUID,
+		StartedAt:   event.StartedAt,
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendSessionEnd appends a session end event to JSONL.
+func AppendSessionEnd(projectPath string, event types.SessionEnd) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := SessionEndJSONLRecord{
+		Type:       "session_end",
+		AgentID:    event.AgentID,
+		SessionID:  event.SessionID,
+		ExitCode:   event.ExitCode,
+		DurationMs: event.DurationMs,
+		EndedAt:    event.EndedAt,
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendSessionHeartbeat appends a session heartbeat event to JSONL.
+func AppendSessionHeartbeat(projectPath string, event types.SessionHeartbeat) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := SessionHeartbeatJSONLRecord{
+		Type:      "session_heartbeat",
+		AgentID:   event.AgentID,
+		SessionID: event.SessionID,
+		Status:    string(event.Status),
+		At:        event.At,
+	}
 	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
 		return err
 	}
