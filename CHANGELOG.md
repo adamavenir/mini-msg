@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Driver support for claude, codex, opencode CLIs with configurable prompt delivery
 - Presence tracking: active, spawning, idle, error, offline states
 - Session lifecycle events in agents.jsonl (session_start, session_end)
+- Done-detection via checkin: `min_checkin` (10m) recycles idle sessions with no fray activity; `max_runtime` (unlimited) removed hard timeout
+- `fray heartbeat`: silent checkin for long-running work without posting
+- Claude path resolution: daemon finds claude at `~/.claude/local/claude` and other common locations
 
 ### Removed
 - `fray unreact`: reactions are permanent (no removal)
