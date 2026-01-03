@@ -261,11 +261,13 @@ func NewGetCmd() *cobra.Command {
 
 				if ctx.JSONMode {
 					readTo, _ := db.GetReadToForHome(ctx.DB, "room")
+					threadHints, _ := getThreadActivityHints(ctx, agentBase)
 					payload := map[string]any{
 						"project":       projectName,
 						"room_messages": roomMessages,
 						"mentions":      filtered,
 						"read_to":       readTo,
+						"threads":       threadHints,
 					}
 					return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 				}
@@ -298,6 +300,18 @@ func NewGetCmd() *cobra.Command {
 						for _, reactionLine := range formatReactionEvents(msg) {
 							fmt.Fprintf(out, "  %s\n", reactionLine)
 						}
+					}
+				}
+
+				// Show thread activity hints
+				threadHints, _ := getThreadActivityHints(ctx, agentBase)
+				if len(threadHints) > 0 {
+					fmt.Fprintln(out, "")
+					fmt.Fprintln(out, "---")
+					fmt.Fprintln(out, "")
+					fmt.Fprintln(out, "Threads:")
+					for _, hint := range threadHints {
+						fmt.Fprintln(out, formatThreadHint(hint))
 					}
 				}
 
@@ -362,4 +376,112 @@ func parseOptionalInt(value string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+// ThreadActivityHint represents unread activity in a subscribed thread.
+type ThreadActivityHint struct {
+	ThreadGUID  string
+	ThreadName  string
+	NewCount    int
+	LastMessage *types.Message
+	MustRead    bool // from ghost cursor
+}
+
+// getThreadActivityHints returns activity hints for subscribed threads.
+func getThreadActivityHints(ctx *CommandContext, agentID string) ([]ThreadActivityHint, error) {
+	// Get subscribed threads (excluding muted)
+	threads, err := db.GetThreads(ctx.DB, &types.ThreadQueryOptions{
+		SubscribedAgent: &agentID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(threads) == 0 {
+		return nil, nil
+	}
+
+	// Get muted threads to filter
+	mutedGUIDs, err := db.GetMutedThreadGUIDs(ctx.DB, agentID)
+	if err != nil {
+		mutedGUIDs = map[string]bool{}
+	}
+
+	var hints []ThreadActivityHint
+	for _, thread := range threads {
+		if mutedGUIDs[thread.GUID] {
+			continue
+		}
+
+		// Determine read position - check ghost cursor first, then read_to
+		var sinceCursor *types.MessageCursor
+		mustRead := false
+
+		ghostCursor, _ := db.GetGhostCursor(ctx.DB, agentID, thread.GUID)
+		if ghostCursor != nil {
+			msg, err := db.GetMessage(ctx.DB, ghostCursor.MessageGUID)
+			if err == nil && msg != nil {
+				sinceCursor = &types.MessageCursor{GUID: msg.ID, TS: msg.TS}
+				mustRead = ghostCursor.MustRead
+			}
+		}
+
+		if sinceCursor == nil {
+			readTo, _ := db.GetReadTo(ctx.DB, agentID, thread.GUID)
+			if readTo != nil {
+				sinceCursor = &types.MessageCursor{GUID: readTo.MessageGUID, TS: readTo.MessageTS}
+			}
+		}
+
+		// Get messages since read position
+		home := thread.GUID
+		messages, err := db.GetMessages(ctx.DB, &types.MessageQueryOptions{
+			Home:  &home,
+			Since: sinceCursor,
+		})
+		if err != nil {
+			continue
+		}
+
+		if len(messages) == 0 {
+			continue
+		}
+
+		hint := ThreadActivityHint{
+			ThreadGUID:  thread.GUID,
+			ThreadName:  thread.Name,
+			NewCount:    len(messages),
+			LastMessage: &messages[len(messages)-1],
+			MustRead:    mustRead,
+		}
+		hints = append(hints, hint)
+	}
+
+	return hints, nil
+}
+
+// formatThreadHint formats a single thread activity hint.
+func formatThreadHint(hint ThreadActivityHint) string {
+	suffix := ""
+	if hint.MustRead {
+		suffix = " [must-read]"
+	}
+
+	// Extract first line, truncate to ~30 chars
+	context := ""
+	if hint.LastMessage != nil {
+		body := strings.TrimSpace(hint.LastMessage.Body)
+		// Get first line only
+		if idx := strings.Index(body, "\n"); idx > 0 {
+			body = body[:idx]
+		}
+		body = strings.TrimSpace(body)
+		if len(body) > 30 {
+			body = body[:27] + "..."
+		}
+		if body != "" {
+			context = fmt.Sprintf(" (last: @%s on %s)", hint.LastMessage.FromAgent, body)
+		}
+	}
+
+	return fmt.Sprintf("  %s: %d new%s%s", hint.ThreadName, hint.NewCount, context, suffix)
 }
