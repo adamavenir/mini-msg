@@ -67,6 +67,55 @@ History:
 
 Tests: session resume, watermark respect, handoff context
 
+### neo-simulation
+Rich scenario for testing `neo` onboarding and `get` commands. Simulates a realistic
+agent returning after being away with lots of activity to catch up on.
+
+**Agents:**
+- Human: `adam`
+- Test subject: `neo` (offline, completed previous session)
+- Others: `architect` (idle), `reviewer` (offline), `dev` (offline)
+
+**Threads (5):**
+- `meta` - project-wide shared context (neo subscribed)
+- `neo-notes` - neo's personal handoff notes (neo owns)
+- `design-discussion` - JWT auth design (neo subscribed, architect owns)
+- `code-review` - PR review (neo NOT subscribed - tests filtering)
+- `deep-dive` - error handling with reply chain (neo subscribed, adam owns)
+
+**Messages (18 total):**
+- 10 from neo's previous session (read before leaving)
+- 8 new while neo was away (unread)
+- Includes: direct mentions, mid-sentence mentions, cc/fyi mentions
+- Reply chains in deep-dive thread
+- Reactions on neo's messages
+
+**Questions:**
+- 1 closed (neo answered in previous session)
+- 2 open directed to neo (PASETO question, error handling question)
+- 1 unasked wonder from architect
+
+**Reactions on neo's messages:**
+- `msg-neo-read1`: "good idea" from architect, 👍 from adam
+- `msg-neo-read3`: "LGTM" from architect and adam
+- `msg-neo-note1`: "helpful" from architect
+
+**Session history:**
+- Previous session: 1767300100-1767310000 (~2.7 hours)
+- Neo left handoff note before leaving
+- New activity: 1767400000-1767404000
+
+**What neo should see on return (`fray get neo`):**
+- Room activity since leaving
+- @mentions (direct should be prominent, cc/fyi less so)
+- Thread activity in subscribed threads
+- Should NOT see code-review thread activity (not subscribed)
+- Open questions assigned to neo
+- Reactions on their messages
+
+**Tests:** neo onboarding, get command, mention filtering, thread subscriptions,
+question visibility, reaction display, read/unread distinction
+
 ## JSONL Structure Reference
 
 All scenarios follow the same structure:

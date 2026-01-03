@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "channel_id": "ch-test-neo",
+  "channel_name": "neo-simulation-test",
+  "created_at": "2026-01-01T00:00:00Z",
+  "known_agents": {
+    "usr-human001": {
+      "name": "adam",
+      "global_name": "fray-adam",
+      "home_channel": "ch-test-neo",
+      "created_at": "2026-01-01T00:00:00Z",
+      "status": "active"
+    }
+  }
+}
