@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Daemon direct-address filter: only @mentions at message start trigger spawns (mid-sentence, FYI, CC ignored)
 - Thread ownership: human owns room, thread creator owns thread; only owner/human can trigger daemon
 - Session resume: daemon stores Claude Code session ID after spawn, uses `--resume` on next @mention
+- `fray daemon --debug`: detailed logging of poll cycles, mention detection, spawn decisions
+- `fray rebuild`: rebuild database from JSONL files (fixes schema errors, works even when DB corrupted)
+- `fray clock`: ambient agent status display showing heartbeat timer and notification counts
+- `fray watch` shows heartbeat timer when `FRAY_AGENT_ID` env var is set
+- Schema error hints: commands suggest `fray rebuild` when encountering schema mismatches
 
 ### Removed
 - `fray unreact`: reactions are permanent (no removal)
