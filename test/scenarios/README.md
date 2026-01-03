@@ -67,7 +67,7 @@ History:
 
 Tests: session resume, watermark respect, handoff context
 
-### neo-simulation
+### returning-agent
 Rich scenario for testing `neo` onboarding and `get` commands. Simulates a realistic
 agent returning after being away with lots of activity to catch up on.
 
