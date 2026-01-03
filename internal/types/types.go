@@ -55,6 +55,7 @@ type Agent struct {
 	Presence         PresenceState  `json:"presence,omitempty"`          // daemon-tracked presence state
 	MentionWatermark *string        `json:"mention_watermark,omitempty"` // last processed mention msg_id
 	LastHeartbeat    *int64         `json:"last_heartbeat,omitempty"`    // last silent checkin timestamp (ms)
+	LastSessionID    *string        `json:"last_session_id,omitempty"`   // Claude Code session ID for --resume
 }
 
 // Message represents a room message.
@@ -253,6 +254,8 @@ type Thread struct {
 	ParentThread      *string      `json:"parent_thread,omitempty"`
 	Status            ThreadStatus `json:"status"`
 	CreatedAt         int64        `json:"created_at"`
+	CreatedBy         *string      `json:"created_by,omitempty"`   // agent_id or "human" who created thread
+	OwnerAgent        *string      `json:"owner_agent,omitempty"` // agent who owns thread for daemon purposes (nil = human-only)
 	AnchorMessageGUID *string      `json:"anchor_message_guid,omitempty"`
 	AnchorHidden      bool         `json:"anchor_hidden,omitempty"`
 	LastActivityAt    *int64       `json:"last_activity_at,omitempty"`

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"database/sql"
+	"strings"
 	"sync"
 
 	"github.com/adamavenir/fray/internal/db"
@@ -101,6 +102,87 @@ func (d *MentionDebouncer) PendingCount(agentID string) int {
 // IsSelfMention returns true if the message is from the given agent.
 func IsSelfMention(msg types.Message, agentID string) bool {
 	return msg.FromAgent == agentID
+}
+
+// IsDirectAddress returns true if the agent is mentioned at the start of the message.
+// Direct address means the agent is being spoken TO, not just mentioned.
+// Examples:
+//   - "@alice @bob hey" → alice and bob are direct (mentioned before content)
+//   - "hey @alice" → alice is NOT direct (mentioned mid-sentence)
+//   - "cc @alice" → alice is NOT direct (CC pattern = FYI)
+//   - "FYI @alice" → alice is NOT direct (FYI pattern)
+func IsDirectAddress(msg types.Message, agentID string) bool {
+	body := strings.TrimSpace(msg.Body)
+	bodyLower := strings.ToLower(body)
+
+	// Check for FYI patterns at start - these are never direct
+	fyiPrefixes := []string{"fyi ", "fyi:", "cc ", "cc:", "heads up ", "just so you know "}
+	for _, prefix := range fyiPrefixes {
+		if strings.HasPrefix(bodyLower, prefix) {
+			return false
+		}
+	}
+
+	// Message must start with @ to be direct address
+	if !strings.HasPrefix(body, "@") {
+		return false
+	}
+
+	// Find where the @-block ends (first non-@ word)
+	// The @-block is contiguous mentions at the start: "@a @b @c hey" → block is "@a @b @c"
+	words := strings.Fields(body)
+	for _, word := range words {
+		if !strings.HasPrefix(word, "@") {
+			// Hit first non-mention word, stop checking
+			break
+		}
+		// Check if this mention matches the agent (with prefix matching via ".")
+		mention := strings.TrimPrefix(word, "@")
+		mention = strings.TrimRight(mention, ".,;:!?") // Strip trailing punctuation
+		if matchesMention(mention, agentID) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// matchesMention returns true if the mention matches the agent.
+// Uses prefix matching with "." as separator: "@alice" matches "alice", "alice.1", "alice.frontend"
+func matchesMention(mention, agentID string) bool {
+	if mention == agentID {
+		return true
+	}
+	// Prefix match: mention "alice" matches agentID "alice.1"
+	if strings.HasPrefix(agentID, mention+".") {
+		return true
+	}
+	// Exact match on prefix: agentID "alice" matches mention "alice.1" (agent gets mentions for sub-agents)
+	if strings.HasPrefix(mention, agentID+".") {
+		return true
+	}
+	return false
+}
+
+// CanTriggerSpawn returns true if the message author can trigger a spawn for the agent.
+// Rules:
+// - In room: only human (non-agent) can trigger
+// - In thread with owner: human OR owner can trigger
+// - In thread without owner (user-started): only human can trigger
+func CanTriggerSpawn(msg types.Message, thread *types.Thread) bool {
+	// Check if author is human (not an agent)
+	isHuman := msg.FromAgent == "" || msg.FromAgent == "human"
+
+	if isHuman {
+		return true
+	}
+
+	// Author is an agent - only allowed if they own the thread
+	if thread != nil && thread.OwnerAgent != nil && *thread.OwnerAgent == msg.FromAgent {
+		return true
+	}
+
+	return false
 }
 
 // ShouldSpawn determines if a mention should trigger a spawn.

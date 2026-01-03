@@ -1,0 +1,7 @@
+>> Claude model primitives for fray daemon
+>> Simplified from party proto-5.1 - just haiku for routing decisions
+
+>> Haiku for fast, cheap decisions (no tools needed)
+exe @haiku(prompt) = @prompt | cmd { claude -p --model haiku --tools "" }
+
+export { @haiku }

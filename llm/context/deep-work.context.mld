@@ -1,0 +1,40 @@
+>> Deep Work Context Assembler
+>> Full session context for task initiation or continuation
+>> Equivalent to /fly prompt
+
+exe @assemble(agent, message, threadContext) = `
+# Session Start
+
+Your name for this session: **@agent.name**
+
+Use \`--as @agent.name\` and \`@@agent.name\` throughout.
+
+## You were @mentioned
+
+@message.from_agent said:
+> @message.body
+
+## Recent Thread Context
+@threadContext
+
+## Your Instructions
+
+1. Run \`fray notes --as @agent.name\` to check for prior session handoffs
+2. Run \`fray meta\` for project-wide shared context
+3. Run \`bd ready\` to see unblocked issues
+
+Read any instructions left for you in the notes. Look for:
+- **Current Priority** - work to continue
+- **Active Patterns** - workflows to follow
+- Specific docs, threads, or work to continue
+
+## As You Work
+
+- **Claim files before editing**: \`fray claim @@agent.name --file <path>\`
+- **Track work in beads**: \`bd update <id> --status in_progress\`
+- **Close issues when done**: \`bd close <id> --reason "..."\`
+
+Claims auto-clear when you \`fray bye\`, or clear manually with \`fray clear @@agent.name\`.
+`
+
+export { @assemble }

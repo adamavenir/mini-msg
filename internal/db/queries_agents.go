@@ -20,7 +20,7 @@ type AgentUpdates struct {
 // GetAgent returns an agent by exact ID.
 func GetAgent(db *sql.DB, agentID string) (*types.Agent, error) {
 	row := db.QueryRow(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat, last_session_id
 		FROM fray_agents
 		WHERE agent_id = ?
 	`, agentID)
@@ -38,7 +38,7 @@ func GetAgent(db *sql.DB, agentID string) (*types.Agent, error) {
 // GetAgentsByPrefix returns agents matching a prefix.
 func GetAgentsByPrefix(db *sql.DB, prefix string) ([]types.Agent, error) {
 	rows, err := db.Query(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat, last_session_id
 		FROM fray_agents
 		WHERE agent_id = ? OR agent_id LIKE ?
 		ORDER BY agent_id
@@ -65,7 +65,7 @@ func GetAgentsByPrefix(db *sql.DB, prefix string) ([]types.Agent, error) {
 // GetAgents returns all agents.
 func GetAgents(db *sql.DB) ([]types.Agent, error) {
 	rows, err := db.Query(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat, last_session_id
 		FROM fray_agents
 		ORDER BY agent_id
 	`)
@@ -144,6 +144,12 @@ func UpdateAgentHeartbeat(db *sql.DB, agentID string, timestampMs int64) error {
 	return err
 }
 
+// UpdateAgentSessionID updates the Claude Code session ID for resume.
+func UpdateAgentSessionID(db *sql.DB, agentID, sessionID string) error {
+	_, err := db.Exec(`UPDATE fray_agents SET last_session_id = ? WHERE agent_id = ?`, sessionID, agentID)
+	return err
+}
+
 // UpdateAgent updates agent fields.
 func UpdateAgent(db *sql.DB, agentID string, updates AgentUpdates) error {
 	var fields []string
@@ -179,7 +185,7 @@ func UpdateAgent(db *sql.DB, agentID string, updates AgentUpdates) error {
 // GetActiveAgents returns non-stale agents.
 func GetActiveAgents(db *sql.DB, staleHours int) ([]types.Agent, error) {
 	rows, err := db.Query(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat, last_session_id
 		FROM fray_agents
 		WHERE left_at IS NULL
 		  AND last_seen > (strftime('%s', 'now') - ? * 3600)
@@ -207,7 +213,7 @@ func GetActiveAgents(db *sql.DB, staleHours int) ([]types.Agent, error) {
 // GetAllAgents returns all agents.
 func GetAllAgents(db *sql.DB) ([]types.Agent, error) {
 	rows, err := db.Query(`
-		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat
+		SELECT guid, agent_id, status, purpose, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat, last_session_id
 		FROM fray_agents
 		ORDER BY agent_id
 	`)
@@ -543,7 +549,7 @@ func NextVersion(db *sql.DB, base string) (int, error) {
 
 func scanAgent(scanner interface{ Scan(dest ...any) error }) (types.Agent, error) {
 	var row agentRow
-	if err := scanner.Scan(&row.GUID, &row.AgentID, &row.Status, &row.Purpose, &row.RegisteredAt, &row.LastSeen, &row.LeftAt, &row.Managed, &row.Invoke, &row.Presence, &row.MentionWatermark, &row.LastHeartbeat); err != nil {
+	if err := scanner.Scan(&row.GUID, &row.AgentID, &row.Status, &row.Purpose, &row.RegisteredAt, &row.LastSeen, &row.LeftAt, &row.Managed, &row.Invoke, &row.Presence, &row.MentionWatermark, &row.LastHeartbeat, &row.LastSessionID); err != nil {
 		return types.Agent{}, err
 	}
 	return row.toAgent(), nil
@@ -562,6 +568,7 @@ type agentRow struct {
 	Presence         sql.NullString
 	MentionWatermark sql.NullString
 	LastHeartbeat    sql.NullInt64
+	LastSessionID    sql.NullString
 }
 
 func (row agentRow) toAgent() types.Agent {
@@ -576,6 +583,7 @@ func (row agentRow) toAgent() types.Agent {
 		Managed:          row.Managed != 0,
 		MentionWatermark: nullStringPtr(row.MentionWatermark),
 		LastHeartbeat:    nullIntPtr(row.LastHeartbeat),
+		LastSessionID:    nullStringPtr(row.LastSessionID),
 	}
 	if row.Presence.Valid {
 		agent.Presence = types.PresenceState(row.Presence.String)

@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS fray_agents (
   invoke TEXT,                         -- JSON: driver config for spawning
   presence TEXT DEFAULT 'offline',     -- active, spawning, idle, error, offline
   mention_watermark TEXT,              -- last processed mention msg_id
-  last_heartbeat INTEGER               -- last silent checkin timestamp (ms)
+  last_heartbeat INTEGER,              -- last silent checkin timestamp (ms)
+  last_session_id TEXT                 -- Claude Code session UUID for --resume
 );
 
 -- Agent sessions (daemon-managed)

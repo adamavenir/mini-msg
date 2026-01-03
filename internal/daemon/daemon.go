@@ -258,6 +258,27 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 			continue
 		}
 
+		// Skip non-direct mentions (mid-sentence, FYI, CC patterns)
+		// These will show up in agent's mentions but don't trigger spawn
+		if !IsDirectAddress(msg, agent.AgentID) {
+			if !hasQueued && !spawned {
+				lastProcessedID = msg.ID
+			}
+			continue
+		}
+
+		// Check thread ownership - only human or thread owner can trigger spawn
+		var thread *types.Thread
+		if msg.Home != "" && msg.Home != "room" {
+			thread, _ = db.GetThread(d.database, msg.Home)
+		}
+		if !CanTriggerSpawn(msg, thread) {
+			if !hasQueued && !spawned {
+				lastProcessedID = msg.ID
+			}
+			continue
+		}
+
 		// If we already spawned this poll, or agent is busy, queue the mention
 		// Note: Don't advance watermark for queued messages - pending is in-memory,
 		// so on restart we need to re-query and re-queue them
@@ -541,6 +562,11 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 		EndedAt:    time.Now().Unix(),
 	}
 	db.AppendSessionEnd(d.project.DBPath, sessionEnd)
+
+	// Detect and store Claude Code session ID for next --resume
+	if claudeSessionID := FindClaudeSessionID(d.project.Root); claudeSessionID != "" {
+		db.UpdateAgentSessionID(d.database, agentID, claudeSessionID)
+	}
 
 	// Cleanup process resources
 	driver := d.getDriver(agentID)

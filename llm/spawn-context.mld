@@ -1,0 +1,41 @@
+>> Spawn Context Entry Point
+>> Main entry for daemon to determine spawn mode and assemble context
+>> Usage: mlld llm/spawn-context.mld --payload '{"agent":..., "message":..., "threadContext":...}'
+
+import { @router } from "@routers/response-mode.router.mld"
+import { @assemble as @deepWork } from "@context/deep-work.context.mld"
+import { @assemble as @weighIn } from "@context/weigh-in.context.mld"
+import { @assemble as @quickAnswer } from "@context/quick-answer.context.mld"
+
+>> Main entry point
+>> Input payload: { agent, message, threadContext, agentNotes }
+>> Output: { mode, prompt, shouldSpawn }
+exe @main(payload) = [
+  >> Route to determine mode
+  let @routeResult = @router({
+    message: @payload.message,
+    threadContext: @payload.threadContext,
+    agentNotes: @payload.agentNotes
+  })
+
+  >> Assemble context based on mode
+  let @prompt = when first [
+    @routeResult.mode == "deep-work" => @deepWork(@payload.agent, @payload.message, @payload.threadContext)
+    @routeResult.mode == "weigh-in" => @weighIn(@payload.agent, @payload.message, @payload.threadContext, @payload.agentNotes)
+    @routeResult.mode == "quick-answer" => @quickAnswer(@payload.agent, @payload.message)
+    * => null
+  ]
+
+  let @shouldSpawn = @routeResult.mode != "acknowledge"
+
+  => {
+    mode: @routeResult.mode,
+    reason: @routeResult.reason,
+    confidence: @routeResult.confidence,
+    prompt: @prompt,
+    shouldSpawn: @shouldSpawn
+  }
+]
+
+>> Export for CLI usage
+@main(@payload)

@@ -7,11 +7,80 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/types"
 )
+
+// FindClaudeSessionID finds the most recent Claude Code session ID for the project.
+// Claude Code stores sessions in ~/.claude/projects/{hash}/{uuid}.jsonl
+// Returns empty string if no session found.
+func FindClaudeSessionID(projectPath string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	// Claude Code hashes the project path for the directory name
+	// Format: ~/.claude/projects/-Users-adam-dev-fray/
+	// We need to find sessions that were modified recently (within last few seconds)
+	projectsDir := filepath.Join(home, ".claude", "projects")
+
+	// Try to find the directory for this project by matching path patterns
+	entries, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return ""
+	}
+
+	// Convert project path to Claude's hash format (slashes to dashes)
+	projectHash := strings.ReplaceAll(projectPath, "/", "-")
+	if strings.HasPrefix(projectHash, "-") {
+		projectHash = projectHash[1:] // Remove leading dash
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		// Check if this directory matches our project
+		if !strings.Contains(entry.Name(), projectHash) && !strings.HasSuffix(projectPath, strings.ReplaceAll(entry.Name(), "-", "/")) {
+			continue
+		}
+
+		// Found our project dir - find most recent session
+		sessionsDir := filepath.Join(projectsDir, entry.Name())
+		sessionFiles, err := os.ReadDir(sessionsDir)
+		if err != nil {
+			continue
+		}
+
+		var newestTime time.Time
+		var newestID string
+
+		for _, sf := range sessionFiles {
+			if sf.IsDir() || !strings.HasSuffix(sf.Name(), ".jsonl") {
+				continue
+			}
+			info, err := sf.Info()
+			if err != nil {
+				continue
+			}
+			if info.ModTime().After(newestTime) {
+				newestTime = info.ModTime()
+				// Extract UUID from filename (e.g., "abc123-def456.jsonl" -> "abc123-def456")
+				newestID = strings.TrimSuffix(sf.Name(), ".jsonl")
+			}
+		}
+
+		if newestID != "" {
+			return newestID
+		}
+	}
+
+	return ""
+}
 
 // resolveClaudePath finds the claude executable, checking common install locations.
 func resolveClaudePath() (string, error) {
@@ -69,12 +138,20 @@ func (d *ClaudeDriver) Spawn(ctx context.Context, agent types.Agent, prompt stri
 	var cmd *exec.Cmd
 	sessionID, _ := core.GenerateGUID("sess")
 
+	// Build base args - add --resume if we have a prior session
+	var args []string
+	if agent.LastSessionID != nil && *agent.LastSessionID != "" {
+		args = append(args, "--resume", *agent.LastSessionID)
+	}
+
 	switch delivery {
 	case types.PromptDeliveryArgs:
-		cmd = exec.CommandContext(ctx, claudePath, "-p", prompt)
+		args = append(args, "-p", prompt)
+		cmd = exec.CommandContext(ctx, claudePath, args...)
 
 	case types.PromptDeliveryStdin:
-		cmd = exec.CommandContext(ctx, claudePath, "-p", "-")
+		args = append(args, "-p", "-")
+		cmd = exec.CommandContext(ctx, claudePath, args...)
 
 	case types.PromptDeliveryTempfile:
 		// Write prompt to temp file and pass path
@@ -83,6 +160,9 @@ func (d *ClaudeDriver) Spawn(ctx context.Context, agent types.Agent, prompt stri
 	default:
 		return nil, fmt.Errorf("unknown prompt delivery: %s", delivery)
 	}
+
+	// Set FRAY_AGENT_ID so the agent can use fray commands without --as flag
+	cmd.Env = append(os.Environ(), "FRAY_AGENT_ID="+agent.AgentID)
 
 	// Get pipes for stdin/stdout/stderr
 	stdin, err := cmd.StdinPipe()
