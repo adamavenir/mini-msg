@@ -28,6 +28,7 @@ func NewMentionsCmd() *cobra.Command {
 			since, _ := cmd.Flags().GetString("since")
 			showAll, _ := cmd.Flags().GetBool("all")
 			includeArchived, _ := cmd.Flags().GetBool("archived")
+			showAllMessages, _ := cmd.Flags().GetBool("show-all")
 
 			prefix, err := resolveAgentRef(ctx, args[0])
 			if err != nil {
@@ -82,19 +83,50 @@ func NewMentionsCmd() *cobra.Command {
 				}
 
 				projectName := GetProjectName(ctx.Project.Root)
-				for _, msg := range messages {
-					formatted := FormatMessage(msg, projectName, bases)
-					readCount, err := db.GetReadReceiptCount(ctx.DB, msg.ID)
-					if err != nil {
-						return writeCommandError(cmd, err)
+
+				// Apply accordion if needed
+				threshold := DefaultAccordionThreshold
+				useAccordion := !showAllMessages && len(messages) > threshold
+				headCount := AccordionHeadCount
+				tailCount := AccordionTailCount
+
+				for i, msg := range messages {
+					// Determine if this is a preview (collapsed) or full message
+					isPreview := false
+					if useAccordion {
+						middleStart := headCount
+						middleEnd := len(messages) - tailCount
+						if i >= middleStart && i < middleEnd {
+							isPreview = true
+						}
+						// Print accordion markers
+						if i == middleStart {
+							collapsedCount := middleEnd - middleStart
+							fmt.Fprintf(out, "%s  ... %d messages collapsed ...%s\n", dim, collapsedCount, reset)
+						}
 					}
-					if readCount > 0 {
-						formatted = strings.TrimRight(formatted, "\n")
-						formatted = fmt.Sprintf("%s [✓%d]", formatted, readCount)
+
+					if isPreview {
+						fmt.Fprintln(out, FormatMessagePreview(msg, projectName))
+					} else {
+						formatted := FormatMessage(msg, projectName, bases)
+						readCount, err := db.GetReadReceiptCount(ctx.DB, msg.ID)
+						if err != nil {
+							return writeCommandError(cmd, err)
+						}
+						if readCount > 0 {
+							formatted = strings.TrimRight(formatted, "\n")
+							formatted = fmt.Sprintf("%s [✓%d]", formatted, readCount)
+						}
+						fmt.Fprintln(out, formatted)
+						for _, reactionLine := range formatReactionEvents(msg) {
+							fmt.Fprintf(out, "  %s\n", reactionLine)
+						}
 					}
-					fmt.Fprintln(out, formatted)
-					for _, reactionLine := range formatReactionEvents(msg) {
-						fmt.Fprintf(out, "  %s\n", reactionLine)
+
+					// Print end of accordion marker
+					if useAccordion && i == len(messages)-tailCount-1 {
+						fmt.Fprintf(out, "%s  ... end collapsed ...%s\n", dim, reset)
 					}
 				}
 
@@ -121,6 +153,7 @@ func NewMentionsCmd() *cobra.Command {
 	cmd.Flags().String("since", "", "show mentions since message ID")
 	cmd.Flags().Bool("all", false, "show all mentions")
 	cmd.Flags().Bool("archived", false, "include archived messages")
+	cmd.Flags().Bool("show-all", false, "disable accordion, show all messages fully")
 
 	return cmd
 }

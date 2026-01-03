@@ -37,6 +37,7 @@ func NewThreadCmd() *cobra.Command {
 			pinnedOnly, _ := cmd.Flags().GetBool("pinned")
 			lastStr, _ := cmd.Flags().GetString("last")
 			sinceStr, _ := cmd.Flags().GetString("since")
+			showAllMessages, _ := cmd.Flags().GetBool("show-all")
 
 			var messages []types.Message
 			if pinnedOnly {
@@ -144,8 +145,13 @@ func NewThreadCmd() *cobra.Command {
 				return nil
 			}
 
-			for _, msg := range messages {
-				fmt.Fprintln(out, FormatMessage(msg, projectName, bases))
+			lines := FormatMessageListAccordion(messages, AccordionOptions{
+				ShowAll:     showAllMessages,
+				ProjectName: projectName,
+				AgentBases:  bases,
+			})
+			for _, line := range lines {
+				fmt.Fprintln(out, line)
 			}
 			return nil
 		},
@@ -154,6 +160,7 @@ func NewThreadCmd() *cobra.Command {
 	cmd.Flags().Bool("pinned", false, "show only pinned messages")
 	cmd.Flags().String("last", "", "show last N messages")
 	cmd.Flags().String("since", "", "show messages after time or GUID")
+	cmd.Flags().Bool("show-all", false, "disable accordion, show all messages fully")
 
 	cmd.AddCommand(
 		NewThreadNewCmd(),

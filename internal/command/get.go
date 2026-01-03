@@ -37,6 +37,7 @@ func NewGetCmd() *cobra.Command {
 			archived, _ := cmd.Flags().GetBool("archived")
 			hideEvents, _ := cmd.Flags().GetBool("hide-events")
 			showEvents, _ := cmd.Flags().GetBool("show-events")
+			showAllMessages, _ := cmd.Flags().GetBool("show-all")
 			if showEvents {
 				hideEvents = false
 			}
@@ -136,8 +137,13 @@ func NewGetCmd() *cobra.Command {
 					fmt.Fprintln(out, "No messages")
 					return nil
 				}
-				for _, msg := range messages {
-					fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+				lines := FormatMessageListAccordion(messages, AccordionOptions{
+					ShowAll:     showAllMessages,
+					ProjectName: projectName,
+					AgentBases:  agentBases,
+				})
+				for _, line := range lines {
+					fmt.Fprintln(out, line)
 				}
 				return nil
 			}
@@ -256,8 +262,13 @@ func NewGetCmd() *cobra.Command {
 					fmt.Fprintln(out, "ROOM: (no messages yet)")
 				} else {
 					fmt.Fprintln(out, "ROOM:")
-					for _, msg := range roomMessages {
-						fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+					lines := FormatMessageListAccordion(roomMessages, AccordionOptions{
+						ShowAll:     showAllMessages,
+						ProjectName: projectName,
+						AgentBases:  agentBases,
+					})
+					for _, line := range lines {
+						fmt.Fprintln(out, line)
 					}
 				}
 
@@ -324,6 +335,7 @@ func NewGetCmd() *cobra.Command {
 	cmd.Flags().Bool("archived", false, "include archived messages")
 	cmd.Flags().Bool("hide-events", false, "hide event messages")
 	cmd.Flags().Bool("show-events", false, "show event messages")
+	cmd.Flags().Bool("show-all", false, "disable accordion, show all messages fully")
 
 	return cmd
 }

@@ -15,6 +15,13 @@ import (
 
 const maxDisplayLines = 20
 
+// Accordion settings
+const (
+	DefaultAccordionThreshold = 10 // Show accordion if more than this many messages
+	AccordionHeadCount        = 3  // Number of messages to show at start
+	AccordionTailCount        = 3  // Number of messages to show at end
+)
+
 var (
 	noColor = os.Getenv("NO_COLOR") != ""
 
@@ -320,4 +327,94 @@ func truncateForDisplay(body, msgID string) string {
 
 func isAlphaNum(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// FormatMessagePreview formats a message as a one-line preview for accordion display.
+// Format: "  [msg-abc123] @agent: First line of message..."
+func FormatMessagePreview(msg types.Message, projectName string) string {
+	// Get first line of body, strip question sections
+	body := core.StripQuestionSections(msg.Body)
+	firstLine := strings.Split(body, "\n")[0]
+
+	// Truncate if too long
+	maxLen := 50
+	if len(firstLine) > maxLen {
+		firstLine = firstLine[:maxLen] + "..."
+	}
+
+	shortID := msg.ID
+	if len(shortID) > 12 {
+		shortID = shortID[:12]
+	}
+
+	return fmt.Sprintf("  %s[%s]%s @%s: %s", dim, shortID, reset, msg.FromAgent, firstLine)
+}
+
+// AccordionOptions configures accordion behavior.
+type AccordionOptions struct {
+	Threshold   int  // Show accordion if more than this many messages (0 = use default)
+	HeadCount   int  // Messages to show at start (0 = use default)
+	TailCount   int  // Messages to show at end (0 = use default)
+	ShowAll     bool // If true, disable accordion and show all messages
+	ProjectName string
+	AgentBases  map[string]struct{}
+}
+
+// FormatMessageListAccordion formats a list of messages with accordion collapsing.
+// Returns a slice of formatted lines ready to print.
+func FormatMessageListAccordion(messages []types.Message, opts AccordionOptions) []string {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	threshold := opts.Threshold
+	if threshold == 0 {
+		threshold = DefaultAccordionThreshold
+	}
+	headCount := opts.HeadCount
+	if headCount == 0 {
+		headCount = AccordionHeadCount
+	}
+	tailCount := opts.TailCount
+	if tailCount == 0 {
+		tailCount = AccordionTailCount
+	}
+
+	// If ShowAll or under threshold, format all messages normally
+	if opts.ShowAll || len(messages) <= threshold {
+		lines := make([]string, len(messages))
+		for i, msg := range messages {
+			lines[i] = FormatMessage(msg, opts.ProjectName, opts.AgentBases)
+		}
+		return lines
+	}
+
+	// Accordion: head + collapsed middle + tail
+	var lines []string
+
+	// Head messages (full format)
+	for i := 0; i < headCount && i < len(messages); i++ {
+		lines = append(lines, FormatMessage(messages[i], opts.ProjectName, opts.AgentBases))
+	}
+
+	// Middle messages (preview format)
+	middleStart := headCount
+	middleEnd := len(messages) - tailCount
+	if middleEnd > middleStart {
+		collapsedCount := middleEnd - middleStart
+		lines = append(lines, fmt.Sprintf("%s  ... %d messages collapsed ...%s", dim, collapsedCount, reset))
+		for i := middleStart; i < middleEnd; i++ {
+			lines = append(lines, FormatMessagePreview(messages[i], opts.ProjectName))
+		}
+		lines = append(lines, fmt.Sprintf("%s  ... end collapsed ...%s", dim, reset))
+	}
+
+	// Tail messages (full format)
+	for i := middleEnd; i < len(messages); i++ {
+		if i >= headCount { // Avoid duplicates if list is small
+			lines = append(lines, FormatMessage(messages[i], opts.ProjectName, opts.AgentBases))
+		}
+	}
+
+	return lines
 }
