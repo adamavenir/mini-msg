@@ -863,3 +863,44 @@ func ReadThreadMutes(projectPath string) ([]threadMuteEvent, error) {
 
 	return events, nil
 }
+
+// ReadGhostCursors reads ghost cursor events from agents.jsonl for rebuilding the database.
+// Ghost cursors track recommended read positions for session handoffs.
+func ReadGhostCursors(projectPath string) ([]GhostCursorJSONLRecord, error) {
+	frayDir := resolveFrayDir(projectPath)
+	lines, err := readJSONLLines(filepath.Join(frayDir, agentsFile))
+	if err != nil {
+		return nil, err
+	}
+
+	// Track latest cursor per (agent, home) pair
+	type cursorKey struct {
+		agentID string
+		home    string
+	}
+	cursorMap := make(map[cursorKey]GhostCursorJSONLRecord)
+
+	for _, line := range lines {
+		var envelope struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+			continue
+		}
+
+		if envelope.Type == "ghost_cursor" {
+			var record GhostCursorJSONLRecord
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			key := cursorKey{agentID: record.AgentID, home: record.Home}
+			cursorMap[key] = record
+		}
+	}
+
+	cursors := make([]GhostCursorJSONLRecord, 0, len(cursorMap))
+	for _, cursor := range cursorMap {
+		cursors = append(cursors, cursor)
+	}
+	return cursors, nil
+}

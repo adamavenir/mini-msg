@@ -166,6 +166,10 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	if err != nil {
 		return err
 	}
+	ghostCursors, err := ReadGhostCursors(projectPath)
+	if err != nil {
+		return err
+	}
 	config, err := ReadProjectConfig(projectPath)
 	if err != nil {
 		return err
@@ -199,6 +203,9 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 		return err
 	}
 	if _, err := db.Exec("DROP TABLE IF EXISTS fray_thread_mutes"); err != nil {
+		return err
+	}
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_ghost_cursors"); err != nil {
 		return err
 	}
 	if err := initSchemaWith(db); err != nil {
@@ -529,6 +536,22 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 				INSERT OR REPLACE INTO fray_thread_mutes (thread_guid, agent_id, muted_at, expires_at)
 				VALUES (?, ?, ?, ?)
 			`, mute.ThreadGUID, mute.AgentID, mute.MutedAt, mute.ExpiresAt); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Rebuild ghost cursors
+	if len(ghostCursors) > 0 {
+		for _, cursor := range ghostCursors {
+			mustRead := 0
+			if cursor.MustRead {
+				mustRead = 1
+			}
+			if _, err := db.Exec(`
+				INSERT OR REPLACE INTO fray_ghost_cursors (agent_id, home, message_guid, must_read, set_at)
+				VALUES (?, ?, ?, ?, ?)
+			`, cursor.AgentID, cursor.Home, cursor.MessageGUID, mustRead, cursor.SetAt); err != nil {
 				return err
 			}
 		}

@@ -83,16 +83,33 @@ func buildHookRegistrationContext(dbConn *sql.DB) string {
 }
 
 func fetchHookMessages(dbConn *sql.DB, agentID string, roomLimit, mentionLimit int) ([]types.Message, []types.Message, string) {
-	roomMessages, err := db.GetMessages(dbConn, &types.MessageQueryOptions{Limit: roomLimit})
-	if err != nil {
-		roomMessages = nil
-	}
-
 	agentBase := agentID
 	if parsed, err := core.ParseAgentID(agentID); err == nil {
 		agentBase = parsed.Base
 	} else if idx := strings.LastIndex(agentID, "."); idx != -1 {
 		agentBase = agentID[:idx]
+	}
+
+	// Check for ghost cursor to determine starting point
+	ghostCursor, _ := db.GetGhostCursor(dbConn, agentBase, "room")
+
+	var roomMessages []types.Message
+	var err error
+	if ghostCursor != nil {
+		// Ghost cursor set: get messages from that point forward
+		msg, msgErr := db.GetMessage(dbConn, ghostCursor.MessageGUID)
+		if msgErr == nil && msg != nil {
+			roomMessages, err = db.GetMessages(dbConn, &types.MessageQueryOptions{
+				Since: &types.MessageCursor{GUID: msg.ID, TS: msg.TS},
+			})
+		}
+	}
+	if roomMessages == nil {
+		// No ghost cursor or error: fall back to last N
+		roomMessages, err = db.GetMessages(dbConn, &types.MessageQueryOptions{Limit: roomLimit})
+	}
+	if err != nil {
+		roomMessages = nil
 	}
 
 	mentionMessages, err := db.GetMessagesWithMention(dbConn, agentBase, &types.MessageQueryOptions{Limit: roomLimit + mentionLimit})

@@ -276,6 +276,13 @@ fray daemon --debug                # Enable debug logging
 fray daemon --poll-interval 2s     # Custom poll interval
 fray daemon status                 # Check if daemon is running
 
+# Ghost cursors (session handoffs)
+fray cursor set <agent> <home> <msg>       # Set ghost cursor for handoff
+fray cursor set <agent> <home> <msg> --must-read  # Mark as must-read
+fray cursor show <agent>                   # Show ghost cursors for agent
+fray cursor clear <agent>                  # Clear all ghost cursors
+fray cursor clear <agent> <home>           # Clear cursor for specific home
+
 # For humans
 fray chat                      # Interactive chat mode
 fray watch                     # Tail messages (shows heartbeat timer if FRAY_AGENT_ID set)

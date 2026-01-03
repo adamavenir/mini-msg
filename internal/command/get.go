@@ -179,9 +179,22 @@ func NewGetCmd() *cobra.Command {
 						IncludeArchived: archived,
 					})
 				} else {
-					// No watermark (first time): show last N as default
-					roomLimit := parseOptionalInt(room, 10)
-					roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
+					// No watermark: check for ghost cursor, else use last N
+					ghostCursor, _ := db.GetGhostCursor(ctx.DB, agentBase, "room")
+					if ghostCursor != nil {
+						msg, msgErr := db.GetMessage(ctx.DB, ghostCursor.MessageGUID)
+						if msgErr == nil && msg != nil {
+							roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{
+								Since:           &types.MessageCursor{GUID: msg.ID, TS: msg.TS},
+								Filter:          filter,
+								IncludeArchived: archived,
+							})
+						}
+					}
+					if roomMessages == nil {
+						roomLimit := parseOptionalInt(room, 10)
+						roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
+					}
 				}
 				if err != nil {
 					return writeCommandError(cmd, err)

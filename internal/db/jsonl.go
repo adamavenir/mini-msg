@@ -255,6 +255,16 @@ type SessionHeartbeatJSONLRecord struct {
 	At        int64  `json:"at"`
 }
 
+// GhostCursorJSONLRecord represents a ghost cursor event in JSONL.
+type GhostCursorJSONLRecord struct {
+	Type        string `json:"type"` // "ghost_cursor"
+	AgentID     string `json:"agent_id"`
+	Home        string `json:"home"`
+	MessageGUID string `json:"message_guid"`
+	MustRead    bool   `json:"must_read"`
+	SetAt       int64  `json:"set_at"`
+}
+
 // ProjectKnownAgent stores per-project known-agent data.
 type ProjectKnownAgent struct {
 	Name        *string  `json:"name,omitempty"`

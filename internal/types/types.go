@@ -330,3 +330,14 @@ type SessionHeartbeat struct {
 	Status    PresenceState `json:"status"`
 	At        int64         `json:"at"`
 }
+
+// GhostCursor represents a recommended read position for session handoff.
+// Unlike read_to (actual read position), ghost cursor is where an outgoing
+// agent says the next agent should START reading from.
+type GhostCursor struct {
+	AgentID     string `json:"agent_id"`
+	Home        string `json:"home"`         // "room" or thread GUID
+	MessageGUID string `json:"message_guid"` // start reading from here
+	MustRead    bool   `json:"must_read"`    // inject full content vs hint only
+	SetAt       int64  `json:"set_at"`
+}

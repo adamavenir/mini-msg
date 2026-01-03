@@ -385,3 +385,21 @@ func AppendThreadUnmute(projectPath string, event ThreadUnmuteJSONLRecord) error
 	touchDatabaseFile(projectPath)
 	return nil
 }
+
+// AppendGhostCursor appends a ghost cursor event to JSONL.
+func AppendGhostCursor(projectPath string, cursor types.GhostCursor) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := GhostCursorJSONLRecord{
+		Type:        "ghost_cursor",
+		AgentID:     cursor.AgentID,
+		Home:        cursor.Home,
+		MessageGUID: cursor.MessageGUID,
+		MustRead:    cursor.MustRead,
+		SetAt:       cursor.SetAt,
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}

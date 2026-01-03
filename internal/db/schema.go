@@ -190,6 +190,18 @@ CREATE TABLE IF NOT EXISTS fray_read_to (
 
 CREATE INDEX IF NOT EXISTS idx_fray_read_to_home ON fray_read_to(home);
 
+-- Ghost cursors for session handoffs
+CREATE TABLE IF NOT EXISTS fray_ghost_cursors (
+  agent_id TEXT NOT NULL,
+  home TEXT NOT NULL,            -- "room" or thread GUID
+  message_guid TEXT NOT NULL,    -- start reading from here
+  must_read INTEGER NOT NULL DEFAULT 0,  -- inject full content vs hint only
+  set_at INTEGER NOT NULL,
+  PRIMARY KEY (agent_id, home)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fray_ghost_cursors_agent ON fray_ghost_cursors(agent_id);
+
 -- Resource claims for collision prevention
 CREATE TABLE IF NOT EXISTS fray_claims (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
