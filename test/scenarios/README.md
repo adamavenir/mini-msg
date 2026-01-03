@@ -1,15 +1,15 @@
-# Daemon Test Scenarios
+# Test Scenarios
 
-Controlled test environments for daemon testing. Each scenario is a git-restorable state.
+Controlled test environments for fray testing. Each scenario is a git-restorable state.
 
 ## Usage
 
 ```bash
 # Reset to baseline
-git checkout -- test/daemon/
+git checkout -- test/scenarios/
 
 # Or reset a specific scenario
-git checkout -- test/daemon/fresh-room/
+git checkout -- test/scenarios/fresh-room/
 ```
 
 ## Scenarios
@@ -128,9 +128,9 @@ All scenarios follow the same structure:
 
 ## Adding New Scenarios
 
-1. Create directory: `test/daemon/{scenario}/.fray/`
+1. Create directory: `test/scenarios/{scenario}/.fray/`
 2. Copy `.gitignore` from existing scenario
 3. Create JSONL files with appropriate test data
 4. Use deterministic IDs (e.g., `msg-{scenario}001`)
-5. Document expected daemon behavior in this README
+5. Document expected behavior in this README
 6. Commit to establish baseline
