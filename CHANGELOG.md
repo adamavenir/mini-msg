@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fray answer`: interactive mode now uses full TUI with multiline input (Ctrl+J for newlines)
 
 ### Added
+- Accordion output for long message lists: >10 messages collapses middle section (first 3 full, middle as previews, last 3 full); `--show-all` flag to disable
 - `fray react <emoji> <msg>`: explicit reaction command with optional `--reply` for chained comments
 - Thread anchors: `fray thread anchor <ref> <msg>` sets TL;DR message shown at top of thread display
 - Message pins: `fray pin/unpin <msg>` for per-thread pinning; `fray thread <ref> --pinned` to filter
