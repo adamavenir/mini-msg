@@ -40,6 +40,9 @@ func AppendMessage(projectPath string, message types.Message) error {
 	if home == "" {
 		home = "room"
 	}
+	// Convert new reactions format to legacy format for JSONL compatibility.
+	// Reactions are now stored in separate reaction records, so this is usually empty.
+	legacyReactions := ConvertToLegacyReactions(message.Reactions)
 	record := MessageJSONLRecord{
 		Type:           "message",
 		ID:             message.ID,
@@ -48,7 +51,7 @@ func AppendMessage(projectPath string, message types.Message) error {
 		FromAgent:      message.FromAgent,
 		Body:           message.Body,
 		Mentions:       message.Mentions,
-		Reactions:      normalizeReactions(message.Reactions),
+		Reactions:      legacyReactions,
 		MsgType:        message.Type,
 		References:     message.References,
 		SurfaceMessage: message.SurfaceMessage,
@@ -398,6 +401,23 @@ func AppendGhostCursor(projectPath string, cursor types.GhostCursor) error {
 		SetAt:       cursor.SetAt,
 	}
 	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendReaction appends a reaction record to JSONL.
+func AppendReaction(projectPath, messageGUID, agentID, emoji string, reactedAt int64) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := ReactionJSONLRecord{
+		Type:        "reaction",
+		MessageGUID: messageGUID,
+		AgentID:     agentID,
+		Emoji:       emoji,
+		ReactedAt:   reactedAt,
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, messagesFile), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)

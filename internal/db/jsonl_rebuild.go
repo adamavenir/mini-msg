@@ -170,11 +170,18 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	if err != nil {
 		return err
 	}
+	reactions, err := ReadReactions(projectPath)
+	if err != nil {
+		return err
+	}
 	config, err := ReadProjectConfig(projectPath)
 	if err != nil {
 		return err
 	}
 
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_reactions"); err != nil {
+		return err
+	}
 	if _, err := db.Exec("DROP TABLE IF EXISTS fray_messages"); err != nil {
 		return err
 	}
@@ -288,7 +295,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 		if err != nil {
 			return err
 		}
-		reactionsJSON, err := json.Marshal(normalizeReactions(message.Reactions))
+		reactionsJSON, err := json.Marshal(normalizeReactionsLegacy(message.Reactions))
 		if err != nil {
 			return err
 		}
@@ -552,6 +559,18 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 				INSERT OR REPLACE INTO fray_ghost_cursors (agent_id, home, message_guid, must_read, set_at)
 				VALUES (?, ?, ?, ?, ?)
 			`, cursor.AgentID, cursor.Home, cursor.MessageGUID, mustRead, cursor.SetAt); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Rebuild reactions from reaction records
+	if len(reactions) > 0 {
+		for _, r := range reactions {
+			if _, err := db.Exec(`
+				INSERT INTO fray_reactions (message_guid, agent_id, emoji, reacted_at)
+				VALUES (?, ?, ?, ?)
+			`, r.MessageGUID, r.AgentID, r.Emoji, r.ReactedAt); err != nil {
 				return err
 			}
 		}

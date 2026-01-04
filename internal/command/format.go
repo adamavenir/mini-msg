@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -86,14 +87,20 @@ func formatMessageWithOptions(msg types.Message, projectName string, agentBases 
 		displayBody = truncateForDisplay(strippedBody, msg.ID)
 	}
 
+	// Format reactions if present
+	reactionSuffix := formatReactionSummary(msg.Reactions)
+	if reactionSuffix != "" {
+		reactionSuffix = " " + gray + "(" + reactionSuffix + ")" + reset
+	}
+
 	if color != "" {
 		coloredBody := colorizeBody(displayBody, color, agentBases)
 		coloredBody = highlightIssueIDs(coloredBody, color)
-		return fmt.Sprintf("%s %s@%s: \"%s\"%s", idBlock, color, msg.FromAgent, coloredBody, reset)
+		return fmt.Sprintf("%s %s@%s: \"%s\"%s%s", idBlock, color, msg.FromAgent, coloredBody, reset, reactionSuffix)
 	}
 
 	highlightedBody := highlightIssueIDs(highlightMentions(displayBody), "")
-	return fmt.Sprintf("%s @%s: \"%s\"", idBlock, msg.FromAgent, highlightedBody)
+	return fmt.Sprintf("%s @%s: \"%s\"%s", idBlock, msg.FromAgent, highlightedBody, reactionSuffix)
 }
 
 // formatAnswerMessage renders answer messages with Q&A colorization.
@@ -417,4 +424,32 @@ func FormatMessageListAccordion(messages []types.Message, opts AccordionOptions)
 	}
 
 	return lines
+}
+
+// formatReactionSummary formats reactions for display.
+// Single reaction: "👍 alice", multiple: "👍x3"
+func formatReactionSummary(reactions map[string][]types.ReactionEntry) string {
+	if len(reactions) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(reactions))
+	for reaction := range reactions {
+		keys = append(keys, reaction)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, reaction := range keys {
+		entries := reactions[reaction]
+		count := len(entries)
+		if count == 0 {
+			continue
+		}
+		if count == 1 {
+			parts = append(parts, fmt.Sprintf("%s %s", reaction, entries[0].AgentID))
+		} else {
+			parts = append(parts, fmt.Sprintf("%sx%d", reaction, count))
+		}
+	}
+	return strings.Join(parts, " · ")
 }

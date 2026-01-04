@@ -136,7 +136,7 @@ func ReadMessages(projectPath string) ([]MessageJSONLRecord, error) {
 			if update.Reactions != nil && string(update.Reactions) != "null" {
 				var reactions map[string][]string
 				if err := json.Unmarshal(update.Reactions, &reactions); err == nil {
-					existing.Reactions = normalizeReactions(reactions)
+					existing.Reactions = normalizeReactionsLegacy(reactions)
 				}
 			}
 			messageMap[update.ID] = existing
@@ -903,4 +903,32 @@ func ReadGhostCursors(projectPath string) ([]GhostCursorJSONLRecord, error) {
 		cursors = append(cursors, cursor)
 	}
 	return cursors, nil
+}
+
+// ReadReactions reads all reaction records from messages.jsonl.
+func ReadReactions(projectPath string) ([]ReactionJSONLRecord, error) {
+	frayDir := resolveFrayDir(projectPath)
+	lines, err := readJSONLLines(filepath.Join(frayDir, messagesFile))
+	if err != nil {
+		return nil, err
+	}
+
+	var reactions []ReactionJSONLRecord
+	for _, line := range lines {
+		var envelope struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+			continue
+		}
+
+		if envelope.Type == "reaction" {
+			var record ReactionJSONLRecord
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			reactions = append(reactions, record)
+		}
+	}
+	return reactions, nil
 }

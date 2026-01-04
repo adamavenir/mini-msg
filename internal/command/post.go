@@ -121,15 +121,14 @@ func NewPostCmd() *cobra.Command {
 			}
 
 			if reactionText != "" && replyID != nil {
-				updated, changed, err := db.AddReaction(ctx.DB, *replyID, agentID, reactionText)
+				updated, reactedAt, err := db.AddReaction(ctx.DB, *replyID, agentID, reactionText)
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
-				if changed {
-					update := db.MessageUpdateJSONLRecord{ID: updated.ID, Reactions: &updated.Reactions}
-					if err := db.AppendMessageUpdate(ctx.Project.DBPath, update); err != nil {
-						return writeCommandError(cmd, err)
-					}
+
+				// Write reaction to JSONL (new format - separate record)
+				if err := db.AppendReaction(ctx.Project.DBPath, *replyID, agentID, reactionText, reactedAt); err != nil {
+					return writeCommandError(cmd, err)
 				}
 
 				now := time.Now().Unix()
@@ -144,20 +143,15 @@ func NewPostCmd() *cobra.Command {
 
 				if ctx.JSONMode {
 					payload := map[string]any{
-						"id":       updated.ID,
-						"from":     agentID,
-						"reaction": reactionText,
-						"reacted":  changed,
+						"id":         updated.ID,
+						"from":       agentID,
+						"reaction":   reactionText,
+						"reacted_at": reactedAt,
 					}
 					return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 				}
 
-				out := cmd.OutOrStdout()
-				if changed {
-					fmt.Fprintf(out, "Reacted %q to #%s\n", reactionText, updated.ID)
-				} else {
-					fmt.Fprintf(out, "Reaction %q already exists for #%s\n", reactionText, updated.ID)
-				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Reacted %q to #%s\n", reactionText, updated.ID)
 				return nil
 			}
 

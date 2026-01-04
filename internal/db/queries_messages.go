@@ -32,10 +32,9 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 	if err != nil {
 		return types.Message{}, err
 	}
-	reactionsJSON, err := json.Marshal(normalizeReactions(message.Reactions))
-	if err != nil {
-		return types.Message{}, err
-	}
+
+	// New messages don't have reactions yet. Write empty JSON for legacy column.
+	reactionsJSON := []byte("{}")
 
 	msgType := message.Type
 	if msgType == "" {
@@ -60,6 +59,9 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 		return types.Message{}, err
 	}
 
+	// Return with empty reactions map (new messages don't have reactions)
+	reactions := make(map[string][]types.ReactionEntry)
+
 	return types.Message{
 		ID:             guid,
 		TS:             ts,
@@ -68,7 +70,7 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 		FromAgent:      message.FromAgent,
 		Body:           message.Body,
 		Mentions:       message.Mentions,
-		Reactions:      normalizeReactions(message.Reactions),
+		Reactions:      reactions,
 		Type:           msgType,
 		References:     message.References,
 		SurfaceMessage: message.SurfaceMessage,
@@ -76,6 +78,39 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 		EditedAt:       nil,
 		ArchivedAt:     nil,
 	}, nil
+}
+
+// loadReactionsForMessages loads reactions from fray_reactions table into the messages.
+func loadReactionsForMessages(db *sql.DB, messages []types.Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+	ids := make([]string, len(messages))
+	for i, msg := range messages {
+		ids[i] = msg.ID
+	}
+	reactionsMap, err := GetReactionsForMessages(db, ids)
+	if err != nil {
+		return err
+	}
+	for i := range messages {
+		if reactions, ok := reactionsMap[messages[i].ID]; ok {
+			messages[i].Reactions = reactions
+		}
+	}
+	return nil
+}
+
+// scanMessagesWithReactions scans messages from rows and loads their reactions.
+func scanMessagesWithReactions(db *sql.DB, rows *sql.Rows) ([]types.Message, error) {
+	messages, err := scanMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	if err := loadReactionsForMessages(db, messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
 }
 
 // GetMessages returns messages in chronological order.
@@ -156,7 +191,7 @@ func GetMessages(db *sql.DB, options *types.MessageQueryOptions) ([]types.Messag
 		}
 		defer rows.Close()
 
-		return scanMessages(rows)
+		return scanMessagesWithReactions(db, rows)
 	}
 
 	query := "SELECT * FROM fray_messages"
@@ -205,7 +240,7 @@ func GetMessages(db *sql.DB, options *types.MessageQueryOptions) ([]types.Messag
 	}
 	defer rows.Close()
 
-	return scanMessages(rows)
+	return scanMessagesWithReactions(db, rows)
 }
 
 // GetMessagesWithMention returns messages mentioning an agent prefix.
@@ -351,7 +386,7 @@ func GetMessagesWithMention(db *sql.DB, mentionPrefix string, options *types.Mes
 	}
 	defer rows.Close()
 
-	return scanMessages(rows)
+	return scanMessagesWithReactions(db, rows)
 }
 
 // GetLastMessageCursor returns the last message cursor.
@@ -401,6 +436,12 @@ func GetMessage(db *sql.DB, messageID string) (*types.Message, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Load reactions from the new fray_reactions table
+	reactions, err := GetReactionsForMessage(db, messageID)
+	if err != nil {
+		return nil, err
+	}
+	message.Reactions = reactions
 	return &message, nil
 }
 
@@ -428,134 +469,49 @@ func GetMessageByPrefix(db *sql.DB, prefix string) (*types.Message, error) {
 		return nil, err
 	}
 	if len(messages) == 1 {
+		// Load reactions from the new fray_reactions table
+		reactions, err := GetReactionsForMessage(db, messages[0].ID)
+		if err != nil {
+			return nil, err
+		}
+		messages[0].Reactions = reactions
 		return &messages[0], nil
 	}
 	return nil, nil
 }
 
 // AddReaction adds a reaction for a message.
-func AddReaction(db *sql.DB, messageID, reactor, reaction string) (*types.Message, bool, error) {
+// Unlike the old implementation, reactions are no longer deduplicated - the same agent
+// can react multiple times (each session counts). Returns the timestamp of the reaction.
+func AddReaction(db *sql.DB, messageID, reactor, reaction string) (*types.Message, int64, error) {
 	msg, err := GetMessage(db, messageID)
 	if err != nil {
-		return nil, false, err
+		return nil, 0, err
 	}
 	if msg == nil {
-		return nil, false, fmt.Errorf("message %s not found", messageID)
+		return nil, 0, fmt.Errorf("message %s not found", messageID)
 	}
 
-	reactions := cloneReactions(msg.Reactions)
-	users := append([]string{}, reactions[reaction]...)
-	if containsString(users, reactor) {
-		return msg, false, nil
-	}
-	users = append(users, reactor)
-	reactions[reaction] = users
-	reactions = normalizeReactions(reactions)
-
-	reactionsJSON, err := json.Marshal(reactions)
+	// Insert into new reactions table (no deduplication)
+	reactedAt, err := InsertReactionNow(db, messageID, reactor, reaction)
 	if err != nil {
-		return nil, false, err
-	}
-	if _, err := db.Exec("UPDATE fray_messages SET reactions = ? WHERE guid = ?", string(reactionsJSON), messageID); err != nil {
-		return nil, false, err
+		return nil, 0, err
 	}
 
-	updated, err := GetMessage(db, messageID)
+	// Load updated reactions from table
+	reactions, err := GetReactionsForMessage(db, messageID)
 	if err != nil {
-		return nil, false, err
+		return nil, 0, err
 	}
-	if updated == nil {
-		return nil, false, fmt.Errorf("message %s not found", messageID)
-	}
-	return updated, true, nil
+	msg.Reactions = reactions
+
+	return msg, reactedAt, nil
 }
 
-// RemoveReactions removes a reactor from all reactions on a message.
-func RemoveReactions(db *sql.DB, messageID, reactor string) (*types.Message, bool, error) {
-	msg, err := GetMessage(db, messageID)
-	if err != nil {
-		return nil, false, err
-	}
-	if msg == nil {
-		return nil, false, fmt.Errorf("message %s not found", messageID)
-	}
-
-	removed := false
-	reactions := cloneReactions(msg.Reactions)
-	next := map[string][]string{}
-	for reaction, users := range reactions {
-		cleaned, didRemove := removeString(users, reactor)
-		if didRemove {
-			removed = true
-		}
-		if len(cleaned) == 0 {
-			continue
-		}
-		next[reaction] = cleaned
-	}
-	next = normalizeReactions(next)
-
-	if !removed {
-		return msg, false, nil
-	}
-
-	reactionsJSON, err := json.Marshal(next)
-	if err != nil {
-		return nil, false, err
-	}
-	if _, err := db.Exec("UPDATE fray_messages SET reactions = ? WHERE guid = ?", string(reactionsJSON), messageID); err != nil {
-		return nil, false, err
-	}
-
-	updated, err := GetMessage(db, messageID)
-	if err != nil {
-		return nil, false, err
-	}
-	if updated == nil {
-		return nil, false, fmt.Errorf("message %s not found", messageID)
-	}
-	return updated, true, nil
-}
-
-// GetMessageReactions returns reactions for the given message IDs.
-func GetMessageReactions(db *sql.DB, messageIDs []string) (map[string]map[string][]string, error) {
-	if len(messageIDs) == 0 {
-		return map[string]map[string][]string{}, nil
-	}
-
-	placeholders := make([]string, 0, len(messageIDs))
-	args := make([]any, 0, len(messageIDs))
-	for _, id := range messageIDs {
-		placeholders = append(placeholders, "?")
-		args = append(args, id)
-	}
-
-	query := fmt.Sprintf("SELECT guid, reactions FROM fray_messages WHERE guid IN (%s)", strings.Join(placeholders, ", "))
-	rows, err := db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make(map[string]map[string][]string)
-	for rows.Next() {
-		var guid string
-		var reactionsJSON string
-		if err := rows.Scan(&guid, &reactionsJSON); err != nil {
-			return nil, err
-		}
-		var reactions map[string][]string
-		if reactionsJSON != "" {
-			if err := json.Unmarshal([]byte(reactionsJSON), &reactions); err != nil {
-				return nil, err
-			}
-		}
-		result[guid] = normalizeReactions(reactions)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+// GetMessageReactionsNew returns reactions for the given message IDs from the fray_reactions table.
+// This uses the new reactions format with timestamps.
+func GetMessageReactionsNew(db *sql.DB, messageIDs []string) (map[string]map[string][]types.ReactionEntry, error) {
+	return GetReactionsForMessages(db, messageIDs)
 }
 
 // EditMessage updates message body.
@@ -635,7 +591,7 @@ func GetReplyChain(db *sql.DB, messageID string) ([]types.Message, error) {
 	}
 	defer rows.Close()
 
-	return scanMessages(rows)
+	return scanMessagesWithReactions(db, rows)
 }
 
 // GetReplyCount returns the number of replies to a message.
@@ -660,7 +616,7 @@ func GetReplies(db *sql.DB, messageID string) ([]types.Message, error) {
 	}
 	defer rows.Close()
 
-	return scanMessages(rows)
+	return scanMessagesWithReactions(db, rows)
 }
 
 type messageRow struct {
@@ -687,12 +643,16 @@ func (row messageRow) toMessage() (types.Message, error) {
 			return types.Message{}, err
 		}
 	}
-	reactions := map[string][]string{}
+	// Legacy reactions are stored as map[string][]string in the JSON column.
+	// Convert them to the new format with ReactionEntry (with timestamp=0 for legacy).
+	legacyReactions := map[string][]string{}
 	if row.Reactions != "" {
-		if err := json.Unmarshal([]byte(row.Reactions), &reactions); err != nil {
+		if err := json.Unmarshal([]byte(row.Reactions), &legacyReactions); err != nil {
 			return types.Message{}, err
 		}
 	}
+	reactions := ConvertLegacyReactions(normalizeReactionsLegacy(legacyReactions))
+
 	msgType := types.MessageTypeAgent
 	if row.MsgType.Valid && row.MsgType.String != "" {
 		msgType = types.MessageType(row.MsgType.String)
@@ -710,7 +670,7 @@ func (row messageRow) toMessage() (types.Message, error) {
 		FromAgent:      row.FromAgent,
 		Body:           row.Body,
 		Mentions:       mentions,
-		Reactions:      normalizeReactions(reactions),
+		Reactions:      reactions,
 		Type:           msgType,
 		References:     nullStringPtr(row.References),
 		SurfaceMessage: nullStringPtr(row.SurfaceMessage),

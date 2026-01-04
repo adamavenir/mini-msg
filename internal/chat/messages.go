@@ -137,7 +137,7 @@ func renderByline(agent string, color lipgloss.Color) string {
 	return style.Render(content)
 }
 
-func formatReactionSummary(reactions map[string][]string) string {
+func formatReactionSummary(reactions map[string][]types.ReactionEntry) string {
 	if len(reactions) == 0 {
 		return ""
 	}
@@ -149,84 +149,64 @@ func formatReactionSummary(reactions map[string][]string) string {
 
 	parts := make([]string, 0, len(keys))
 	for _, reaction := range keys {
-		users := uniqueSortedStrings(reactions[reaction])
-		if len(users) == 0 {
+		entries := reactions[reaction]
+		count := len(entries)
+		if count == 0 {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("%s %s", reaction, strings.Join(users, ", ")))
+		if count == 1 {
+			// Single reaction: show "👍 alice"
+			parts = append(parts, fmt.Sprintf("%s %s", reaction, entries[0].AgentID))
+		} else {
+			// Multiple reactions: show "👍x3"
+			parts = append(parts, fmt.Sprintf("%sx%d", reaction, count))
+		}
 	}
 	return strings.Join(parts, " · ")
 }
 
-func uniqueSortedStrings(values []string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		out = append(out, value)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func diffReactions(before, after map[string][]string) map[string][]string {
-	added := map[string][]string{}
-	beforeSets := reactionSets(before)
-	for reaction, users := range after {
-		previous := beforeSets[reaction]
-		for _, user := range users {
-			if _, ok := previous[user]; ok {
-				continue
+func diffReactions(before, after map[string][]types.ReactionEntry) map[string][]types.ReactionEntry {
+	added := map[string][]types.ReactionEntry{}
+	for reaction, entries := range after {
+		beforeEntries := before[reaction]
+		beforeSet := make(map[string]int64) // agent -> max timestamp seen
+		for _, e := range beforeEntries {
+			if e.ReactedAt > beforeSet[e.AgentID] {
+				beforeSet[e.AgentID] = e.ReactedAt
 			}
-			added[reaction] = append(added[reaction], user)
+		}
+		for _, e := range entries {
+			// Consider "added" if this timestamp is newer than what we saw before
+			if prevTs, ok := beforeSet[e.AgentID]; !ok || e.ReactedAt > prevTs {
+				added[reaction] = append(added[reaction], e)
+			}
 		}
 	}
 	return added
 }
 
-func reactionsEqual(left, right map[string][]string) bool {
+func reactionsEqual(left, right map[string][]types.ReactionEntry) bool {
 	if len(left) != len(right) {
 		return false
 	}
-	leftSets := reactionSets(left)
-	rightSets := reactionSets(right)
-	if len(leftSets) != len(rightSets) {
-		return false
-	}
-	for reaction, leftUsers := range leftSets {
-		rightUsers, ok := rightSets[reaction]
-		if !ok || len(leftUsers) != len(rightUsers) {
+	for reaction, leftEntries := range left {
+		rightEntries, ok := right[reaction]
+		if !ok || len(leftEntries) != len(rightEntries) {
 			return false
 		}
-		for user := range leftUsers {
-			if _, ok := rightUsers[user]; !ok {
+		// For equality, we check that the sets of (agent, timestamp) are the same
+		leftSet := make(map[string]int64)
+		for _, e := range leftEntries {
+			leftSet[fmt.Sprintf("%s:%d", e.AgentID, e.ReactedAt)] = 1
+		}
+		for _, e := range rightEntries {
+			key := fmt.Sprintf("%s:%d", e.AgentID, e.ReactedAt)
+			if _, ok := leftSet[key]; !ok {
 				return false
 			}
 		}
 	}
 	return true
-}
-
-func reactionSets(values map[string][]string) map[string]map[string]struct{} {
-	out := make(map[string]map[string]struct{}, len(values))
-	for reaction, users := range values {
-		set := map[string]struct{}{}
-		for _, user := range users {
-			if user == "" {
-				continue
-			}
-			set[user] = struct{}{}
-		}
-		out[reaction] = set
-	}
-	return out
 }
 
 func newEventMessage(body string) types.Message {

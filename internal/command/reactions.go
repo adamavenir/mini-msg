@@ -19,11 +19,16 @@ func formatReactionEvents(msg types.Message) []string {
 
 	lines := make([]string, 0, len(reactions))
 	for _, reaction := range reactions {
-		users := msg.Reactions[reaction]
-		if len(users) == 0 {
+		entries := msg.Reactions[reaction]
+		if len(entries) == 0 {
 			continue
 		}
-		lines = append(lines, core.FormatReactionEvent(users, reaction, msg.ID, msg.Body))
+		// Extract agent IDs from entries
+		agents := make([]string, 0, len(entries))
+		for _, e := range entries {
+			agents = append(agents, e.AgentID)
+		}
+		lines = append(lines, core.FormatReactionEvent(agents, reaction, msg.ID, msg.Body))
 	}
 	return lines
 }

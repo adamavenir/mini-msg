@@ -58,24 +58,30 @@ type Agent struct {
 	LastSessionID    *string        `json:"last_session_id,omitempty"`   // Claude Code session ID for --resume
 }
 
+// ReactionEntry represents a single reaction from an agent.
+type ReactionEntry struct {
+	AgentID   string `json:"agent_id"`
+	ReactedAt int64  `json:"reacted_at"`
+}
+
 // Message represents a room message.
 type Message struct {
-	ID             string              `json:"id"`
-	TS             int64               `json:"ts"`
-	ChannelID      *string             `json:"channel_id,omitempty"`
-	Home           string              `json:"home,omitempty"`
-	FromAgent      string              `json:"from_agent"`
-	Body           string              `json:"body"`
-	Mentions       []string            `json:"mentions"`
-	Reactions      map[string][]string `json:"reactions"`
-	Type           MessageType         `json:"type"`
-	References     *string             `json:"references,omitempty"`
-	SurfaceMessage *string             `json:"surface_message,omitempty"`
-	ReplyTo        *string             `json:"reply_to,omitempty"`
-	EditedAt       *int64              `json:"edited_at,omitempty"`
-	Edited         bool                `json:"edited,omitempty"`
-	EditCount      int                 `json:"edit_count,omitempty"`
-	ArchivedAt     *int64              `json:"archived_at,omitempty"`
+	ID             string                     `json:"id"`
+	TS             int64                      `json:"ts"`
+	ChannelID      *string                    `json:"channel_id,omitempty"`
+	Home           string                     `json:"home,omitempty"`
+	FromAgent      string                     `json:"from_agent"`
+	Body           string                     `json:"body"`
+	Mentions       []string                   `json:"mentions"`
+	Reactions      map[string][]ReactionEntry `json:"reactions"`
+	Type           MessageType                `json:"type"`
+	References     *string                    `json:"references,omitempty"`
+	SurfaceMessage *string                    `json:"surface_message,omitempty"`
+	ReplyTo        *string                    `json:"reply_to,omitempty"`
+	EditedAt       *int64                     `json:"edited_at,omitempty"`
+	Edited         bool                       `json:"edited,omitempty"`
+	EditCount      int                        `json:"edit_count,omitempty"`
+	ArchivedAt     *int64                     `json:"archived_at,omitempty"`
 }
 
 // MessageVersion represents a version of a message body.

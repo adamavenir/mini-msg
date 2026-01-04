@@ -61,15 +61,14 @@ func NewReactCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
-			updated, changed, err := db.AddReaction(ctx.DB, msg.ID, agentID, reaction)
+			_, reactedAt, err := db.AddReaction(ctx.DB, msg.ID, agentID, reaction)
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
-			if changed {
-				update := db.MessageUpdateJSONLRecord{ID: updated.ID, Reactions: &updated.Reactions}
-				if err := db.AppendMessageUpdate(ctx.Project.DBPath, update); err != nil {
-					return writeCommandError(cmd, err)
-				}
+
+			// Write reaction to JSONL (new format - separate record)
+			if err := db.AppendReaction(ctx.Project.DBPath, msg.ID, agentID, reaction, reactedAt); err != nil {
+				return writeCommandError(cmd, err)
 			}
 
 			now := time.Now().Unix()
@@ -109,7 +108,7 @@ func NewReactCmd() *cobra.Command {
 					"message_id": msg.ID,
 					"from":       agentID,
 					"reaction":   reaction,
-					"added":      changed,
+					"reacted_at": reactedAt,
 				}
 				if replyMsg != nil {
 					payload["reply_id"] = replyMsg.ID
@@ -118,11 +117,7 @@ func NewReactCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if changed {
-				fmt.Fprintf(out, "Reacted %s to #%s\n", reaction, msg.ID)
-			} else {
-				fmt.Fprintf(out, "Reaction %s already exists on #%s\n", reaction, msg.ID)
-			}
+			fmt.Fprintf(out, "Reacted %s to #%s\n", reaction, msg.ID)
 			if replyMsg != nil {
 				fmt.Fprintf(out, "  Reply: [%s] %s\n", replyMsg.ID, replyText)
 			}

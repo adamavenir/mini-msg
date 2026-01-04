@@ -268,7 +268,7 @@ func GetThreadMessages(db *sql.DB, threadGUID string) ([]types.Message, error) {
 	}
 	defer rows.Close()
 
-	return scanMessages(rows)
+	return scanMessagesWithReactions(db, rows)
 }
 
 // IsMessageInThread reports whether a message is in a thread (home or membership).
@@ -395,7 +395,7 @@ func GetPinnedMessages(db *sql.DB, threadGUID string) ([]types.Message, error) {
 	}
 	defer rows.Close()
 
-	return scanMessages(rows)
+	return scanMessagesWithReactions(db, rows)
 }
 
 // MoveMessage changes a message's home field.

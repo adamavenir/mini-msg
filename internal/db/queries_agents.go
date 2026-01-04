@@ -460,6 +460,14 @@ func mergeAgentHistoryWith(tx *sql.Tx, fromID, toID string) (int64, error) {
 }
 
 func updateReactionsForAgent(db DBTX, oldID, newID string) error {
+	// Update reactions in the new fray_reactions table
+	if _, err := db.Exec(`
+		UPDATE fray_reactions SET agent_id = ? WHERE agent_id = ?
+	`, newID, oldID); err != nil {
+		return err
+	}
+
+	// Also update legacy reactions JSON in messages table for backward compat
 	rows, err := db.Query(`
 		SELECT guid, reactions FROM fray_messages
 		WHERE reactions LIKE ?
@@ -496,7 +504,7 @@ func updateReactionsForAgent(db DBTX, oldID, newID string) error {
 		if !updated {
 			continue
 		}
-		reactions = normalizeReactions(reactions)
+		reactions = normalizeReactionsLegacy(reactions)
 		updatedJSON, err := json.Marshal(reactions)
 		if err != nil {
 			return err

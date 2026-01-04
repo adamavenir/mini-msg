@@ -265,6 +265,15 @@ type GhostCursorJSONLRecord struct {
 	SetAt       int64  `json:"set_at"`
 }
 
+// ReactionJSONLRecord represents a reaction event in JSONL.
+type ReactionJSONLRecord struct {
+	Type        string `json:"type"` // "reaction"
+	MessageGUID string `json:"message_guid"`
+	AgentID     string `json:"agent_id"`
+	Emoji       string `json:"emoji"`
+	ReactedAt   int64  `json:"reacted_at"`
+}
+
 // ProjectKnownAgent stores per-project known-agent data.
 type ProjectKnownAgent struct {
 	Name        *string  `json:"name,omitempty"`

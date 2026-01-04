@@ -218,6 +218,17 @@ CREATE TABLE IF NOT EXISTS fray_claims (
 CREATE INDEX IF NOT EXISTS idx_fray_claims_agent ON fray_claims(agent_id);
 CREATE INDEX IF NOT EXISTS idx_fray_claims_type ON fray_claims(claim_type);
 CREATE INDEX IF NOT EXISTS idx_fray_claims_expires ON fray_claims(expires_at);
+
+-- Reactions (not deduplicated, no remove)
+CREATE TABLE IF NOT EXISTS fray_reactions (
+  message_guid TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  emoji TEXT NOT NULL,
+  reacted_at INTEGER NOT NULL,
+  PRIMARY KEY (message_guid, agent_id, emoji, reacted_at)
+);
+CREATE INDEX IF NOT EXISTS idx_fray_reactions_message ON fray_reactions(message_guid);
+CREATE INDEX IF NOT EXISTS idx_fray_reactions_agent ON fray_reactions(agent_id);
 `
 
 const defaultConfigSQL = `

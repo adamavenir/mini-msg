@@ -521,18 +521,14 @@ func (m *Model) handleSubmit(text string) tea.Cmd {
 }
 
 func (m *Model) handleReaction(reaction, messageID string, match *ReplyMatch) tea.Cmd {
-	updated, changed, err := db.AddReaction(m.db, messageID, m.username, reaction)
+	updated, reactedAt, err := db.AddReaction(m.db, messageID, m.username, reaction)
 	if err != nil {
 		m.status = err.Error()
 		return nil
 	}
-	if !changed {
-		m.status = "Reaction already added."
-		return nil
-	}
 
-	update := db.MessageUpdateJSONLRecord{ID: updated.ID, Reactions: &updated.Reactions}
-	if err := db.AppendMessageUpdate(m.projectDBPath, update); err != nil {
+	// Write reaction to JSONL (new format - separate record)
+	if err := db.AppendReaction(m.projectDBPath, messageID, m.username, reaction, reactedAt); err != nil {
 		m.status = err.Error()
 		return nil
 	}
@@ -673,7 +669,7 @@ func (m *Model) refreshReactions() error {
 		return nil
 	}
 
-	updated, err := db.GetMessageReactions(m.db, ids)
+	updated, err := db.GetMessageReactionsNew(m.db, ids)
 	if err != nil {
 		return err
 	}
@@ -689,8 +685,12 @@ func (m *Model) refreshReactions() error {
 		}
 		added := diffReactions(msg.Reactions, next)
 		if len(added) > 0 {
-			for reaction, users := range added {
-				eventLine := core.FormatReactionEvent(users, reaction, msg.ID, msg.Body)
+			for reaction, entries := range added {
+				agents := make([]string, 0, len(entries))
+				for _, e := range entries {
+					agents = append(agents, e.AgentID)
+				}
+				eventLine := core.FormatReactionEvent(agents, reaction, msg.ID, msg.Body)
 				events = append(events, newEventMessage(eventLine))
 			}
 		}
