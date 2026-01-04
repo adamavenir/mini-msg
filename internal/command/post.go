@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/adamavenir/fray/internal/core"
@@ -312,7 +313,30 @@ func NewPostCmd() *cobra.Command {
 				agentBase = parsed.Base
 			}
 
-			unread, err := db.GetMessagesWithMention(ctx.DB, agentBase, &types.MessageQueryOptions{UnreadOnly: true, AgentPrefix: agentBase})
+			// Check ghost cursor for session-aware unread logic
+			allHomes := ""
+			mentionOpts := &types.MessageQueryOptions{
+				AgentPrefix:           agentBase,
+				Home:                  &allHomes,
+				IncludeRepliesToAgent: agentBase,
+			}
+
+			useGhostCursorBoundary := false
+			var mentionGhostCursor *types.GhostCursor
+			mentionGhostCursor, _ = db.GetGhostCursor(ctx.DB, agentBase, "room")
+			if mentionGhostCursor != nil && mentionGhostCursor.SessionAckAt == nil {
+				// Ghost cursor exists and not yet acked this session
+				msg, msgErr := db.GetMessage(ctx.DB, mentionGhostCursor.MessageGUID)
+				if msgErr == nil && msg != nil {
+					mentionOpts.Since = &types.MessageCursor{GUID: msg.ID, TS: msg.TS}
+					useGhostCursorBoundary = true
+				}
+			}
+			if !useGhostCursorBoundary {
+				mentionOpts.UnreadOnly = true
+			}
+
+			unread, err := db.GetMessagesWithMention(ctx.DB, agentBase, mentionOpts)
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
@@ -374,6 +398,33 @@ func NewPostCmd() *cobra.Command {
 				if err := db.MarkMessagesRead(ctx.DB, ids, agentBase); err != nil {
 					return writeCommandError(cmd, err)
 				}
+			}
+
+			// Ack ghost cursor if we used it as boundary (first view this session)
+			if useGhostCursorBoundary && mentionGhostCursor != nil {
+				now := time.Now().Unix()
+				_ = db.AckGhostCursor(ctx.DB, agentBase, "room", now)
+			}
+
+			// Show active claims summary
+			claims, err := db.GetAllClaims(ctx.DB)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+			if len(claims) > 0 {
+				claimsByAgent := make(map[string][]string)
+				for _, claim := range claims {
+					pattern := claim.Pattern
+					if claim.ClaimType != types.ClaimTypeFile {
+						pattern = fmt.Sprintf("%s:%s", claim.ClaimType, claim.Pattern)
+					}
+					claimsByAgent[claim.AgentID] = append(claimsByAgent[claim.AgentID], pattern)
+				}
+				claimParts := make([]string, 0, len(claimsByAgent))
+				for aid, patterns := range claimsByAgent {
+					claimParts = append(claimParts, fmt.Sprintf("@%s (%s)", aid, strings.Join(patterns, ", ")))
+				}
+				fmt.Fprintf(out, "\nActive claims: %s\n", strings.Join(claimParts, ", "))
 			}
 
 			return nil

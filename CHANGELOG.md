@@ -23,8 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fray answer`: interactive mode now uses full TUI with multiline input (Ctrl+J for newlines)
 
 ### Added
-- Ghost cursors for session handoffs: `fray cursor set/show/clear` marks where next agent should start reading; `--must-read` flag for critical threads
+- Ghost cursors for session handoffs: `fray cursor set/show/clear` marks where next agent should start reading; `--must-read` flag for critical threads; session-aware acknowledgment resets on each new session
 - Thread activity hints in `fray get <agent>`: shows unread counts for subscribed threads with last message context
+- `fray watch --as <agent>`: filters stream to agent-relevant events (own messages, @mentions, replies, reactions); falls back to `FRAY_AGENT_ID` env var
+- `fray post` now shows active claims summary after posting
 - Accordion output for long message lists: >10 messages collapses middle section (first 3 full, middle as previews, last 3 full); `--show-all` flag to disable
 - `fray react <emoji> <msg>`: explicit reaction command with optional `--reply` for chained comments
 - Thread anchors: `fray thread anchor <ref> <msg>` sets TL;DR message shown at top of thread display

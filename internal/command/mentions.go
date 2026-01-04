@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
@@ -35,18 +36,45 @@ func NewMentionsCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 			// Include mentions from all locations (room + threads)
+			// Also include replies to agent's messages (chained replies)
 			allHomes := ""
-			options := &types.MessageQueryOptions{IncludeArchived: includeArchived, AgentPrefix: prefix, Home: &allHomes}
+			options := &types.MessageQueryOptions{
+				IncludeArchived:       includeArchived,
+				AgentPrefix:           prefix,
+				Home:                  &allHomes,
+				IncludeRepliesToAgent: prefix,
+			}
+
+			// Check ghost cursor for session-aware unread logic
+			var ghostCursor *types.GhostCursor
+			useGhostCursorBoundary := false
 
 			unreadOnly := true
 			if showAll {
+				// --all: show everything
 				unreadOnly = false
 				options.Limit = 0
 			} else if since != "" {
+				// --since: show from specific message
 				unreadOnly = false
 				options.SinceID = strings.TrimPrefix(strings.TrimPrefix(since, "@"), "#")
-			} else if limit > 0 {
-				options.Limit = limit
+			} else {
+				// Default: check ghost cursor for unread boundary
+				ghostCursor, _ = db.GetGhostCursor(ctx.DB, prefix, "room")
+				if ghostCursor != nil && ghostCursor.SessionAckAt == nil {
+					// Ghost cursor exists and not yet acked this session
+					// Use ghost cursor as the unread boundary instead of read receipts
+					msg, err := db.GetMessage(ctx.DB, ghostCursor.MessageGUID)
+					if err == nil && msg != nil {
+						options.Since = &types.MessageCursor{GUID: msg.ID, TS: msg.TS}
+						useGhostCursorBoundary = true
+						unreadOnly = false // Don't also filter by read receipts
+					}
+				}
+				// Apply limit if specified (--last N), applies to both ghost cursor and read receipt modes
+				if limit > 0 {
+					options.Limit = limit
+				}
 			}
 			options.UnreadOnly = unreadOnly
 
@@ -64,14 +92,21 @@ func NewMentionsCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
+			// For display: unread if using read receipts OR ghost cursor boundary
+			isUnreadMode := unreadOnly || useGhostCursorBoundary
 			if len(messages) == 0 {
-				if unreadOnly {
+				if isUnreadMode {
 					fmt.Fprintf(out, "No unread mentions of @%s\n", prefix)
 				} else {
 					fmt.Fprintf(out, "No mentions of @%s\n", prefix)
 				}
+				// Ack ghost cursor even if no messages (boundary viewed)
+				if useGhostCursorBoundary && ghostCursor != nil {
+					now := time.Now().Unix()
+					_ = db.AckGhostCursor(ctx.DB, prefix, "room", now)
+				}
 			} else {
-				if unreadOnly {
+				if isUnreadMode {
 					fmt.Fprintf(out, "Unread mentions of @%s:\n", prefix)
 				} else {
 					fmt.Fprintf(out, "Messages mentioning @%s:\n", prefix)
@@ -136,6 +171,14 @@ func NewMentionsCmd() *cobra.Command {
 				}
 				if err := db.MarkMessagesRead(ctx.DB, ids, prefix); err != nil {
 					return writeCommandError(cmd, err)
+				}
+
+				// Ack ghost cursor if we used it as boundary (first view this session)
+				if useGhostCursorBoundary && ghostCursor != nil {
+					now := time.Now().Unix()
+					if err := db.AckGhostCursor(ctx.DB, prefix, "room", now); err != nil {
+						return writeCommandError(cmd, err)
+					}
 				}
 			}
 

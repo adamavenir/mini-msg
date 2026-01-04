@@ -197,6 +197,7 @@ CREATE TABLE IF NOT EXISTS fray_ghost_cursors (
   message_guid TEXT NOT NULL,    -- start reading from here
   must_read INTEGER NOT NULL DEFAULT 0,  -- inject full content vs hint only
   set_at INTEGER NOT NULL,
+  session_ack_at INTEGER,        -- when first viewed this session (null = not yet acked)
   PRIMARY KEY (agent_id, home)
 );
 

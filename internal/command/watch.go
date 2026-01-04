@@ -1,6 +1,7 @@
 package command
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/daemon"
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
@@ -28,6 +30,19 @@ func NewWatchCmd() *cobra.Command {
 
 			last, _ := cmd.Flags().GetInt("last")
 			includeArchived, _ := cmd.Flags().GetBool("archived")
+			asAgent, _ := cmd.Flags().GetString("as")
+
+			// Resolve agent filter - use --as flag or fall back to FRAY_AGENT_ID env var
+			var filterAgent string
+			if asAgent != "" {
+				resolved, err := resolveAgentRef(ctx, asAgent)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				filterAgent = resolved
+			} else if envAgent := os.Getenv("FRAY_AGENT_ID"); envAgent != "" {
+				filterAgent = envAgent
+			}
 
 			projectName := GetProjectName(ctx.Project.Root)
 			out := cmd.OutOrStdout()
@@ -46,7 +61,11 @@ func NewWatchCmd() *cobra.Command {
 					return writeCommandError(cmd, err)
 				}
 				if !ctx.JSONMode {
-					fmt.Fprintln(out, "--- watching (Ctrl+C to stop) ---")
+					watchLabel := "watching"
+					if filterAgent != "" {
+						watchLabel = fmt.Sprintf("watching @%s", filterAgent)
+					}
+					fmt.Fprintf(out, "--- %s (Ctrl+C to stop) ---\n", watchLabel)
 				}
 			} else {
 				recent, err := db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: last, IncludeArchived: includeArchived})
@@ -57,6 +76,18 @@ func NewWatchCmd() *cobra.Command {
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
+
+				// Filter to agent-relevant messages if --as is set
+				if filterAgent != "" {
+					filtered := make([]types.Message, 0, len(recent))
+					for _, msg := range recent {
+						if isMessageRelevantToAgent(ctx.DB, msg, filterAgent) {
+							filtered = append(filtered, msg)
+						}
+					}
+					recent = filtered
+				}
+
 				if len(recent) > 0 {
 					if ctx.JSONMode {
 						for _, msg := range recent {
@@ -66,12 +97,20 @@ func NewWatchCmd() *cobra.Command {
 						for _, msg := range recent {
 							fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
 						}
-						fmt.Fprintln(out, "--- watching (Ctrl+C to stop) ---")
+						watchLabel := "watching"
+						if filterAgent != "" {
+							watchLabel = fmt.Sprintf("watching @%s", filterAgent)
+						}
+						fmt.Fprintf(out, "--- %s (Ctrl+C to stop) ---\n", watchLabel)
 					}
 					lastMsg := recent[len(recent)-1]
 					cursor = &types.MessageCursor{GUID: lastMsg.ID, TS: lastMsg.TS}
 				} else if !ctx.JSONMode {
-					fmt.Fprintln(out, "--- watching (Ctrl+C to stop) ---")
+					watchLabel := "watching"
+					if filterAgent != "" {
+						watchLabel = fmt.Sprintf("watching @%s", filterAgent)
+					}
+					fmt.Fprintf(out, "--- %s (Ctrl+C to stop) ---\n", watchLabel)
 				}
 			}
 
@@ -151,6 +190,10 @@ func NewWatchCmd() *cobra.Command {
 						continue
 					}
 
+					// Update cursor first (before filtering) so we don't re-fetch filtered messages
+					lastMsg := newMessages[len(newMessages)-1]
+					cursor = &types.MessageCursor{GUID: lastMsg.ID, TS: lastMsg.TS}
+
 					// Check if any message is from our agent (resets timer)
 					if agentID != "" {
 						for _, msg := range newMessages {
@@ -159,6 +202,21 @@ func NewWatchCmd() *cobra.Command {
 								lastWarningLevel = 0
 							}
 						}
+					}
+
+					// Filter to agent-relevant messages if --as is set
+					if filterAgent != "" {
+						filtered := make([]types.Message, 0, len(newMessages))
+						for _, msg := range newMessages {
+							if isMessageRelevantToAgent(ctx.DB, msg, filterAgent) {
+								filtered = append(filtered, msg)
+							}
+						}
+						newMessages = filtered
+					}
+
+					if len(newMessages) == 0 {
+						continue
 					}
 
 					if ctx.JSONMode {
@@ -171,8 +229,6 @@ func NewWatchCmd() *cobra.Command {
 							fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
 						}
 					}
-					lastMsg := newMessages[len(newMessages)-1]
-					cursor = &types.MessageCursor{GUID: lastMsg.ID, TS: lastMsg.TS}
 
 				case <-func() <-chan time.Time {
 					if heartbeatTicker != nil {
@@ -218,5 +274,59 @@ func NewWatchCmd() *cobra.Command {
 
 	cmd.Flags().Int("last", 10, "show last N messages before streaming")
 	cmd.Flags().Bool("archived", false, "include archived messages")
+	cmd.Flags().String("as", "", "filter to agent-relevant events (mentions, reactions, replies)")
 	return cmd
+}
+
+// isMessageRelevantToAgent checks if a message is relevant to the specified agent.
+// Relevant = mentions agent, is a reply to agent's message, or is a reaction to agent's message.
+func isMessageRelevantToAgent(database *sql.DB, msg types.Message, agentPrefix string) bool {
+	// Check if message is FROM the agent (always show own messages)
+	if msg.FromAgent == agentPrefix {
+		return true
+	}
+	parsed, err := core.ParseAgentID(msg.FromAgent)
+	if err == nil && parsed.Base == agentPrefix {
+		return true
+	}
+
+	// Check if message mentions the agent
+	for _, mention := range msg.Mentions {
+		if mention == "all" || mention == agentPrefix {
+			return true
+		}
+		if len(mention) > len(agentPrefix) && mention[:len(agentPrefix)+1] == agentPrefix+"." {
+			return true
+		}
+	}
+
+	// Check if message is a reply to one of the agent's messages
+	if msg.ReplyTo != nil {
+		parentMsg, err := db.GetMessage(database, *msg.ReplyTo)
+		if err == nil && parentMsg != nil {
+			if parentMsg.FromAgent == agentPrefix {
+				return true
+			}
+			parsed, err := core.ParseAgentID(parentMsg.FromAgent)
+			if err == nil && parsed.Base == agentPrefix {
+				return true
+			}
+		}
+	}
+
+	// Check if this is an event message about a reaction to agent's message
+	if msg.Type == types.MessageTypeEvent && msg.References != nil {
+		refMsg, err := db.GetMessage(database, *msg.References)
+		if err == nil && refMsg != nil {
+			if refMsg.FromAgent == agentPrefix {
+				return true
+			}
+			parsed, err := core.ParseAgentID(refMsg.FromAgent)
+			if err == nil && parsed.Base == agentPrefix {
+				return true
+			}
+		}
+	}
+
+	return false
 }

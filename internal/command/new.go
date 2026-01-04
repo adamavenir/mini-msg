@@ -102,6 +102,10 @@ func NewNewCmd() *cobra.Command {
 				}
 
 				isRejoin = true
+				// Clear ghost cursor session acks so cursors become "unread" for new session
+				if err := db.ClearGhostCursorSessionAcks(ctx.DB, agentID); err != nil {
+					return writeCommandError(cmd, err)
+				}
 				now := time.Now().Unix()
 				updates := db.AgentUpdates{
 					LastSeen: types.OptionalInt64{Set: true, Value: &now},

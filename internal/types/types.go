@@ -334,10 +334,25 @@ type SessionHeartbeat struct {
 // GhostCursor represents a recommended read position for session handoff.
 // Unlike read_to (actual read position), ghost cursor is where an outgoing
 // agent says the next agent should START reading from.
+//
+// Session-aware unread logic:
+//
+//  1. Ghost cursor persists across views (not cleared on first view) so the same
+//     context can be useful for multiple sessions working on related things.
+//
+//  2. SessionAckAt tracks whether the cursor has been "acknowledged" this session:
+//     - NULL: cursor not yet viewed this session → use as unread boundary
+//     - Set: cursor already viewed → use read receipts instead
+//
+//  3. On session start (fray back/new): SessionAckAt is cleared, so the cursor
+//     becomes the unread boundary again for the new session.
+//
+// Flow: new session → ghost cursor boundary → ack → read receipts for rest of session
 type GhostCursor struct {
-	AgentID     string `json:"agent_id"`
-	Home        string `json:"home"`         // "room" or thread GUID
-	MessageGUID string `json:"message_guid"` // start reading from here
-	MustRead    bool   `json:"must_read"`    // inject full content vs hint only
-	SetAt       int64  `json:"set_at"`
+	AgentID      string `json:"agent_id"`
+	Home         string `json:"home"`                     // "room" or thread GUID
+	MessageGUID  string `json:"message_guid"`             // start reading from here
+	MustRead     bool   `json:"must_read"`                // inject full content vs hint only
+	SetAt        int64  `json:"set_at"`
+	SessionAckAt *int64 `json:"session_ack_at,omitempty"` // when first viewed this session
 }

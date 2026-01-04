@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
@@ -207,13 +208,32 @@ func NewGetCmd() *cobra.Command {
 					roomMessages = filterEventMessages(roomMessages)
 				}
 
-				mentionMessages, err := db.GetMessagesWithMention(ctx.DB, agentBase, &types.MessageQueryOptions{
+				// Check ghost cursor for session-aware unread logic
+				allHomes := ""
+				mentionOpts := &types.MessageQueryOptions{
 					Limit:                 mentionsLimit + len(roomMessages),
 					IncludeArchived:       archived,
 					IncludeRepliesToAgent: agentBase,
-					UnreadOnly:            true,
 					AgentPrefix:           agentBase,
-				})
+					Home:                  &allHomes,
+				}
+
+				useGhostCursorBoundary := false
+				var mentionGhostCursor *types.GhostCursor
+				mentionGhostCursor, _ = db.GetGhostCursor(ctx.DB, agentBase, "room")
+				if mentionGhostCursor != nil && mentionGhostCursor.SessionAckAt == nil {
+					// Ghost cursor exists and not yet acked this session
+					msg, msgErr := db.GetMessage(ctx.DB, mentionGhostCursor.MessageGUID)
+					if msgErr == nil && msg != nil {
+						mentionOpts.Since = &types.MessageCursor{GUID: msg.ID, TS: msg.TS}
+						useGhostCursorBoundary = true
+					}
+				}
+				if !useGhostCursorBoundary {
+					mentionOpts.UnreadOnly = true
+				}
+
+				mentionMessages, err := db.GetMessagesWithMention(ctx.DB, agentBase, mentionOpts)
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
@@ -249,6 +269,12 @@ func NewGetCmd() *cobra.Command {
 					if err := db.MarkMessagesRead(ctx.DB, ids, agentBase); err != nil {
 						return writeCommandError(cmd, err)
 					}
+				}
+
+				// Ack ghost cursor if we used it as boundary (first view this session)
+				if useGhostCursorBoundary && mentionGhostCursor != nil {
+					now := time.Now().Unix()
+					_ = db.AckGhostCursor(ctx.DB, agentBase, "room", now)
 				}
 
 				// Set watermark to the latest message viewed
