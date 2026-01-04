@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,6 +12,26 @@ import (
 	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
+
+// Staleness threshold: messages older than this are "likely stale"
+const staleThresholdHours = 2
+
+// mentionCategory represents how an agent was mentioned
+type mentionCategory int
+
+const (
+	categoryDirectAddress mentionCategory = iota // @agent at message start
+	categoryFYI                                  // @agent mid-message
+	categoryReply                                // reply to agent's message
+)
+
+// categorizedMessage wraps a message with its mention metadata
+type categorizedMessage struct {
+	types.Message
+	category mentionCategory
+	isStale  bool
+	ageStr   string
+}
 
 // NewMentionsCmd creates the mentions command.
 func NewMentionsCmd() *cobra.Command {
@@ -106,62 +127,71 @@ func NewMentionsCmd() *cobra.Command {
 					_ = db.AckGhostCursor(ctx.DB, prefix, "room", now)
 				}
 			} else {
-				if isUnreadMode {
-					fmt.Fprintf(out, "Unread mentions of @%s:\n", prefix)
-				} else {
-					fmt.Fprintf(out, "Messages mentioning @%s:\n", prefix)
-				}
-
 				bases, err := db.GetAgentBases(ctx.DB)
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
 
 				projectName := GetProjectName(ctx.Project.Root)
+				now := time.Now()
 
-				// Apply accordion if needed
-				threshold := DefaultAccordionThreshold
-				useAccordion := !showAllMessages && len(messages) > threshold
-				headCount := AccordionHeadCount
-				tailCount := AccordionTailCount
-
+				// Categorize all messages
+				categorized := make([]categorizedMessage, len(messages))
 				for i, msg := range messages {
-					// Determine if this is a preview (collapsed) or full message
-					isPreview := false
-					if useAccordion {
-						middleStart := headCount
-						middleEnd := len(messages) - tailCount
-						if i >= middleStart && i < middleEnd {
-							isPreview = true
-						}
-						// Print accordion markers
-						if i == middleStart {
-							collapsedCount := middleEnd - middleStart
-							fmt.Fprintf(out, "%s  ... %d messages collapsed ...%s\n", dim, collapsedCount, reset)
-						}
-					}
+					categorized[i] = categorizeMessage(msg, prefix, now)
+				}
 
-					if isPreview {
-						fmt.Fprintln(out, FormatMessagePreview(msg, projectName))
-					} else {
-						formatted := FormatMessage(msg, projectName, bases)
-						readCount, err := db.GetReadReceiptCount(ctx.DB, msg.ID)
-						if err != nil {
-							return writeCommandError(cmd, err)
-						}
-						if readCount > 0 {
-							formatted = strings.TrimRight(formatted, "\n")
-							formatted = fmt.Sprintf("%s [✓%d]", formatted, readCount)
-						}
-						fmt.Fprintln(out, formatted)
-						for _, reactionLine := range formatReactionEvents(msg) {
-							fmt.Fprintf(out, "  %s\n", reactionLine)
-						}
-					}
+				// Use hierarchical display for unread mode, flat for --all/--since
+				if isUnreadMode {
+					printHierarchicalMentions(out, categorized, prefix, projectName)
+				} else {
+					// Flat display for explicit queries
+					fmt.Fprintf(out, "Messages mentioning @%s:\n", prefix)
 
-					// Print end of accordion marker
-					if useAccordion && i == len(messages)-tailCount-1 {
-						fmt.Fprintf(out, "%s  ... end collapsed ...%s\n", dim, reset)
+					// Apply accordion if needed
+					threshold := DefaultAccordionThreshold
+					useAccordion := !showAllMessages && len(messages) > threshold
+					headCount := AccordionHeadCount
+					tailCount := AccordionTailCount
+
+					for i, msg := range messages {
+						// Determine if this is a preview (collapsed) or full message
+						isPreview := false
+						if useAccordion {
+							middleStart := headCount
+							middleEnd := len(messages) - tailCount
+							if i >= middleStart && i < middleEnd {
+								isPreview = true
+							}
+							// Print accordion markers
+							if i == middleStart {
+								collapsedCount := middleEnd - middleStart
+								fmt.Fprintf(out, "%s  ... %d messages collapsed ...%s\n", dim, collapsedCount, reset)
+							}
+						}
+
+						if isPreview {
+							fmt.Fprintln(out, FormatMessagePreview(msg, projectName))
+						} else {
+							formatted := FormatMessage(msg, projectName, bases)
+							readCount, err := db.GetReadReceiptCount(ctx.DB, msg.ID)
+							if err != nil {
+								return writeCommandError(cmd, err)
+							}
+							if readCount > 0 {
+								formatted = strings.TrimRight(formatted, "\n")
+								formatted = fmt.Sprintf("%s [✓%d]", formatted, readCount)
+							}
+							fmt.Fprintln(out, formatted)
+							for _, reactionLine := range formatReactionEvents(msg) {
+								fmt.Fprintf(out, "  %s\n", reactionLine)
+							}
+						}
+
+						// Print end of accordion marker
+						if useAccordion && i == len(messages)-tailCount-1 {
+							fmt.Fprintf(out, "%s  ... end collapsed ...%s\n", dim, reset)
+						}
 					}
 				}
 
@@ -175,8 +205,8 @@ func NewMentionsCmd() *cobra.Command {
 
 				// Ack ghost cursor if we used it as boundary (first view this session)
 				if useGhostCursorBoundary && ghostCursor != nil {
-					now := time.Now().Unix()
-					if err := db.AckGhostCursor(ctx.DB, prefix, "room", now); err != nil {
+					nowTS := time.Now().Unix()
+					if err := db.AckGhostCursor(ctx.DB, prefix, "room", nowTS); err != nil {
 						return writeCommandError(cmd, err)
 					}
 				}
@@ -301,4 +331,145 @@ func getLastPostTimestamp(database *sql.DB, agentPrefix string) (*int64, error) 
 
 	value := ts.Int64
 	return &value, nil
+}
+
+// isDirectAddress checks if the message body starts with an @mention of the agent
+func isDirectAddress(body, agentPrefix string) bool {
+	// Match @agent or @agent.* at the very start of the message
+	pattern := fmt.Sprintf(`^@%s(?:\.\w+)*\b`, regexp.QuoteMeta(agentPrefix))
+	matched, _ := regexp.MatchString(pattern, strings.TrimSpace(body))
+	return matched
+}
+
+// categorizeMessage determines how an agent was mentioned in a message
+func categorizeMessage(msg types.Message, agentPrefix string, now time.Time) categorizedMessage {
+	cat := categorizedMessage{Message: msg}
+
+	// Calculate age
+	msgTime := time.Unix(msg.TS, 0)
+	age := now.Sub(msgTime)
+	cat.isStale = age.Hours() >= staleThresholdHours
+	cat.ageStr = formatAge(age)
+
+	// Determine category
+	if msg.ReplyTo != nil {
+		// This is a reply - check if it's a reply to the agent's message
+		// (we assume the query already filtered for this)
+		cat.category = categoryReply
+	} else if isDirectAddress(msg.Body, agentPrefix) {
+		cat.category = categoryDirectAddress
+	} else {
+		cat.category = categoryFYI
+	}
+
+	return cat
+}
+
+// formatAge returns a human-readable age string
+func formatAge(d time.Duration) string {
+	if d < time.Minute {
+		return "just now"
+	} else if d < time.Hour {
+		mins := int(d.Minutes())
+		return fmt.Sprintf("%dm ago", mins)
+	} else if d < 24*time.Hour {
+		hours := int(d.Hours())
+		return fmt.Sprintf("%dh ago", hours)
+	}
+	days := int(d.Hours() / 24)
+	return fmt.Sprintf("%dd ago", days)
+}
+
+// printHierarchicalMentions displays mentions grouped by category and staleness
+func printHierarchicalMentions(out interface{ Write([]byte) (int, error) }, messages []categorizedMessage, agentPrefix, projectName string) {
+	// Group messages
+	var directRecent, directStale, fyiRecent, fyiStale, replyRecent, replyStale []categorizedMessage
+
+	for _, msg := range messages {
+		switch msg.category {
+		case categoryDirectAddress:
+			if msg.isStale {
+				directStale = append(directStale, msg)
+			} else {
+				directRecent = append(directRecent, msg)
+			}
+		case categoryFYI:
+			if msg.isStale {
+				fyiStale = append(fyiStale, msg)
+			} else {
+				fyiRecent = append(fyiRecent, msg)
+			}
+		case categoryReply:
+			if msg.isStale {
+				replyStale = append(replyStale, msg)
+			} else {
+				replyRecent = append(replyRecent, msg)
+			}
+		}
+	}
+
+	printed := false
+
+	// Print recent direct addresses (highest priority)
+	if len(directRecent) > 0 {
+		fmt.Fprintf(out, "Recent @%s:\n", agentPrefix)
+		for _, msg := range directRecent {
+			printMentionLine(out, msg, projectName)
+		}
+		printed = true
+	}
+
+	// Print recent FYIs
+	if len(fyiRecent) > 0 {
+		if printed {
+			fmt.Fprintln(out)
+		}
+		fmt.Fprintln(out, "You were FYI'd here:")
+		for _, msg := range fyiRecent {
+			printMentionLine(out, msg, projectName)
+		}
+		printed = true
+	}
+
+	// Print recent replies
+	if len(replyRecent) > 0 {
+		if printed {
+			fmt.Fprintln(out)
+		}
+		fmt.Fprintln(out, "Replies to your messages:")
+		for _, msg := range replyRecent {
+			printMentionLine(out, msg, projectName)
+		}
+		printed = true
+	}
+
+	// Count stale
+	staleCount := len(directStale) + len(fyiStale) + len(replyStale)
+	if staleCount > 0 {
+		if printed {
+			fmt.Fprintln(out)
+		}
+		fmt.Fprintf(out, "%s%d likely stale (>%dh)%s\n", dim, staleCount, staleThresholdHours, reset)
+	}
+}
+
+// printMentionLine prints a single mention in compact format
+func printMentionLine(out interface{ Write([]byte) (int, error) }, msg categorizedMessage, projectName string) {
+	// Truncate body for display
+	body := strings.TrimSpace(msg.Body)
+	body = strings.ReplaceAll(body, "\n", " ")
+	maxLen := 60
+	if len(body) > maxLen {
+		body = body[:maxLen-3] + "..."
+	}
+
+	fmt.Fprintf(out, "  [%s] %s: %s (%s)\n", formatShortGUID(msg.ID), msg.FromAgent, body, msg.ageStr)
+}
+
+// formatShortGUID returns a shortened GUID for display
+func formatShortGUID(guid string) string {
+	if strings.HasPrefix(guid, "msg-") && len(guid) > 7 {
+		return guid[:7]
+	}
+	return guid
 }

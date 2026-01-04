@@ -332,6 +332,14 @@ func NewThreadNewCmd() *cobra.Command {
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
+				// Check nesting depth - new thread would be parent's depth + 1
+				parentDepth, err := getThreadDepth(ctx.DB, parent)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if parentDepth >= MaxThreadNestingDepth {
+					return writeCommandError(cmd, fmt.Errorf("cannot create thread: maximum nesting depth (%d) exceeded", MaxThreadNestingDepth))
+				}
 			}
 
 			var parentGUID *string

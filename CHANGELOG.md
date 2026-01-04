@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Thread activity hints in `fray get <agent>`: shows unread counts for subscribed threads with last message context
 - `fray watch --as <agent>`: filters stream to agent-relevant events (own messages, @mentions, replies, reactions); falls back to `FRAY_AGENT_ID` env var
 - `fray post` now shows active claims summary after posting
+- Mention hierarchy in `fray @agent`: groups by direct address (@agent at start), FYI (mid-message), and replies; stale mentions (>2h) collapsed to count
+- 4-level max thread nesting: `fray thread new --parent` rejects creation beyond depth 4
 - Accordion output for long message lists: >10 messages collapses middle section (first 3 full, middle as previews, last 3 full); `--show-all` flag to disable
 - `fray react <emoji> <msg>`: explicit reaction command with optional `--reply` for chained comments
 - Thread anchors: `fray thread anchor <ref> <msg>` sets TL;DR message shown at top of thread display
