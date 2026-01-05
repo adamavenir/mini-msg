@@ -364,3 +364,25 @@ type GhostCursor struct {
 	SetAt        int64  `json:"set_at"`
 	SessionAckAt *int64 `json:"session_ack_at,omitempty"` // when first viewed this session
 }
+
+// RoleAssignment represents a persistent role held by an agent.
+type RoleAssignment struct {
+	AgentID    string `json:"agent_id"`
+	RoleName   string `json:"role_name"`
+	AssignedAt int64  `json:"assigned_at"`
+}
+
+// SessionRole represents a session-scoped role being played by an agent.
+type SessionRole struct {
+	AgentID   string  `json:"agent_id"`
+	RoleName  string  `json:"role_name"`
+	SessionID *string `json:"session_id,omitempty"`
+	StartedAt int64   `json:"started_at"`
+}
+
+// AgentRoles summarizes an agent's held and playing roles.
+type AgentRoles struct {
+	AgentID  string   `json:"agent_id"`
+	Held     []string `json:"held"`
+	Playing  []string `json:"playing"`
+}

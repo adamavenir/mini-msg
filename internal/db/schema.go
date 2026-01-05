@@ -241,6 +241,25 @@ CREATE TABLE IF NOT EXISTS fray_faves (
 );
 CREATE INDEX IF NOT EXISTS idx_fray_faves_agent ON fray_faves(agent_id);
 CREATE INDEX IF NOT EXISTS idx_fray_faves_item ON fray_faves(item_type, item_guid);
+
+-- Role assignments (held roles - persistent)
+CREATE TABLE IF NOT EXISTS fray_role_assignments (
+  agent_id TEXT NOT NULL,
+  role_name TEXT NOT NULL,
+  assigned_at INTEGER NOT NULL,
+  PRIMARY KEY (agent_id, role_name)
+);
+CREATE INDEX IF NOT EXISTS idx_fray_role_assignments_role ON fray_role_assignments(role_name);
+
+-- Session roles (playing - cleared on bye/land)
+CREATE TABLE IF NOT EXISTS fray_session_roles (
+  agent_id TEXT NOT NULL,
+  role_name TEXT NOT NULL,
+  session_id TEXT,
+  started_at INTEGER NOT NULL,
+  PRIMARY KEY (agent_id, role_name)
+);
+CREATE INDEX IF NOT EXISTS idx_fray_session_roles_role ON fray_session_roles(role_name);
 `
 
 const defaultConfigSQL = `

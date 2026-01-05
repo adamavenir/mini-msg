@@ -42,9 +42,26 @@ func NewByeCmd() *cobra.Command {
 			}
 
 			now := time.Now().Unix()
+			nowMs := time.Now().UnixMilli()
 			clearedClaims, err := db.DeleteClaimsByAgent(ctx.DB, agentID)
 			if err != nil {
 				return writeCommandError(cmd, err)
+			}
+
+			// Clear session roles
+			sessionRoles, err := db.GetSessionRoles(ctx.DB, agentID)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+			clearedRoles, err := db.ClearSessionRoles(ctx.DB, agentID)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+			// Append role_stop events for each cleared role
+			for _, role := range sessionRoles {
+				if err := db.AppendRoleStop(ctx.Project.DBPath, agentID, role.RoleName, nowMs); err != nil {
+					return writeCommandError(cmd, err)
+				}
 			}
 
 			var posted *types.Message
@@ -107,6 +124,7 @@ func NewByeCmd() *cobra.Command {
 					"status":         "left",
 					"message_id":     nil,
 					"claims_cleared": clearedClaims,
+					"roles_cleared":  clearedRoles,
 				}
 				if posted != nil {
 					payload["message_id"] = posted.ID
@@ -125,6 +143,13 @@ func NewByeCmd() *cobra.Command {
 					plural = ""
 				}
 				fmt.Fprintf(out, "  Released %d claim%s\n", clearedClaims, plural)
+			}
+			if clearedRoles > 0 {
+				plural := "s"
+				if clearedRoles == 1 {
+					plural = ""
+				}
+				fmt.Fprintf(out, "  Released %d session role%s\n", clearedRoles, plural)
 			}
 			return nil
 		},

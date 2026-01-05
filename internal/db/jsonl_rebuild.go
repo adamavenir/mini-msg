@@ -178,6 +178,10 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	if err != nil {
 		return err
 	}
+	roleEvents, err := ReadRoles(projectPath)
+	if err != nil {
+		return err
+	}
 	config, err := ReadProjectConfig(projectPath)
 	if err != nil {
 		return err
@@ -220,6 +224,12 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 		return err
 	}
 	if _, err := db.Exec("DROP TABLE IF EXISTS fray_faves"); err != nil {
+		return err
+	}
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_role_assignments"); err != nil {
+		return err
+	}
+	if _, err := db.Exec("DROP TABLE IF EXISTS fray_session_roles"); err != nil {
 		return err
 	}
 	if err := initSchemaWith(db); err != nil {
@@ -608,6 +618,60 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 				INSERT OR REPLACE INTO fray_faves (agent_id, item_type, item_guid, faved_at)
 				VALUES (?, ?, ?, ?)
 			`, fave.AgentID, fave.ItemType, fave.ItemGUID, fave.FavedAt); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Rebuild roles from role events
+	if len(roleEvents) > 0 {
+		// Track held roles (persistent assignments)
+		type heldKey struct {
+			agentID  string
+			roleName string
+		}
+		heldRoles := make(map[heldKey]int64) // assignedAt
+
+		// Track session roles
+		type sessionKey struct {
+			agentID  string
+			roleName string
+		}
+		sessionRoles := make(map[sessionKey]roleEvent)
+
+		for _, event := range roleEvents {
+			switch event.Type {
+			case "role_hold":
+				key := heldKey{agentID: event.AgentID, roleName: event.RoleName}
+				heldRoles[key] = event.AssignedAt
+			case "role_drop":
+				key := heldKey{agentID: event.AgentID, roleName: event.RoleName}
+				delete(heldRoles, key)
+			case "role_play":
+				key := sessionKey{agentID: event.AgentID, roleName: event.RoleName}
+				sessionRoles[key] = event
+			case "role_stop":
+				key := sessionKey{agentID: event.AgentID, roleName: event.RoleName}
+				delete(sessionRoles, key)
+			}
+		}
+
+		// Insert held roles
+		for key, assignedAt := range heldRoles {
+			if _, err := db.Exec(`
+				INSERT OR REPLACE INTO fray_role_assignments (agent_id, role_name, assigned_at)
+				VALUES (?, ?, ?)
+			`, key.agentID, key.roleName, assignedAt); err != nil {
+				return err
+			}
+		}
+
+		// Insert session roles
+		for _, role := range sessionRoles {
+			if _, err := db.Exec(`
+				INSERT OR REPLACE INTO fray_session_roles (agent_id, role_name, session_id, started_at)
+				VALUES (?, ?, ?, ?)
+			`, role.AgentID, role.RoleName, role.SessionID, role.StartedAt); err != nil {
 				return err
 			}
 		}

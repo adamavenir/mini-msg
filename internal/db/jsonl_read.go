@@ -989,3 +989,82 @@ func ReadFaves(projectPath string) ([]faveEvent, error) {
 	}
 	return events, nil
 }
+
+type roleEvent struct {
+	Type       string
+	AgentID    string
+	RoleName   string
+	SessionID  *string
+	AssignedAt int64
+	DroppedAt  int64
+	StartedAt  int64
+	StoppedAt  int64
+}
+
+// ReadRoles reads role events from agents.jsonl for rebuilding the database.
+func ReadRoles(projectPath string) ([]roleEvent, error) {
+	frayDir := resolveFrayDir(projectPath)
+	lines, err := readJSONLLines(filepath.Join(frayDir, agentsFile))
+	if err != nil {
+		return nil, err
+	}
+
+	var events []roleEvent
+	for _, line := range lines {
+		var envelope struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+			continue
+		}
+
+		switch envelope.Type {
+		case "role_hold":
+			var record RoleHoldJSONLRecord
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			events = append(events, roleEvent{
+				Type:       record.Type,
+				AgentID:    record.AgentID,
+				RoleName:   record.RoleName,
+				AssignedAt: record.AssignedAt,
+			})
+		case "role_drop":
+			var record RoleDropJSONLRecord
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			events = append(events, roleEvent{
+				Type:      record.Type,
+				AgentID:   record.AgentID,
+				RoleName:  record.RoleName,
+				DroppedAt: record.DroppedAt,
+			})
+		case "role_play":
+			var record RolePlayJSONLRecord
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			events = append(events, roleEvent{
+				Type:      record.Type,
+				AgentID:   record.AgentID,
+				RoleName:  record.RoleName,
+				SessionID: record.SessionID,
+				StartedAt: record.StartedAt,
+			})
+		case "role_stop":
+			var record RoleStopJSONLRecord
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			events = append(events, roleEvent{
+				Type:      record.Type,
+				AgentID:   record.AgentID,
+				RoleName:  record.RoleName,
+				StoppedAt: record.StoppedAt,
+			})
+		}
+	}
+	return events, nil
+}

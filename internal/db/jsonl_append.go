@@ -458,3 +458,68 @@ func AppendAgentUnfave(projectPath, agentID, itemType, itemGUID string, unfavedA
 	touchDatabaseFile(projectPath)
 	return nil
 }
+
+// AppendRoleHold appends a role hold (persistent assignment) record to JSONL.
+func AppendRoleHold(projectPath, agentID, roleName string, assignedAt int64) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := RoleHoldJSONLRecord{
+		Type:       "role_hold",
+		AgentID:    agentID,
+		RoleName:   roleName,
+		AssignedAt: assignedAt,
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendRoleDrop appends a role drop (removal) record to JSONL.
+func AppendRoleDrop(projectPath, agentID, roleName string, droppedAt int64) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := RoleDropJSONLRecord{
+		Type:      "role_drop",
+		AgentID:   agentID,
+		RoleName:  roleName,
+		DroppedAt: droppedAt,
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendRolePlay appends a session-scoped role play record to JSONL.
+func AppendRolePlay(projectPath, agentID, roleName string, sessionID *string, startedAt int64) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := RolePlayJSONLRecord{
+		Type:      "role_play",
+		AgentID:   agentID,
+		RoleName:  roleName,
+		SessionID: sessionID,
+		StartedAt: startedAt,
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendRoleStop appends a role stop record to JSONL.
+func AppendRoleStop(projectPath, agentID, roleName string, stoppedAt int64) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := RoleStopJSONLRecord{
+		Type:      "role_stop",
+		AgentID:   agentID,
+		RoleName:  roleName,
+		StoppedAt: stoppedAt,
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
