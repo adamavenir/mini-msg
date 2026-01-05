@@ -83,6 +83,7 @@ func NewRootCmd(version string) *cobra.Command {
 		NewFaveCmd(),
 		NewUnfaveCmd(),
 		NewFavesCmd(),
+		NewReactionsCmd(),
 		NewChatCmd(),
 		NewWatchCmd(),
 		NewPruneCmd(),

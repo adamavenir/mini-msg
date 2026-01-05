@@ -307,6 +307,10 @@ fray unfave <item> --as alice          # Remove from faves
 fray faves --as alice                  # List all faves
 fray faves --as alice --threads        # List only faved threads
 
+# Reactions (cross-thread queries)
+fray reactions --by alice              # Messages alice reacted to
+fray reactions --to alice              # Reactions on alice's messages
+
 # Claims (collision prevention)
 fray claim @alice --file path      # Claim a file
 fray claim @alice --file "*.ts"    # Claim glob pattern

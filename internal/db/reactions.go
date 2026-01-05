@@ -85,6 +85,79 @@ func GetReactionsForMessages(db *sql.DB, messageGUIDs []string) (map[string]map[
 	return result, nil
 }
 
+// GetMessagesReactedToByAgent returns messages that an agent has reacted to.
+func GetMessagesReactedToByAgent(db *sql.DB, agentID string, limit int) ([]ReactionQueryResult, error) {
+	query := `
+		SELECT DISTINCT r.message_guid, r.emoji, r.reacted_at, m.from_agent, m.body, m.home
+		FROM fray_reactions r
+		INNER JOIN fray_messages m ON m.guid = r.message_guid
+		WHERE r.agent_id = ? OR r.agent_id LIKE ?
+		ORDER BY r.reacted_at DESC
+	`
+	args := []any{agentID, agentID + ".%"}
+	if limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, limit)
+	}
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ReactionQueryResult
+	for rows.Next() {
+		var r ReactionQueryResult
+		if err := rows.Scan(&r.MessageGUID, &r.Emoji, &r.ReactedAt, &r.FromAgent, &r.Body, &r.Home); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
+// GetMessagesWithReactionsFrom returns messages from an agent that have reactions.
+func GetMessagesWithReactionsFrom(db *sql.DB, agentID string, limit int) ([]ReactionQueryResult, error) {
+	query := `
+		SELECT DISTINCT r.message_guid, r.emoji, r.reacted_at, r.agent_id, m.body, m.home
+		FROM fray_reactions r
+		INNER JOIN fray_messages m ON m.guid = r.message_guid
+		WHERE m.from_agent = ? OR m.from_agent LIKE ?
+		ORDER BY r.reacted_at DESC
+	`
+	args := []any{agentID, agentID + ".%"}
+	if limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, limit)
+	}
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ReactionQueryResult
+	for rows.Next() {
+		var r ReactionQueryResult
+		if err := rows.Scan(&r.MessageGUID, &r.Emoji, &r.ReactedAt, &r.ReactedBy, &r.Body, &r.Home); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
+// ReactionQueryResult holds info about a reaction for display.
+type ReactionQueryResult struct {
+	MessageGUID string
+	Emoji       string
+	ReactedAt   int64
+	FromAgent   string // who wrote the message
+	ReactedBy   string // who reacted
+	Body        string
+	Home        string
+}
+
 // InsertReaction adds a reaction to the fray_reactions table.
 func InsertReaction(db *sql.DB, messageGUID, agentID, emoji string, reactedAt int64) error {
 	_, err := db.Exec(`
