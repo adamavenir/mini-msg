@@ -97,6 +97,10 @@ type Model struct {
 	threadMessages      []types.Message
 	questionCounts      map[pseudoThreadKind]int
 	pseudoQuestions     []types.Question
+	unreadCounts        map[string]int    // unread message counts per thread GUID
+	roomUnreadCount     int               // unread count for main room
+	collapsedThreads    map[string]bool   // collapsed state per thread GUID
+	favedThreads        map[string]bool   // faved threads for current user
 	channels            []channelEntry
 	channelIndex        int
 	sidebarOpen         bool
@@ -195,12 +199,17 @@ func NewModel(opts Options) (*Model, error) {
 		threadIndex:        threadIndex,
 		threadPanelOpen: true,
 		sidebarOpen:     false,
-		visitedThreads:  make(map[string]types.Thread),
+		visitedThreads:     make(map[string]types.Thread),
+		unreadCounts:       make(map[string]int),
+		collapsedThreads:   make(map[string]bool),
+		favedThreads:       make(map[string]bool),
 		channels:        channels,
 		channelIndex:    channelIndex,
 		initialScroll:   true,
 	}
 	model.refreshQuestionCounts()
+	model.refreshUnreadCounts()
+	model.refreshFavedThreads()
 	return model, nil
 }
 
@@ -349,6 +358,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshViewport(true)
 		}
 		m.refreshQuestionCounts()
+		m.refreshUnreadCounts()
 
 		if err := m.refreshReactions(); err != nil {
 			m.status = err.Error()
@@ -716,6 +726,71 @@ func (m *Model) ambiguousStatus(resolution ReplyResolution) string {
 		parts = append(parts, fmt.Sprintf("#%s (@%s) %s", prefix, match.FromAgent, preview))
 	}
 	return fmt.Sprintf("Ambiguous #%s: %s", resolution.Prefix, strings.Join(parts, " | "))
+}
+
+func (m *Model) refreshUnreadCounts() {
+	if m.db == nil || m.username == "" {
+		return
+	}
+
+	// Get thread GUIDs
+	threadGUIDs := make([]string, 0, len(m.threads))
+	for _, t := range m.threads {
+		threadGUIDs = append(threadGUIDs, t.GUID)
+	}
+
+	// Get unread counts for threads
+	counts, err := db.GetUnreadCountsForAgent(m.db, m.username, threadGUIDs)
+	if err != nil {
+		return
+	}
+	m.unreadCounts = counts
+
+	// Get room unread count
+	roomCount, err := db.GetRoomUnreadCount(m.db, m.username)
+	if err != nil {
+		return
+	}
+	m.roomUnreadCount = roomCount
+}
+
+func (m *Model) markRoomAsRead() {
+	if m.db == nil || m.username == "" {
+		return
+	}
+	// Get the latest room message
+	if len(m.messages) == 0 {
+		return
+	}
+	latest := m.messages[len(m.messages)-1]
+	_ = db.SetReadTo(m.db, m.username, "", latest.ID, latest.TS)
+}
+
+func (m *Model) markThreadAsRead(threadGUID string) {
+	if m.db == nil || m.username == "" {
+		return
+	}
+	// Get the latest message in the thread
+	messages, err := db.GetThreadMessages(m.db, threadGUID)
+	if err != nil || len(messages) == 0 {
+		return
+	}
+	latest := messages[len(messages)-1]
+	_ = db.SetReadTo(m.db, m.username, threadGUID, latest.ID, latest.TS)
+}
+
+func (m *Model) refreshFavedThreads() {
+	if m.db == nil || m.username == "" {
+		return
+	}
+	guids, err := db.GetFavedThreads(m.db, m.username)
+	if err != nil {
+		return
+	}
+	m.favedThreads = make(map[string]bool)
+	for _, guid := range guids {
+		m.favedThreads[guid] = true
+	}
 }
 
 

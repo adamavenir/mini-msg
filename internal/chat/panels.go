@@ -31,11 +31,14 @@ const (
 )
 
 type threadEntry struct {
-	Kind   threadEntryKind
-	Thread *types.Thread
-	Pseudo pseudoThreadKind
-	Label  string
-	Indent int
+	Kind        threadEntryKind
+	Thread      *types.Thread
+	Pseudo      pseudoThreadKind
+	Label       string
+	Indent      int
+	HasChildren bool
+	Collapsed   bool
+	Faved       bool
 }
 
 func (m *Model) renderSidebar() string {
@@ -371,7 +374,13 @@ func (m *Model) threadEntries() []threadEntry {
 		children[*thread.ParentThread] = append(children[*thread.ParentThread], thread)
 	}
 
+	// Sort roots: faved first, then alphabetically
 	sort.Slice(roots, func(i, j int) bool {
+		iFaved := m.favedThreads[roots[i].GUID]
+		jFaved := m.favedThreads[roots[j].GUID]
+		if iFaved != jFaved {
+			return iFaved // faved threads sort first
+		}
 		return roots[i].Name < roots[j].Name
 	})
 	for key := range children {
@@ -385,13 +394,19 @@ func (m *Model) threadEntries() []threadEntry {
 	var walk func(thread types.Thread, indent int)
 	walk = func(thread types.Thread, indent int) {
 		t := thread
+		kids, hasKids := children[thread.GUID]
+		collapsed := m.collapsedThreads[thread.GUID]
+		faved := m.favedThreads[thread.GUID]
 		entries = append(entries, threadEntry{
-			Kind:   threadEntryThread,
-			Thread: &t,
-			Label:  thread.Name,
-			Indent: indent,
+			Kind:        threadEntryThread,
+			Thread:      &t,
+			Label:       thread.Name,
+			Indent:      indent,
+			HasChildren: hasKids && len(kids) > 0,
+			Collapsed:   collapsed,
+			Faved:       faved,
 		})
-		if kids, ok := children[thread.GUID]; ok {
+		if hasKids && !collapsed {
 			for _, child := range kids {
 				walk(child, indent+1)
 			}
@@ -448,10 +463,33 @@ func (m *Model) threadEntries() []threadEntry {
 func (m *Model) threadEntryLabel(entry threadEntry) string {
 	switch entry.Kind {
 	case threadEntryMain:
+		if m.roomUnreadCount > 0 {
+			return fmt.Sprintf("%s (%d)", entry.Label, m.roomUnreadCount)
+		}
 		return entry.Label
 	case threadEntryThread:
 		prefix := strings.Repeat("  ", entry.Indent)
-		return prefix + entry.Label
+		// Add expand/collapse indicator for threads with children
+		indicator := ""
+		if entry.HasChildren {
+			if entry.Collapsed {
+				indicator = "▸ "
+			} else {
+				indicator = "▾ "
+			}
+		}
+		// Add fave indicator
+		faveIndicator := ""
+		if entry.Faved {
+			faveIndicator = "★ "
+		}
+		label := prefix + indicator + faveIndicator + entry.Label
+		if entry.Thread != nil {
+			if count := m.unreadCounts[entry.Thread.GUID]; count > 0 {
+				label = fmt.Sprintf("%s (%d)", label, count)
+			}
+		}
+		return label
 	case threadEntryPseudo:
 		count := m.questionCounts[entry.Pseudo]
 		if count > 0 {
@@ -600,6 +638,12 @@ func (m *Model) handleThreadPanelKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	case "k":
 		m.moveThreadSelection(-1)
 		return true, nil
+	case "h":
+		m.collapseSelectedThread()
+		return true, nil
+	case "l":
+		m.expandSelectedThread()
+		return true, nil
 	}
 
 	switch msg.Type {
@@ -609,12 +653,45 @@ func (m *Model) handleThreadPanelKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	case tea.KeyDown:
 		m.moveThreadSelection(1)
 		return true, nil
+	case tea.KeyLeft:
+		m.collapseSelectedThread()
+		return true, nil
+	case tea.KeyRight:
+		m.expandSelectedThread()
+		return true, nil
 	case tea.KeyEnter:
 		m.selectThreadEntry()
 		return true, nil
 	}
 
 	return false, nil
+}
+
+func (m *Model) collapseSelectedThread() {
+	entries := m.threadEntries()
+	if m.threadIndex < 0 || m.threadIndex >= len(entries) {
+		return
+	}
+	entry := entries[m.threadIndex]
+	if entry.Kind != threadEntryThread || entry.Thread == nil {
+		return
+	}
+	if !entry.HasChildren {
+		return
+	}
+	m.collapsedThreads[entry.Thread.GUID] = true
+}
+
+func (m *Model) expandSelectedThread() {
+	entries := m.threadEntries()
+	if m.threadIndex < 0 || m.threadIndex >= len(entries) {
+		return
+	}
+	entry := entries[m.threadIndex]
+	if entry.Kind != threadEntryThread || entry.Thread == nil {
+		return
+	}
+	delete(m.collapsedThreads, entry.Thread.GUID)
 }
 
 func (m *Model) startThreadFilter() {
@@ -765,6 +842,7 @@ func (m *Model) selectThreadEntry() {
 		m.currentThread = nil
 		m.currentPseudo = ""
 		m.threadMessages = nil
+		m.markRoomAsRead()
 	case threadEntryThread:
 		m.currentThread = entry.Thread
 		m.currentPseudo = ""
@@ -772,6 +850,7 @@ func (m *Model) selectThreadEntry() {
 		if entry.Thread != nil {
 			m.visitedThreads[entry.Thread.GUID] = *entry.Thread
 			m.addRecentThread(*entry.Thread)
+			m.markThreadAsRead(entry.Thread.GUID)
 		}
 	case threadEntryPseudo:
 		m.currentPseudo = entry.Pseudo
@@ -781,6 +860,7 @@ func (m *Model) selectThreadEntry() {
 	m.refreshThreadMessages()
 	m.refreshPseudoQuestions()
 	m.refreshQuestionCounts()
+	m.refreshUnreadCounts()
 	m.refreshViewport(true)
 }
 

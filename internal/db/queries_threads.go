@@ -580,3 +580,87 @@ func GetMutedThreadGUIDs(db *sql.DB, agentID string) (map[string]bool, error) {
 	}
 	return muted, nil
 }
+
+// GetUnreadCountsForAgent returns unread message counts per home (room/threads) for an agent.
+// Uses watermarks from fray_read_to: messages newer than the watermark are unread.
+func GetUnreadCountsForAgent(db *sql.DB, agentID string, threadGUIDs []string) (map[string]int, error) {
+	if len(threadGUIDs) == 0 {
+		return make(map[string]int), nil
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(threadGUIDs))
+	args := make([]any, len(threadGUIDs))
+	for i, guid := range threadGUIDs {
+		placeholders[i] = "?"
+		args[i] = guid
+	}
+
+	// Get watermarks for these homes
+	watermarkQuery := fmt.Sprintf(`
+		SELECT home, message_ts FROM fray_read_to
+		WHERE agent_id = ? AND home IN (%s)
+	`, strings.Join(placeholders, ","))
+	watermarkArgs := append([]any{agentID}, args...)
+
+	rows, err := db.Query(watermarkQuery, watermarkArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	watermarks := make(map[string]int64)
+	for rows.Next() {
+		var home string
+		var ts int64
+		if err := rows.Scan(&home, &ts); err != nil {
+			return nil, err
+		}
+		watermarks[home] = ts
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Count messages newer than watermarks for each thread
+	counts := make(map[string]int)
+	for _, threadGUID := range threadGUIDs {
+		watermarkTS := watermarks[threadGUID] // 0 if no watermark (all messages are unread)
+
+		var count int
+		row := db.QueryRow(`
+			SELECT COUNT(*) FROM fray_messages
+			WHERE home = ? AND ts > ? AND archived_at IS NULL
+		`, threadGUID, watermarkTS)
+		if err := row.Scan(&count); err != nil {
+			return nil, err
+		}
+		counts[threadGUID] = count
+	}
+
+	return counts, nil
+}
+
+// GetRoomUnreadCount returns unread count for the main room for an agent.
+func GetRoomUnreadCount(db *sql.DB, agentID string) (int, error) {
+	// Get watermark for room (empty home = room)
+	watermark, err := GetReadTo(db, agentID, "")
+	if err != nil {
+		return 0, err
+	}
+
+	var watermarkTS int64
+	if watermark != nil {
+		watermarkTS = watermark.MessageTS
+	}
+
+	var count int
+	row := db.QueryRow(`
+		SELECT COUNT(*) FROM fray_messages
+		WHERE (home = '' OR home = 'room' OR home IS NULL) AND ts > ? AND archived_at IS NULL
+	`, watermarkTS)
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
