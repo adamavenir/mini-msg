@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0 (unreleased)]
 
 ### Fixed
+- `fray migrate`: automatically detects and fixes legacy thread naming patterns (`{agent}-notes` → `{agent}/notes`)
 - Database queries: explicit column ordering prevents scan errors after schema migrations
 - `fray history`: now accepts users as well as agents
 - `fray @agent`: includes mentions from thread messages, not just room
@@ -48,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Thread anchors: `fray thread anchor <ref> <msg>` sets TL;DR message shown at top of thread display
 - Message pins: `fray pin/unpin <msg>` for per-thread pinning; `fray thread <ref> --pinned` to filter
 - Message moves: `fray mv <msg...> <dest>` relocates messages between threads/room
+- Chat: unread badge counts per thread and main room using watermark tracking
+- Chat: expand/collapse nested threads with h/l or arrow keys, visual ▸/▾ indicators
+- Chat: faved threads sort to top of thread list with ★ indicator
 - Questions: wonder/ask/list/view/answer/close workflow with JSONL + SQLite support
 - Question extraction from markdown: `# Questions for @x` and `# Wondering` sections auto-create questions with options (a/b/c) and pro/con bullets; sections stripped from display
 - `fray answer`: interactive Q&A review for humans, direct mode for agents (`fray answer <qstn-id> "text" --as agent`); batched Q&A summaries in chat
