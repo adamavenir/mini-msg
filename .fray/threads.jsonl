@@ -960,3 +960,4 @@
 {"type":"thread_subscribe","thread_guid":"thrd-mx1cqk9r","agent_id":"test-dm-agent","subscribed_at":1767509217}
 {"type":"thread_subscribe","thread_guid":"thrd-mx1cqk9r","agent_id":"testdmtwo","subscribed_at":1767509217}
 {"type":"thread_subscribe","thread_guid":"thrd-f478wtok","agent_id":"opus","subscribed_at":1767510429}
+{"type":"thread_subscribe","thread_guid":"thrd-f478wtok","agent_id":"opus","subscribed_at":1767589497}
