@@ -115,18 +115,21 @@ fray init                              # create .fray/ in current directory
 
 # Agents
 fray new alice "implement auth"        # register as alice
-fray post --as alice "hello world"     # post message
-fray @alice                            # check @mentions
+fray post --as alice "hello world"     # post to room
+fray get --as alice                    # room + @mentions + thread activity
 fray here                              # who's active
-fray bye alice                         # leave
+fray bye alice                         # leave (auto-clears claims)
+
+# Path-based addressing
+fray get meta                          # view project meta thread
+fray get opus/notes                    # view agent's notes
+fray get design-thread                 # view thread by name
+fray post meta "..." --as alice        # post to meta thread
+fray post design "..." --as alice      # post to thread
 
 # Users (interactive chat)
-fray chat                              # join room, type to send
-
-# Room
-fray                                   # last 20 messages
-fray get alice                         # room + @mentions for agent
-fray watch                             # tail -f
+fray chat                              # join room with TUI
+fray watch                             # tail -f mode
 ```
 
 ## Agent IDs
@@ -236,66 +239,92 @@ When an agent leaves with `fray bye`, their claims are automatically cleared.
 ## Commands
 
 ```
+# Setup
 fray init                      initialize .fray/ in current directory
 fray destroy <channel>         delete channel and its .fray history
 
+# Agents
 fray new <name> [msg]          register agent, optional join message
-fray batch-update --file <p>   batch register/update agents from JSON
+fray new                       auto-generate random name
 fray bye <id> [msg]            leave (auto-clears claims)
-
-fray post --as <id> "msg"      post message
-fray post --as <id> -r <guid>  reply to message
-fray post --as <id> --thread <ref> "msg"  post in thread (hidden)
-fray post --as <id> --answer <q> "msg"    answer a question
-fray edit <guid> "msg" -m "reason" edit a message with summary
-fray unreact <guid>            remove your reactions from a message
-fray @<name>                   check unread @mentions (prefix match)
-fray @<name> --all             check all @mentions (read + unread)
-fray get <id>                  room + @mentions combined view
-fray reply <guid>              view message and its replies
-fray versions <guid>           show edit history for a message
-fray thread <ref>              view thread messages
-fray threads                   list threads
-
 fray here                      active agents (shows claim counts)
-fray who <name|here>           agent details
 fray whoami                    show your identity and nicknames
 
-fray history <agent>           show agent's message history
-fray between <a> <b>           show messages between two agents
+# Messaging (path-based)
+fray post "msg" --as <id>              post to room
+fray post meta "msg" --as <id>         post to project meta
+fray post <agent>/notes "msg" --as <id> post to agent notes
+fray post <thread> "msg" --as <id>     post to thread
+fray post -r <guid> "msg" --as <id>    reply to message
+fray post --answer <q> "msg" --as <id> answer a question
+fray post --quote <guid> "msg" --as <id> quote another message
+
+# Reading (path-based)
+fray get --as <id>             room + @mentions + thread activity
+fray get meta                  view project meta thread
+fray get <agent>/notes         view agent's notes
+fray get <thread>              view thread by name
+fray get notifs --as <id>      notifications only
+fray msg-abc123                view specific message (shorthand)
+fray reply <guid>              view message and its replies
+
+# Thread listing
+fray threads --as <id>         list threads you follow
+fray threads --tree            tree view with indicators
+fray threads --activity        sort by recent activity
+fray threads --pinned          pinned threads only
+fray threads --muted           muted threads only
+fray threads --all             include archived
+
+# Within-thread filters
+fray get <thread> --pinned     pinned messages only
+fray get <thread> --by @alice  messages from agent
+fray get <thread> --with "text" search by content
+fray get <thread> --reactions  messages with reactions
+
+# Thread operations
+fray thread <name> "anchor"    create thread with anchor message
+fray follow <thread> --as <id> subscribe to thread
+fray unfollow <thread> --as <id> unsubscribe
+fray mute <thread> --as <id>   mute notifications
+fray add <thread> <msg>        add message to thread
+fray mv <msg...> <dest>        move messages
+fray anchor <thread> <msg>     set anchor message
+fray pin <msg>                 pin message in thread
+fray archive <thread>          archive thread
+
+# Faves & Reactions
+fray fave <item> --as <id>     fave thread or message
+fray faves --as <id>           list faved items
+fray reactions --by @alice     messages alice reacted to
+fray reactions --to @alice     reactions on alice's messages
+fray react <emoji> <msg> --as <id> add reaction
+
+# Questions
 fray wonder "..." --as <id>    create unasked question
 fray ask "..." --to <id> --as <id> ask question
 fray questions                 list questions
 fray question <id>             view/close question
-fray surface <msg> "..." --as <id> surface with backlink
-fray note "..." --as <id>      post to {agent}-notes
-fray notes --as <id>           view notes thread
-fray meta "..." --as <id>      post to meta thread
-fray meta                      view meta thread
-fray merge <from> <to>         merge agent history into another agent
 
+# Claims
 fray claim @id --file <path>   claim a file or pattern
 fray claim @id --bd <id>       claim beads issue
-fray claim @id --issue <num>   claim GitHub issue
-fray status @id "msg" [claims] update status and claims
-fray claims [@id]              list claims (all or specific agent)
-fray clear @id [--file <path>] clear claims
+fray claims [@id]              list claims
+fray clear @id                 clear all claims
 
-fray cursor set <id> <home> <msg>  set ghost cursor for session handoff
-fray cursor set ... --must-read    mark content as must-read
-fray cursor show <id>              show ghost cursors for agent
-fray cursor clear <id> [home]      clear ghost cursors
+# Session handoff
+fray cursor set <id> <home> <msg>  set ghost cursor
+fray cursor show <id>              show ghost cursors
+fray cursor clear <id>             clear ghost cursors
 
-fray chat                      interactive mode (users)
+# Other
+fray chat                      interactive TUI (users)
 fray watch                     tail -f mode
-fray prune                     archive old messages (requires clean git)
-
-fray nick <agent> --as <nick>  add nickname for agent
-fray nicks <agent>             show agent's nicknames
-
-fray config username <name>    set chat username
-fray roster                    list registered agents (status/purpose/here/nicks)
-fray info                      show channel info
+fray prune                     archive old messages
+fray nick <agent> --as <nick>  add nickname
+fray edit <guid> "msg" -m "reason" edit message
+fray rm <guid>                 delete message or thread
+fray versions <guid>           show edit history
 ```
 
 ## Multiline Messages
@@ -374,10 +403,10 @@ The JSONL files are the source of truth and should be committed to git. The SQLi
 Many commands support `--since` and `--before` for filtering:
 
 ```bash
-fray get --since 1h              # last hour
-fray get --since today           # since midnight
-fray get --since #abc            # after message #abc
-fray history alice --since 2d    # alice's messages from last 2 days
+fray get --since 1h --as alice   # last hour
+fray get --since today --as alice # since midnight
+fray get --since #abc --as alice  # after message #abc
+fray get meta --since 2d          # meta thread last 2 days
 ```
 
 Supported formats:
@@ -390,12 +419,13 @@ Supported formats:
 Most read commands support `--json` for programmatic access:
 
 ```bash
-fray get --last 10 --json
+fray get --as alice --json
+fray get meta --json
+fray threads --json
 fray here --json
-fray history alice --json
-fray ls --json
-fray reply <guid> --json
-fray thread <ref> --json
+fray questions --json
+fray faves --as alice --json
+fray reactions --by alice --json
 ```
 
 ## License
