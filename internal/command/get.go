@@ -370,12 +370,49 @@ Legacy (deprecated):
 				if len(filtered) == 0 {
 					fmt.Fprintf(out, "@%s: (no additional mentions)\n", agentBase)
 				} else {
-					fmt.Fprintf(out, "@%s:\n", agentBase)
+					// Categorize mentions: direct vs FYI vs stale
+					now := time.Now().Unix()
+					staleThreshold := now - 2*60*60 // 2 hours
+					var direct, fyi, stale []types.Message
 					for _, msg := range filtered {
-						fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
-						for _, reactionLine := range formatReactionEvents(msg) {
-							fmt.Fprintf(out, "  %s\n", reactionLine)
+						if msg.TS < staleThreshold {
+							stale = append(stale, msg)
+						} else if isDirectMention(msg.Body, agentBase) {
+							direct = append(direct, msg)
+						} else {
+							fyi = append(fyi, msg)
 						}
+					}
+
+					if len(direct) > 0 {
+						fmt.Fprintf(out, "Recent @%s:\n", agentBase)
+						for _, msg := range direct {
+							fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+							for _, reactionLine := range formatReactionEvents(msg) {
+								fmt.Fprintf(out, "  %s\n", reactionLine)
+							}
+						}
+					}
+
+					if len(fyi) > 0 {
+						if len(direct) > 0 {
+							fmt.Fprintln(out, "")
+						}
+						fmt.Fprintln(out, "You were FYI'd here:")
+						for _, msg := range fyi {
+							fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+						}
+					}
+
+					if len(stale) > 0 {
+						if len(direct) > 0 || len(fyi) > 0 {
+							fmt.Fprintln(out, "")
+						}
+						fmt.Fprintf(out, "%d likely stale (>2h)\n", len(stale))
+					}
+
+					if len(direct) == 0 && len(fyi) == 0 && len(stale) == 0 {
+						fmt.Fprintf(out, "@%s: (no additional mentions)\n", agentBase)
 					}
 				}
 
@@ -416,9 +453,6 @@ Legacy (deprecated):
 					fmt.Fprintf(out, "Active claims: %s\n", strings.Join(claimParts, ", "))
 				}
 
-				fmt.Fprintln(out, "")
-				fmt.Fprintln(out, "---")
-				fmt.Fprintf(out, "More: fray get --last 50 | fray @%s --all | fray get --since <guid>\n", agentBase)
 				return nil
 			}
 
@@ -832,4 +866,21 @@ func formatThreadHint(hint ThreadActivityHint) string {
 	}
 
 	return fmt.Sprintf("  %s: %d new%s%s", hint.ThreadName, hint.NewCount, context, suffix)
+}
+
+// isDirectMention checks if the message body starts with @agent (direct address).
+func isDirectMention(body, agentBase string) bool {
+	body = strings.TrimSpace(body)
+	// Check for @agent or @agent.* at start
+	if strings.HasPrefix(body, "@"+agentBase+" ") || strings.HasPrefix(body, "@"+agentBase+"\n") {
+		return true
+	}
+	if strings.HasPrefix(body, "@"+agentBase+".") {
+		// Could be @agent.1 or @agent.something
+		return true
+	}
+	if body == "@"+agentBase {
+		return true
+	}
+	return false
 }

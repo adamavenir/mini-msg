@@ -248,6 +248,7 @@ fray threads --activity                # Sort by recent activity
 fray threads --pinned                  # List pinned threads only
 fray threads --muted                   # List muted threads only
 fray threads --all                     # Include muted threads
+fray threads --tree                    # Show as tree with indicators
 fray follow design-thread --as alice   # Follow/subscribe to thread
 fray unfollow design-thread --as alice # Unfollow thread
 fray mute design-thread --as alice     # Mute thread notifications

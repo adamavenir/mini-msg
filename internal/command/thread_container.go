@@ -358,6 +358,7 @@ func NewThreadsCmd() *cobra.Command {
 			mutedOnly, _ := cmd.Flags().GetBool("muted")
 			following, _ := cmd.Flags().GetBool("following")
 			activity, _ := cmd.Flags().GetBool("activity")
+			treeView, _ := cmd.Flags().GetBool("tree")
 			asRef, _ := cmd.Flags().GetString("as")
 
 			// Handle --pinned filter
@@ -436,6 +437,10 @@ func NewThreadsCmd() *cobra.Command {
 			} else if activity {
 				header = "Threads (by activity):"
 			}
+
+			if treeView {
+				return outputThreadsTree(cmd, ctx, threads, agentID, header)
+			}
 			return outputThreads(cmd, ctx, threads, header)
 		},
 	}
@@ -445,6 +450,7 @@ func NewThreadsCmd() *cobra.Command {
 	cmd.Flags().Bool("muted", false, "list only muted threads")
 	cmd.Flags().Bool("following", false, "list threads you follow")
 	cmd.Flags().Bool("activity", false, "sort by recent activity")
+	cmd.Flags().Bool("tree", false, "show threads as tree with indicators")
 	cmd.Flags().String("as", "", "agent or user to list subscriptions for")
 
 	return cmd
@@ -474,6 +480,114 @@ func outputThreads(cmd *cobra.Command, ctx *CommandContext, threads []types.Thre
 		}
 		fmt.Fprintf(out, "  %s (%s) [%s]%s\n", path, thread.GUID, thread.Status, indicator)
 	}
+	return nil
+}
+
+// outputThreadsTree displays threads in a tree structure with indicators.
+func outputThreadsTree(cmd *cobra.Command, ctx *CommandContext, threads []types.Thread, agentID, header string) error {
+	if ctx.JSONMode {
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(threads)
+	}
+
+	out := cmd.OutOrStdout()
+	if len(threads) == 0 {
+		fmt.Fprintln(out, "No threads found")
+		return nil
+	}
+
+	// Build lookup maps
+	byGUID := make(map[string]*types.Thread)
+	children := make(map[string][]*types.Thread)
+	var roots []*types.Thread
+
+	for i := range threads {
+		t := &threads[i]
+		byGUID[t.GUID] = t
+	}
+
+	for i := range threads {
+		t := &threads[i]
+		if t.ParentThread == nil || *t.ParentThread == "" {
+			roots = append(roots, t)
+		} else {
+			parent := *t.ParentThread
+			children[parent] = append(children[parent], t)
+		}
+	}
+
+	// Get indicators data
+	pinnedGUIDs := make(map[string]bool)
+	pinnedThreads, _ := db.GetPinnedThreads(ctx.DB)
+	for _, t := range pinnedThreads {
+		pinnedGUIDs[t.GUID] = true
+	}
+
+	mutedGUIDs := make(map[string]bool)
+	if agentID != "" {
+		mutedGUIDs, _ = db.GetMutedThreadGUIDs(ctx.DB, agentID)
+	}
+
+	followedGUIDs := make(map[string]bool)
+	for _, t := range threads {
+		followedGUIDs[t.GUID] = true // if in our list, we follow it
+	}
+
+	fmt.Fprintln(out, header)
+
+	// Print tree recursively
+	var printTree func(t *types.Thread, prefix string, isLast bool)
+	printTree = func(t *types.Thread, prefix string, isLast bool) {
+		// Build indicators
+		var indicators []string
+		if followedGUIDs[t.GUID] && agentID != "" {
+			indicators = append(indicators, "★")
+		}
+		if pinnedGUIDs[t.GUID] {
+			indicators = append(indicators, "📌")
+		}
+		if mutedGUIDs[t.GUID] {
+			indicators = append(indicators, "(muted)")
+		}
+
+		indicatorStr := ""
+		if len(indicators) > 0 {
+			indicatorStr = " " + strings.Join(indicators, " ")
+		}
+
+		// Determine tree characters
+		branch := "├── "
+		if isLast {
+			branch = "└── "
+		}
+		if prefix == "" {
+			branch = ""
+		}
+
+		fmt.Fprintf(out, "%s%s%s%s\n", prefix, branch, t.Name, indicatorStr)
+
+		// Update prefix for children
+		childPrefix := prefix
+		if prefix != "" {
+			if isLast {
+				childPrefix += "    "
+			} else {
+				childPrefix += "│   "
+			}
+		} else {
+			childPrefix = "  "
+		}
+
+		// Print children
+		kids := children[t.GUID]
+		for i, child := range kids {
+			printTree(child, childPrefix, i == len(kids)-1)
+		}
+	}
+
+	for i, root := range roots {
+		printTree(root, "", i == len(roots)-1)
+	}
+
 	return nil
 }
 
