@@ -231,6 +231,10 @@ fray get --as opus                     # Room + notifs for agent
 fray get meta                          # View project meta
 fray get opus/notes                    # View agent notes path
 fray get design-thread                 # View thread by name
+fray get design-thread --pinned        # Pinned messages only
+fray get design-thread --by @alice     # Messages from agent
+fray get design-thread --with "text"   # Messages containing text
+fray get design-thread --reactions     # Messages with reactions
 fray get notifs --as opus              # Notifications only
 fray msg-abc123                        # View specific message (shorthand)
 fray @alice                            # Check mentions for alice
@@ -239,6 +243,11 @@ fray @alice                            # Check mentions for alice
 fray thread design-thread              # View or create thread
 fray thread opus/notes "Summary"       # Create nested thread with anchor
 fray threads                           # List threads
+fray threads --following               # List threads you follow
+fray threads --activity                # Sort by recent activity
+fray threads --pinned                  # List pinned threads only
+fray threads --muted                   # List muted threads only
+fray threads --all                     # Include muted threads
 fray follow design-thread --as alice   # Follow/subscribe to thread
 fray unfollow design-thread --as alice # Unfollow thread
 fray mute design-thread --as alice     # Mute thread notifications

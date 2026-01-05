@@ -214,7 +214,11 @@ func GetThreads(db *sql.DB, options *types.ThreadQueryOptions) ([]types.Thread, 
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	query += " ORDER BY t.created_at ASC"
+	if options != nil && options.SortByActivity {
+		query += " ORDER BY COALESCE(t.last_activity_at, t.created_at) DESC"
+	} else {
+		query += " ORDER BY t.created_at ASC"
+	}
 
 	rows, err := db.Query(query, args...)
 	if err != nil {

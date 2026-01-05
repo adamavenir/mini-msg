@@ -189,6 +189,7 @@ type ThreadQueryOptions struct {
 	ParentThread    *string
 	Status          *ThreadStatus
 	IncludeArchived bool
+	SortByActivity  bool // Sort by last_activity_at DESC instead of created_at ASC
 }
 
 // MessageCursor represents a stable paging cursor.

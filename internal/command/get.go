@@ -80,7 +80,11 @@ Legacy (deprecated):
 			if target != "" && !strings.HasPrefix(target, "msg-") {
 				thread, err := resolveThreadRef(ctx.DB, target)
 				if err == nil && thread != nil {
-					return getThread(cmd, ctx, thread, last, since, showAllMessages, projectName, agentBases, hideEvents)
+					pinnedOnly, _ := cmd.Flags().GetBool("pinned")
+					byAgent, _ := cmd.Flags().GetString("by")
+					withText, _ := cmd.Flags().GetString("with")
+					reactionsOnly, _ := cmd.Flags().GetBool("reactions")
+					return getThread(cmd, ctx, thread, last, since, showAllMessages, projectName, agentBases, hideEvents, pinnedOnly, byAgent, withText, reactionsOnly)
 				}
 			}
 
@@ -438,17 +442,31 @@ Legacy (deprecated):
 	cmd.Flags().String("as", "", "agent identity (uses FRAY_AGENT_ID if not set)")
 	cmd.Flags().Bool("replies", false, "show message with reply chain")
 
+	// Within-thread filters
+	cmd.Flags().Bool("pinned", false, "show only pinned messages (threads only)")
+	cmd.Flags().String("by", "", "filter messages by agent")
+	cmd.Flags().String("with", "", "filter messages containing text")
+	cmd.Flags().Bool("reactions", false, "show only messages with reactions")
+
 	return cmd
 }
 
 // getThread displays messages from a thread.
-func getThread(cmd *cobra.Command, ctx *CommandContext, thread *types.Thread, last, since string, showAll bool, projectName string, agentBases map[string]struct{}, hideEvents bool) error {
+func getThread(cmd *cobra.Command, ctx *CommandContext, thread *types.Thread, last, since string, showAll bool, projectName string, agentBases map[string]struct{}, hideEvents bool, pinnedOnly bool, byAgent, withText string, reactionsOnly bool) error {
 	var messages []types.Message
 	var err error
 
-	messages, err = db.GetThreadMessages(ctx.DB, thread.GUID)
-	if err != nil {
-		return writeCommandError(cmd, err)
+	// Handle --pinned: use dedicated query for pinned messages
+	if pinnedOnly {
+		messages, err = db.GetPinnedMessages(ctx.DB, thread.GUID)
+		if err != nil {
+			return writeCommandError(cmd, err)
+		}
+	} else {
+		messages, err = db.GetThreadMessages(ctx.DB, thread.GUID)
+		if err != nil {
+			return writeCommandError(cmd, err)
+		}
 	}
 	messages, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, messages)
 	if err != nil {
@@ -467,6 +485,41 @@ func getThread(cmd *cobra.Command, ctx *CommandContext, thread *types.Thread, la
 			if cursor.GUID != "" && msg.ID > cursor.GUID {
 				filtered = append(filtered, msg)
 			} else if cursor.GUID == "" && msg.TS > cursor.TS {
+				filtered = append(filtered, msg)
+			}
+		}
+		messages = filtered
+	}
+
+	// Apply --by filter (filter by agent)
+	if byAgent != "" {
+		agentID := ResolveAgentRef(byAgent, ctx.ProjectConfig)
+		var filtered []types.Message
+		for _, msg := range messages {
+			if msg.FromAgent == agentID || strings.HasPrefix(msg.FromAgent, agentID+".") {
+				filtered = append(filtered, msg)
+			}
+		}
+		messages = filtered
+	}
+
+	// Apply --with filter (text search)
+	if withText != "" {
+		searchLower := strings.ToLower(withText)
+		var filtered []types.Message
+		for _, msg := range messages {
+			if strings.Contains(strings.ToLower(msg.Body), searchLower) {
+				filtered = append(filtered, msg)
+			}
+		}
+		messages = filtered
+	}
+
+	// Apply --reactions filter
+	if reactionsOnly {
+		var filtered []types.Message
+		for _, msg := range messages {
+			if len(msg.Reactions) > 0 {
 				filtered = append(filtered, msg)
 			}
 		}

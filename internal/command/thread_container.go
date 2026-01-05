@@ -356,6 +356,8 @@ func NewThreadsCmd() *cobra.Command {
 			all, _ := cmd.Flags().GetBool("all")
 			pinnedOnly, _ := cmd.Flags().GetBool("pinned")
 			mutedOnly, _ := cmd.Flags().GetBool("muted")
+			following, _ := cmd.Flags().GetBool("following")
+			activity, _ := cmd.Flags().GetBool("activity")
 			asRef, _ := cmd.Flags().GetString("as")
 
 			// Handle --pinned filter
@@ -382,14 +384,28 @@ func NewThreadsCmd() *cobra.Command {
 
 			var options types.ThreadQueryOptions
 			var agentID string
+
+			// --all shows everything, --following filters to subscribed
 			if all {
 				options.IncludeArchived = true
-			} else {
+			} else if following {
 				agentID, err = resolveSubscriptionAgent(ctx, asRef)
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
 				options.SubscribedAgent = &agentID
+			} else {
+				// Default: show subscribed threads (same as --following)
+				agentID, err = resolveSubscriptionAgent(ctx, asRef)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				options.SubscribedAgent = &agentID
+			}
+
+			// Apply activity sort
+			if activity {
+				options.SortByActivity = true
 			}
 
 			threads, err := db.GetThreads(ctx.DB, &options)
@@ -414,13 +430,21 @@ func NewThreadsCmd() *cobra.Command {
 				}
 			}
 
-			return outputThreads(cmd, ctx, threads, "Threads:")
+			header := "Threads:"
+			if following {
+				header = "Following:"
+			} else if activity {
+				header = "Threads (by activity):"
+			}
+			return outputThreads(cmd, ctx, threads, header)
 		},
 	}
 
 	cmd.Flags().Bool("all", false, "list all threads (includes muted)")
 	cmd.Flags().Bool("pinned", false, "list only pinned threads")
 	cmd.Flags().Bool("muted", false, "list only muted threads")
+	cmd.Flags().Bool("following", false, "list threads you follow")
+	cmd.Flags().Bool("activity", false, "sort by recent activity")
 	cmd.Flags().String("as", "", "agent or user to list subscriptions for")
 
 	return cmd
