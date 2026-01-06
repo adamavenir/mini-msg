@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0 (unreleased)]
 
+### Added
+- Chat: new slash commands operate on current thread: `/fave`, `/unfave`, `/follow`, `/unfollow`, `/mute`, `/unmute`, `/archive`, `/restore`, `/rename`
+- Chat: breadcrumb navigation in status line (`channel ❯ path ❯ thread`)
+
+### Changed
+- Chat: `?` help tip disappears when input has text (shows only when empty)
+- Chat: `/prune` command disabled until redesign
+
 ### Fixed
 - Chat: sidebar click targets no longer misaligned after scrolling or window switching
 - Chat: sidebar now shows only root threads (children via drill-in)
