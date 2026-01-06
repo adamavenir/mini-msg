@@ -2,6 +2,7 @@ package chat
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -12,6 +13,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
+
+// inlineIDPattern matches #-prefixed IDs like #fray-abc123, #msg-xyz789, #abc123
+// Format: # followed by either:
+//   - prefix-id: word followed by dash and alphanumeric (e.g., #fray-abc123)
+//   - short id: alphanumeric with at least one letter (e.g., #abc123, #a1b2)
+var inlineIDPattern = regexp.MustCompile(`#([a-zA-Z]+-[a-z0-9]+|[a-z0-9]*[a-z][a-z0-9]*)`)
 
 func (m *Model) renderMessages() string {
 	messages := m.currentMessages()
@@ -186,23 +193,57 @@ func (m *Model) formatQuestionStatus(msgID string) string {
 }
 
 func (m *Model) markBodyZones(msgID string, body string, color lipgloss.Color) string {
-	// Mark each line as its own clickable zone for fine-grained copy
 	lines := strings.Split(body, "\n")
-	style := lipgloss.NewStyle().Foreground(color)
+	textStyle := lipgloss.NewStyle().Foreground(color)
+	idStyle := lipgloss.NewStyle().Foreground(color).Bold(true).Underline(true)
 	styledLines := make([]string, len(lines))
 
 	for i, line := range lines {
 		if strings.TrimSpace(line) == "" {
-			// Blank lines don't get zones
 			styledLines[i] = line
-		} else {
-			styledLine := style.Render(line)
-			zoneID := fmt.Sprintf("line-%s-%d", msgID, i)
-			styledLines[i] = m.zoneManager.Mark(zoneID, styledLine)
+			continue
 		}
+
+		// Find inline IDs and style them specially
+		styledLine := m.styleLineWithInlineIDs(msgID, i, line, textStyle, idStyle)
+		zoneID := fmt.Sprintf("line-%s-%d", msgID, i)
+		styledLines[i] = m.zoneManager.Mark(zoneID, styledLine)
 	}
 
 	return strings.Join(styledLines, "\n")
+}
+
+// styleLineWithInlineIDs finds #-prefixed IDs in a line and styles them as bold+underline zones
+func (m *Model) styleLineWithInlineIDs(msgID string, lineNum int, line string, textStyle, idStyle lipgloss.Style) string {
+	matches := inlineIDPattern.FindAllStringIndex(line, -1)
+	if len(matches) == 0 {
+		return textStyle.Render(line)
+	}
+
+	var result strings.Builder
+	cursor := 0
+
+	for idx, match := range matches {
+		// Add text before this match
+		if match[0] > cursor {
+			result.WriteString(textStyle.Render(line[cursor:match[0]]))
+		}
+
+		// Style and zone the ID
+		idText := line[match[0]:match[1]]
+		styledID := idStyle.Render(idText)
+		zoneID := fmt.Sprintf("inlineid-%s-%d-%d", msgID, lineNum, idx)
+		result.WriteString(m.zoneManager.Mark(zoneID, styledID))
+
+		cursor = match[1]
+	}
+
+	// Add remaining text after last match
+	if cursor < len(line) {
+		result.WriteString(textStyle.Render(line[cursor:]))
+	}
+
+	return result.String()
 }
 
 func renderByline(agent string, avatar string, color lipgloss.Color) string {

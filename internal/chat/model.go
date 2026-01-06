@@ -763,28 +763,52 @@ func (m *Model) copyFromZone(mouseMsg tea.MouseMsg, msg types.Message) {
 		}
 		description = "message"
 	} else {
-		// Check line zones
-		foundLine := false
+		// Check inline ID zones first (more specific than line zones)
+		foundInlineID := false
 		lines := strings.Split(msg.Body, "\n")
 		for i, line := range lines {
 			if strings.TrimSpace(line) == "" {
-				continue // blank lines don't have zones
+				continue
 			}
-			lineZone := fmt.Sprintf("line-%s-%d", msg.ID, i)
-			if m.zoneManager.Get(lineZone).InBounds(mouseMsg) {
-				textToCopy = line
-				description = "line"
-				foundLine = true
+			matches := inlineIDPattern.FindAllString(line, -1)
+			for idx, idMatch := range matches {
+				inlineIDZone := fmt.Sprintf("inlineid-%s-%d-%d", msg.ID, i, idx)
+				if m.zoneManager.Get(inlineIDZone).InBounds(mouseMsg) {
+					// Copy the ID without the # prefix
+					textToCopy = idMatch[1:]
+					description = "ID"
+					foundInlineID = true
+					break
+				}
+			}
+			if foundInlineID {
 				break
 			}
 		}
-		if !foundLine {
-			// Fallback: copy whole message
-			textToCopy = msg.Body
-			if msg.Type != types.MessageTypeEvent {
-				textToCopy = fmt.Sprintf("@%s: %s", msg.FromAgent, msg.Body)
+
+		if !foundInlineID {
+			// Check line zones
+			foundLine := false
+			for i, line := range lines {
+				if strings.TrimSpace(line) == "" {
+					continue // blank lines don't have zones
+				}
+				lineZone := fmt.Sprintf("line-%s-%d", msg.ID, i)
+				if m.zoneManager.Get(lineZone).InBounds(mouseMsg) {
+					textToCopy = line
+					description = "line"
+					foundLine = true
+					break
+				}
 			}
-			description = "message"
+			if !foundLine {
+				// Fallback: copy whole message
+				textToCopy = msg.Body
+				if msg.Type != types.MessageTypeEvent {
+					textToCopy = fmt.Sprintf("@%s: %s", msg.FromAgent, msg.Body)
+				}
+				description = "message"
+			}
 		}
 	}
 
