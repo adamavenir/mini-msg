@@ -141,6 +141,33 @@ func formatLastActivity(ts *int64) string {
 // Room is level 0, first-level threads are level 1, etc.
 const MaxThreadNestingDepth = 4
 
+// isAncestorOf checks if potentialAncestor is an ancestor of thread.
+// Returns true if moving potentialAncestor under thread would create a cycle.
+func isAncestorOf(dbConn *sql.DB, threadGUID, potentialAncestorGUID string) (bool, error) {
+	if threadGUID == potentialAncestorGUID {
+		return true, nil
+	}
+	current := threadGUID
+	seen := map[string]struct{}{}
+	for {
+		if _, ok := seen[current]; ok {
+			return false, fmt.Errorf("thread parent loop detected")
+		}
+		seen[current] = struct{}{}
+		thread, err := db.GetThread(dbConn, current)
+		if err != nil {
+			return false, err
+		}
+		if thread == nil || thread.ParentThread == nil || *thread.ParentThread == "" {
+			return false, nil
+		}
+		if *thread.ParentThread == potentialAncestorGUID {
+			return true, nil
+		}
+		current = *thread.ParentThread
+	}
+}
+
 // getThreadDepth returns the nesting depth of a thread.
 // A root thread (no parent) has depth 1.
 func getThreadDepth(dbConn *sql.DB, thread *types.Thread) (int, error) {

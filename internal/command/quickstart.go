@@ -98,6 +98,10 @@ Create and work with threads using paths:
   fray mute design --as <a>     Mute notifications
   fray add design msg-abc       Add message to thread
   fray mv msg-abc design        Move message to thread
+  fray mv msg-abc main          Move message back to room
+  fray mv design meta           Reparent thread under meta
+  fray mv design root           Make thread root-level
+  fray thread rename old new    Rename a thread
 
 Reply to specific messages:
   fray post --as alice -r msg-abc "Good point"
@@ -195,6 +199,10 @@ func printQuickstartGuide(outWriter io.Writer, allAgents []types.Agent, register
 	fmt.Fprintln(outWriter, "  fray mute design --as <a>     Mute notifications")
 	fmt.Fprintln(outWriter, "  fray add design msg-abc       Add message to thread")
 	fmt.Fprintln(outWriter, "  fray mv msg-abc design        Move message to thread")
+	fmt.Fprintln(outWriter, "  fray mv msg-abc main          Move message back to room")
+	fmt.Fprintln(outWriter, "  fray mv design meta           Reparent thread under meta")
+	fmt.Fprintln(outWriter, "  fray mv design root           Make thread root-level")
+	fmt.Fprintln(outWriter, "  fray thread rename old new    Rename a thread")
 	fmt.Fprintln(outWriter, "")
 	fmt.Fprintln(outWriter, "Reply to specific messages:")
 	fmt.Fprintln(outWriter, "  fray post --as alice -r msg-abc \"Good point\"")

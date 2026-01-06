@@ -67,7 +67,7 @@ internal/types/   # Go types
 **Thread Curation**: Threads support:
 - **Anchors**: A designated message serving as TL;DR, shown at top of thread display
 - **Pins**: Messages can be pinned within threads for easy reference (per-thread, not global)
-- **Moving**: Use `fray mv` to change a message's home (unlike `thread add` which only references)
+- **Moving**: Use `fray mv` to move messages between threads/room, or reparent threads under different parents
 - **Activity tracking**: `last_activity_at` tracks when messages are added/moved
 
 **Thread Types**: Threads have a `type` field:
@@ -258,15 +258,29 @@ fray remove design-thread msg-abc      # Remove from thread
 fray anchor design-thread msg-abc      # Set thread anchor
 fray archive design-thread             # Archive thread
 fray restore design-thread             # Restore archived thread
+fray thread rename <thread> <name>     # Rename a thread
 fray pin <msg> [--thread <ref>]        # Pin message in thread
 fray unpin <msg> [--thread <ref>]      # Unpin message
 fray mv <msg...> <dest>                # Move messages to thread/room
+fray mv <msg> main                     # Move message back to room (also: room, channel-name)
+fray mv <thread> <parent>              # Reparent thread under another thread
+fray mv <thread> <parent> "anchor"     # Reparent + set anchor message
+fray mv <thread> root                  # Make thread root-level (also: /)
 
 # Universal operations (by ID prefix)
 fray rm msg-abc123                     # Delete message
 fray rm thrd-xyz789                    # Delete (archive) thread
 fray fave msg-abc --as alice           # Fave message
 fray fave thrd-xyz --as alice          # Fave thread (also subscribes)
+
+# Message editing
+fray edit <msgid> "new text" --as a    # Edit a message
+fray edit <msgid> "text" -m "reason"   # Edit with reason
+fray versions <msgid>                  # Show edit history
+
+# Reactions & Surfacing
+fray react <emoji> <msg> --as alice    # Add reaction to message
+fray surface <msg> "comment" --as a    # Surface message to room with backlink
 
 # Questions
 fray wonder "..." --as alice           # Create unasked question

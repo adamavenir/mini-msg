@@ -20,7 +20,35 @@ const (
 	suggestionNone suggestionKind = iota
 	suggestionMention
 	suggestionReply
+	suggestionCommand
 )
+
+// commandDef defines a slash command with its name and description.
+type commandDef struct {
+	Name string
+	Desc string
+}
+
+// allCommands is the list of available slash commands.
+var allCommands = []commandDef{
+	{Name: "/quit", Desc: "Exit chat"},
+	{Name: "/exit", Desc: "Exit chat"},
+	{Name: "/help", Desc: "Show help"},
+	{Name: "/fave", Desc: "Fave current thread"},
+	{Name: "/unfave", Desc: "Unfave current thread"},
+	{Name: "/follow", Desc: "Follow current thread"},
+	{Name: "/unfollow", Desc: "Unfollow current thread"},
+	{Name: "/mute", Desc: "Mute current thread"},
+	{Name: "/unmute", Desc: "Unmute current thread"},
+	{Name: "/archive", Desc: "Archive current thread"},
+	{Name: "/restore", Desc: "Restore archived thread"},
+	{Name: "/rename", Desc: "Rename current thread"},
+	{Name: "/mv", Desc: "Move message or thread"},
+	{Name: "/n", Desc: "Set thread nickname"},
+	{Name: "/edit", Desc: "Edit a message"},
+	{Name: "/delete", Desc: "Delete a message"},
+	{Name: "/rm", Desc: "Delete a message"},
+}
 
 type suggestionItem struct {
 	Display string
@@ -79,7 +107,26 @@ func (m *Model) refreshSuggestions() {
 	m.updateInputStyle()
 	m.dismissHelpOnInput(value)
 
-	if strings.HasPrefix(strings.TrimSpace(value), "/") {
+	// Check for slash command completion
+	if strings.HasPrefix(value, "/") {
+		// Only show suggestions if we're still typing the command (no space yet)
+		spaceIdx := strings.Index(value, " ")
+		if spaceIdx == -1 || pos <= spaceIdx {
+			// Extract command prefix (without the slash)
+			prefix := value[1:pos]
+			if spaceIdx != -1 && pos > spaceIdx {
+				prefix = value[1:spaceIdx]
+			}
+			suggestions := buildCommandSuggestions(prefix)
+			if len(suggestions) > 0 {
+				m.suggestions = suggestions
+				m.suggestionIndex = 0
+				m.suggestionStart = 0
+				m.suggestionKind = suggestionCommand
+				m.resize()
+				return
+			}
+		}
 		if len(m.suggestions) > 0 {
 			m.clearSuggestions()
 			m.resize()
@@ -167,6 +214,25 @@ func (m *Model) applySuggestion(item suggestionItem) {
 	}
 	if cursor < start {
 		cursor = start
+	}
+
+	// For command suggestions, replace up to first space (or cursor if typing args)
+	if m.suggestionKind == suggestionCommand {
+		valueStr := m.input.Value()
+		spaceIdx := strings.Index(valueStr, " ")
+		if spaceIdx == -1 {
+			// No space - replace entire input with command + space
+			m.input.SetValue(item.Insert + " ")
+		} else {
+			// Space exists - replace only up to space, keep args
+			m.input.SetValue(item.Insert + valueStr[spaceIdx:])
+		}
+		m.input.CursorEnd()
+		m.clearSuggestions()
+		m.lastInputValue = m.input.Value()
+		m.lastInputPos = m.inputCursorPos()
+		m.resize()
+		return
 	}
 
 	before := value[:start]
@@ -393,4 +459,56 @@ func (m *Model) buildReplySuggestions(prefix string) ([]suggestionItem, error) {
 		return nil, err
 	}
 	return suggestions, nil
+}
+
+// buildCommandSuggestions returns command suggestions that match the prefix.
+// Prioritizes exact prefix matches, then fuzzy matches.
+func buildCommandSuggestions(prefix string) []suggestionItem {
+	prefix = strings.ToLower(prefix)
+	var prefixMatches []suggestionItem
+	var fuzzyMatches []suggestionItem
+
+	for _, cmd := range allCommands {
+		// Command name without the leading slash for matching
+		cmdName := strings.ToLower(cmd.Name[1:])
+		display := fmt.Sprintf("%s  %s", cmd.Name, cmd.Desc)
+		item := suggestionItem{Display: display, Insert: cmd.Name}
+
+		if strings.HasPrefix(cmdName, prefix) {
+			prefixMatches = append(prefixMatches, item)
+		} else if fuzzyMatch(cmdName, prefix) {
+			fuzzyMatches = append(fuzzyMatches, item)
+		}
+	}
+
+	// Combine: prefix matches first, then fuzzy matches
+	suggestions := append(prefixMatches, fuzzyMatches...)
+	if len(suggestions) > suggestionLimit {
+		suggestions = suggestions[:suggestionLimit]
+	}
+	return suggestions
+}
+
+// fuzzyMatch checks if needle characters appear in order within haystack.
+// Empty needle matches everything.
+func fuzzyMatch(haystack, needle string) bool {
+	if needle == "" {
+		return true
+	}
+	hi := 0
+	for _, ch := range needle {
+		found := false
+		for hi < len(haystack) {
+			if rune(haystack[hi]) == ch {
+				hi++
+				found = true
+				break
+			}
+			hi++
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }

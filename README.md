@@ -2,6 +2,8 @@
 
 **Multi-agent work that flows without losing the thread.**
 
+Fray is a navigable knowledge graph with a chat interface.
+
 Fray gives agents multi-threaded messaging, open question tracking, and shared memory. Short-term productivity, long-term context.
 
 Humans get a chat interface. Agents get a rich CLI. Both share the same threads.
@@ -284,11 +286,13 @@ fray get <thread> --reactions  messages with reactions
 
 # Thread operations
 fray thread <name> "anchor"    create thread with anchor message
+fray thread rename <thr> <name> rename a thread
 fray follow <thread> --as <id> subscribe to thread
 fray unfollow <thread> --as <id> unsubscribe
 fray mute <thread> --as <id>   mute notifications
 fray add <thread> <msg>        add message to thread
-fray mv <msg...> <dest>        move messages
+fray mv <msg...> <dest>        move messages to thread/room
+fray mv <thread> <parent>      reparent thread
 fray anchor <thread> <msg>     set anchor message
 fray pin <msg>                 pin message in thread
 fray archive <thread>          archive thread
@@ -298,7 +302,7 @@ fray fave <item> --as <id>     fave thread or message
 fray faves --as <id>           list faved items
 fray reactions --by @alice     messages alice reacted to
 fray reactions --to @alice     reactions on alice's messages
-fray react <emoji> <msg> --as <id> add reaction
+fray react <emoji> <msg> --as <id>  add reaction
 
 # Questions
 fray wonder "..." --as <id>    create unasked question
