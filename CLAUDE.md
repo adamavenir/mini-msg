@@ -375,4 +375,5 @@ fray get --last 10 --json      # Most read commands support --json (chat does no
 # Maintenance
 fray rebuild                   # Rebuild database from JSONL (fixes schema errors)
 fray migrate                   # Migrate from v0.1.0 to v0.2.0
+fray install-notifier          # Install macOS notification app with fray icon
 ```

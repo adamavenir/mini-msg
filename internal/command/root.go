@@ -102,6 +102,7 @@ func NewRootCmd(version string) *cobra.Command {
 		NewHeartbeatCmd(),
 		NewClockCmd(),
 		NewCursorCmd(),
+		NewInstallNotifierCmd(),
 		hooks.NewHookInstallCmd(),
 		hooks.NewHookSessionCmd(),
 		hooks.NewHookPromptCmd(),

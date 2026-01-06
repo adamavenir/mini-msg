@@ -396,10 +396,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(incoming) > 0 {
 				m.status = ""
 				m.messages = append(m.messages, incoming...)
-				for _, msg := range incoming {
-					if msg.ArchivedAt == nil {
+				for _, incomingMsg := range incoming {
+					if incomingMsg.ArchivedAt == nil {
 						m.messageCount++
 					}
+					m.maybeNotify(incomingMsg)
 				}
 				if m.currentThread == nil && m.currentPseudo == "" {
 					m.refreshViewport(true)
@@ -1079,4 +1080,45 @@ func countMessages(dbConn *sql.DB, includeArchived bool) (int, error) {
 
 func isAlphaNum(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// maybeNotify sends an OS notification if the message warrants it.
+// Triggers on: direct @mention, reply to agent's message.
+// Suppressed if: from self, in muted thread, event/surface message, user is not human.
+func (m *Model) maybeNotify(msg types.Message) {
+	// Only notify human users (not agents testing in chat)
+	users, _ := db.GetActiveUsers(m.db)
+	isHumanUser := false
+	for _, u := range users {
+		if u == m.username {
+			isHumanUser = true
+			break
+		}
+	}
+	if !isHumanUser {
+		return
+	}
+
+	// Skip messages from self
+	if msg.FromAgent == m.username {
+		return
+	}
+
+	// Skip event and surface messages
+	if msg.Type == types.MessageTypeEvent || msg.Type == types.MessageTypeSurface {
+		return
+	}
+
+	// Skip messages in muted threads
+	if msg.Home != "" && m.mutedThreads[msg.Home] {
+		return
+	}
+
+	// Check if should notify: direct mention or reply to own message
+	shouldNotify := IsDirectMention(msg.Body, m.username) || IsReplyToAgent(m.db, msg, m.username)
+	if !shouldNotify {
+		return
+	}
+
+	_ = SendNotification(msg, m.projectName)
 }
