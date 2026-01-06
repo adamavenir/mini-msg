@@ -89,7 +89,7 @@ func GetFaves(db *sql.DB, agentID string, itemType string) ([]Fave, error) {
 func GetFavedThreads(db *sql.DB, agentID string) ([]string, error) {
 	rows, err := db.Query(`
 		SELECT item_guid FROM fray_faves
-		WHERE agent_id = ? AND item_type = 'thread'
+		WHERE agent_id = ? AND item_type = 'thread' AND faved_at IS NOT NULL
 		ORDER BY faved_at DESC
 	`, agentID)
 	if err != nil {
@@ -106,4 +106,56 @@ func GetFavedThreads(db *sql.DB, agentID string) ([]string, error) {
 		guids = append(guids, guid)
 	}
 	return guids, rows.Err()
+}
+
+// SetNickname sets a nickname for a thread or message (without faving it).
+func SetNickname(db *sql.DB, agentID, itemType, itemGUID, nickname string) error {
+	_, err := db.Exec(`
+		INSERT INTO fray_faves (agent_id, item_type, item_guid, nickname)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(agent_id, item_type, item_guid)
+		DO UPDATE SET nickname = ?
+	`, agentID, itemType, itemGUID, nickname, nickname)
+	return err
+}
+
+// GetNickname retrieves the nickname for a thread or message.
+func GetNickname(db *sql.DB, agentID, itemType, itemGUID string) (string, error) {
+	var nickname sql.NullString
+	err := db.QueryRow(`
+		SELECT nickname FROM fray_faves
+		WHERE agent_id = ? AND item_type = ? AND item_guid = ?
+	`, agentID, itemType, itemGUID).Scan(&nickname)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return nickname.String, nil
+}
+
+// GetThreadNicknames returns all thread nicknames for an agent.
+func GetThreadNicknames(db *sql.DB, agentID string) (map[string]string, error) {
+	rows, err := db.Query(`
+		SELECT item_guid, nickname FROM fray_faves
+		WHERE agent_id = ? AND item_type = 'thread' AND nickname IS NOT NULL
+	`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	nicknames := make(map[string]string)
+	for rows.Next() {
+		var guid string
+		var nickname sql.NullString
+		if err := rows.Scan(&guid, &nickname); err != nil {
+			return nil, err
+		}
+		if nickname.Valid && nickname.String != "" {
+			nicknames[guid] = nickname.String
+		}
+	}
+	return nicknames, rows.Err()
 }

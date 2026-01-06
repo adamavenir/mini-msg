@@ -27,18 +27,36 @@ const (
 	threadEntryMain threadEntryKind = iota
 	threadEntryThread
 	threadEntrySeparator
-	threadEntryPseudo
+	threadEntryMessageCollection
+	threadEntryThreadCollection
+)
+
+type messageCollectionView string
+
+const (
+	messageCollectionOpenQuestions   messageCollectionView = "open-qs"
+	messageCollectionClosedQuestions messageCollectionView = "closed-qs"
+	messageCollectionWondering       messageCollectionView = "wondering"
+	messageCollectionStaleQuestions  messageCollectionView = "stale-qs"
+)
+
+type threadCollectionView string
+
+const (
+	threadCollectionMuted          threadCollectionView = "muted"
+	threadCollectionUnreadMentions threadCollectionView = "unread-mentions"
 )
 
 type threadEntry struct {
-	Kind        threadEntryKind
-	Thread      *types.Thread
-	Pseudo      pseudoThreadKind
-	Label       string
-	Indent      int
-	HasChildren bool
-	Collapsed   bool
-	Faved       bool
+	Kind              threadEntryKind
+	Thread            *types.Thread
+	MessageCollection messageCollectionView
+	ThreadCollection  threadCollectionView
+	Label             string
+	Indent            int
+	HasChildren       bool
+	Collapsed         bool
+	Faved             bool
 }
 
 func (m *Model) renderSidebar() string {
@@ -137,8 +155,8 @@ func (m *Model) handleSidebarKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 			m.resize()
 			return true, nil
 		}
-		m.sidebarFocus = false
-		m.resize()
+		// Close panel and focus message pane
+		m.closePanels()
 		return true, nil
 	}
 
@@ -196,7 +214,13 @@ func (m *Model) handleSidebarKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 		m.moveChannelSelection(1)
 		return true, nil
 	case tea.KeyEnter:
-		return true, m.selectChannelCmd()
+		// Check if we want to select or just close and focus message pane
+		if m.sidebarFilterActive {
+			return true, m.selectChannelCmd()
+		}
+		// Close sidebar and focus message pane
+		m.closePanels()
+		return true, nil
 	}
 
 	return false, nil
@@ -361,9 +385,9 @@ func (m *Model) switchChannel(entry channelEntry) error {
 }
 
 func (m *Model) threadEntries() []threadEntry {
-	entries := make([]threadEntry, 0, len(m.threads)+6)
-	entries = append(entries, threadEntry{Kind: threadEntryMain, Label: "#main"})
+	entries := make([]threadEntry, 0, len(m.threads)+10)
 
+	// Build parent-child relationships
 	children := make(map[string][]types.Thread)
 	roots := make([]types.Thread, 0)
 	for _, thread := range m.threads {
@@ -374,15 +398,28 @@ func (m *Model) threadEntries() []threadEntry {
 		children[*thread.ParentThread] = append(children[*thread.ParentThread], thread)
 	}
 
-	// Sort roots: faved first, then alphabetically
-	sort.Slice(roots, func(i, j int) bool {
-		iFaved := m.favedThreads[roots[i].GUID]
-		jFaved := m.favedThreads[roots[j].GUID]
-		if iFaved != jFaved {
-			return iFaved // faved threads sort first
+	// Check if we're drilled into a thread
+	drilledThread := m.currentDrillThread()
+	if drilledThread != nil {
+		// When drilled in: show "back" entry + immediate children only
+		entries = append(entries, threadEntry{
+			Kind:   threadEntryThread,
+			Thread: drilledThread,
+			Label:  drilledThread.Name,
+			Indent: 0,
+		})
+		// Filter roots to only children of drilled thread
+		if kids, hasKids := children[drilledThread.GUID]; hasKids {
+			roots = kids
+		} else {
+			roots = nil // No children
 		}
-		return roots[i].Name < roots[j].Name
-	})
+	} else {
+		// At top level: show #main
+		entries = append(entries, threadEntry{Kind: threadEntryMain, Label: "#main"})
+	}
+
+	// Sort children alphabetically
 	for key := range children {
 		slice := children[key]
 		sort.Slice(slice, func(i, j int) bool {
@@ -391,6 +428,7 @@ func (m *Model) threadEntries() []threadEntry {
 		children[key] = slice
 	}
 
+	// Helper to walk thread hierarchy
 	var walk func(thread types.Thread, indent int)
 	walk = func(thread types.Thread, indent int) {
 		t := thread
@@ -413,37 +451,114 @@ func (m *Model) threadEntries() []threadEntry {
 		}
 	}
 
+	// Helper to check if thread has unreads with mentions
+	hasUnreadMentions := func(guid string) bool {
+		return false // TODO: implement mention detection
+	}
+
+	// 2. Threads with unread mentions/replies (special indicator)
+	var unreadMentionThreads []types.Thread
 	for _, thread := range roots {
+		if hasUnreadMentions(thread.GUID) {
+			unreadMentionThreads = append(unreadMentionThreads, thread)
+		}
+	}
+	for _, thread := range unreadMentionThreads {
 		walk(thread, 0)
 	}
 
-	// Add visited threads (from search) that aren't in subscribed list
-	if len(m.visitedThreads) > 0 {
-		subscribed := make(map[string]struct{})
-		for _, t := range m.threads {
-			subscribed[t.GUID] = struct{}{}
-		}
-		for guid, thread := range m.visitedThreads {
-			if _, ok := subscribed[guid]; ok {
-				continue
-			}
-			t := thread
-			entries = append(entries, threadEntry{
-				Kind:   threadEntryThread,
-				Thread: &t,
-				Label:  thread.Name,
-				Indent: 0,
-			})
-		}
+	// 3. Faved threads (excluding those already shown in unreads)
+	shownGUIDs := make(map[string]bool)
+	for _, t := range unreadMentionThreads {
+		shownGUIDs[t.GUID] = true
 	}
 
-	// Pseudo-threads always at bottom (no separator) - only show actionable: open and stale
+	var favedThreads []types.Thread
+	for _, thread := range roots {
+		if m.favedThreads[thread.GUID] && !shownGUIDs[thread.GUID] {
+			favedThreads = append(favedThreads, thread)
+		}
+	}
+	// Sort faved by name
+	sort.Slice(favedThreads, func(i, j int) bool {
+		return favedThreads[i].Name < favedThreads[j].Name
+	})
+	for _, thread := range favedThreads {
+		walk(thread, 0)
+		shownGUIDs[thread.GUID] = true
+	}
+
+	// 4. Subscribed threads sorted by recency (last_activity_at)
+	var subscribedThreads []types.Thread
+	for _, thread := range roots {
+		if m.subscribedThreads[thread.GUID] && !shownGUIDs[thread.GUID] && !m.mutedThreads[thread.GUID] {
+			subscribedThreads = append(subscribedThreads, thread)
+		}
+	}
+	sort.Slice(subscribedThreads, func(i, j int) bool {
+		iActivity := subscribedThreads[i].CreatedAt
+		if subscribedThreads[i].LastActivityAt != nil {
+			iActivity = *subscribedThreads[i].LastActivityAt
+		}
+		jActivity := subscribedThreads[j].CreatedAt
+		if subscribedThreads[j].LastActivityAt != nil {
+			jActivity = *subscribedThreads[j].LastActivityAt
+		}
+		return iActivity > jActivity // most recent first
+	})
+	for _, thread := range subscribedThreads {
+		walk(thread, 0)
+		shownGUIDs[thread.GUID] = true
+	}
+
+	// 5. All other threads collapsed to top-level (non-subscribed, non-muted)
+	var otherThreads []types.Thread
+	for _, thread := range roots {
+		if !shownGUIDs[thread.GUID] && !m.mutedThreads[thread.GUID] {
+			otherThreads = append(otherThreads, thread)
+		}
+	}
+	// Sort by name
+	sort.Slice(otherThreads, func(i, j int) bool {
+		return otherThreads[i].Name < otherThreads[j].Name
+	})
+	for _, thread := range otherThreads {
+		// Calculate max depth for collapsed display
+		maxDepth := m.calculateMaxDepth(thread.GUID, children, 0)
+		t := thread
+		entries = append(entries, threadEntry{
+			Kind:        threadEntryThread,
+			Thread:      &t,
+			Label:       thread.Name,
+			Indent:      maxDepth, // Store depth in Indent field for collapsed display
+			HasChildren: false,     // Don't allow expanding in this mode
+			Collapsed:   true,      // Mark as collapsed
+			Faved:       false,
+		})
+	}
+
+	// Collection views: thread collections, then message collections
+	if len(m.mutedThreads) > 0 {
+		entries = append(entries, threadEntry{
+			Kind:             threadEntryThreadCollection,
+			ThreadCollection: threadCollectionMuted,
+			Label:            "muted",
+		})
+	}
 	entries = append(entries,
-		threadEntry{Kind: threadEntryPseudo, Pseudo: pseudoThreadOpen, Label: string(pseudoThreadOpen)},
-		threadEntry{Kind: threadEntryPseudo, Pseudo: pseudoThreadStale, Label: string(pseudoThreadStale)},
+		threadEntry{
+			Kind:              threadEntryMessageCollection,
+			MessageCollection: messageCollectionOpenQuestions,
+			Label:             string(messageCollectionOpenQuestions),
+		},
+		threadEntry{
+			Kind:              threadEntryMessageCollection,
+			MessageCollection: messageCollectionStaleQuestions,
+			Label:             string(messageCollectionStaleQuestions),
+		},
 	)
 
-	// Add search results from database (threads not in subscribed list)
+	// Add search results from database
 	if len(m.threadSearchResults) > 0 {
 		entries = append(entries, threadEntry{Kind: threadEntrySeparator, Label: "search"})
 		for _, thread := range m.threadSearchResults {
@@ -460,6 +575,21 @@ func (m *Model) threadEntries() []threadEntry {
 	return entries
 }
 
+func (m *Model) calculateMaxDepth(guid string, children map[string][]types.Thread, currentDepth int) int {
+	kids, hasKids := children[guid]
+	if !hasKids || len(kids) == 0 {
+		return currentDepth
+	}
+	maxDepth := currentDepth
+	for _, child := range kids {
+		childDepth := m.calculateMaxDepth(child.GUID, children, currentDepth+1)
+		if childDepth > maxDepth {
+			maxDepth = childDepth
+		}
+	}
+	return maxDepth
+}
+
 func (m *Model) threadEntryLabel(entry threadEntry) string {
 	switch entry.Kind {
 	case threadEntryMain:
@@ -468,32 +598,105 @@ func (m *Model) threadEntryLabel(entry threadEntry) string {
 		}
 		return entry.Label
 	case threadEntryThread:
-		prefix := strings.Repeat("  ", entry.Indent)
-		// Add expand/collapse indicator for threads with children
-		indicator := ""
-		if entry.HasChildren {
-			if entry.Collapsed {
-				indicator = "▸ "
-			} else {
-				indicator = "▾ "
+		// Check if this is the "back" entry when drilled in (first entry)
+		drilledThread := m.currentDrillThread()
+		if drilledThread != nil && entry.Thread != nil && entry.Thread.GUID == drilledThread.GUID {
+			// This is the back navigation entry
+			label := "❮ " + entry.Label
+			if m.drillDepth() > 0 {
+				// Show drill indicator (❯) if this thread has children we can drill into
+				kids := make([]types.Thread, 0)
+				for _, thread := range m.threads {
+					if thread.ParentThread != nil && *thread.ParentThread == drilledThread.GUID {
+						kids = append(kids, thread)
+					}
+				}
+				if len(kids) > 0 {
+					label += " ❯"
+				}
 			}
+			return label
 		}
-		// Add fave indicator
-		faveIndicator := ""
-		if entry.Faved {
-			faveIndicator = "★ "
-		}
-		label := prefix + indicator + faveIndicator + entry.Label
-		if entry.Thread != nil {
+
+		// Check if this is a collapsed non-subscribed thread (depth stored in Indent)
+		isCollapsedNonSubscribed := entry.Collapsed && entry.Thread != nil && !m.subscribedThreads[entry.Thread.GUID]
+
+		if isCollapsedNonSubscribed {
+			// For collapsed non-subscribed: ❯ name ❯❯ (chevrons after indicate depth)
+			depthIndicator := ""
+			if entry.Indent > 0 {
+				depthIndicator = " " + strings.Repeat("❯", entry.Indent)
+			}
+			label := "❯ " + entry.Label + depthIndicator
 			if count := m.unreadCounts[entry.Thread.GUID]; count > 0 {
 				label = fmt.Sprintf("%s (%d)", label, count)
 			}
+			return label
 		}
+
+		// Normal thread rendering (subscribed/faved/expanded)
+		prefix := strings.Repeat("  ", entry.Indent)
+
+		// Reserve 2 chars for indicator alignment (all names start same column)
+		leftIndicator := "  " // default: 2 spaces
+
+		// Check for unread mentions/replies (yellow ✦ indicator)
+		hasMentions := false // TODO: implement mention detection
+		unreadCount := 0
+		if entry.Thread != nil {
+			unreadCount = m.unreadCounts[entry.Thread.GUID]
+		}
+
+		// Priority order for left indicator:
+		// 1. Yellow ✦ for unread mentions/replies (highest priority)
+		// 2. ★ for faved threads
+		// 3. Two spaces otherwise
+		if hasMentions {
+			leftIndicator = "✦ "
+		} else if entry.Faved {
+			leftIndicator = "★ "
+		}
+
+		// Add expand/collapse indicator for threads with children
+		expandIndicator := ""
+		if entry.HasChildren {
+			if entry.Collapsed {
+				expandIndicator = "▸ "
+			} else {
+				expandIndicator = "▾ "
+			}
+		}
+
+		// Use nickname at top level (depth 0), actual name when drilled
+		displayName := entry.Label
+		if entry.Thread != nil && m.drillDepth() == 0 {
+			if nick, ok := m.threadNicknames[entry.Thread.GUID]; ok && nick != "" {
+				displayName = nick
+			}
+		}
+
+		label := prefix + leftIndicator + expandIndicator + displayName
+
+		// Add unread count after name (only for subscribed threads)
+		if entry.Thread != nil && m.subscribedThreads[entry.Thread.GUID] && unreadCount > 0 {
+			label = fmt.Sprintf("%s (%d)", label, unreadCount)
+		}
+
 		return label
-	case threadEntryPseudo:
-		count := m.questionCounts[entry.Pseudo]
+	case threadEntryMessageCollection:
+		// Convert back to pseudoThreadKind for compatibility with questionCounts
+		count := m.questionCounts[pseudoThreadKind(entry.MessageCollection)]
 		if count > 0 {
 			return fmt.Sprintf("%s (%d)", entry.Label, count)
+		}
+		return entry.Label
+	case threadEntryThreadCollection:
+		// Thread collections show count of threads in collection
+		if entry.ThreadCollection == threadCollectionMuted {
+			count := len(m.mutedThreads)
+			if count > 0 {
+				return fmt.Sprintf("%s (%d)", entry.Label, count)
+			}
 		}
 		return entry.Label
 	default:
@@ -507,11 +710,13 @@ func (m *Model) renderThreadPanel() string {
 		return ""
 	}
 
-	// Blue color scheme for threads
-	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true)  // bright blue
-	itemStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("67"))               // dim blue
-	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true)  // bright blue
+	// Color scheme for threads
+	depthColor := m.depthColor()
+	headerStyle := lipgloss.NewStyle().Foreground(depthColor).Bold(true)
+	itemStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("67"))                  // dim blue
+	activeStyle := lipgloss.NewStyle().Foreground(depthColor).Bold(true)
 	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("24")).Bold(true)
+	collapsedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))            // dim grey for non-subscribed
 
 	header := " Threads "
 	if m.threadFilterActive {
@@ -520,6 +725,25 @@ func (m *Model) renderThreadPanel() string {
 		} else {
 			header = fmt.Sprintf(" Threads (filter: %s) ", m.threadFilter)
 		}
+	} else if m.drillDepth() > 0 {
+		// Build drill path display
+		chevrons := strings.Repeat("❮", m.drillDepth())
+		path := ""
+		if m.db != nil {
+			for i, guid := range m.drillPath {
+				for _, t := range m.threads {
+					if t.GUID == guid {
+						if i > 0 {
+							path += "/"
+						}
+						path += t.Name
+						break
+					}
+				}
+			}
+			path += "/"
+		}
+		header = fmt.Sprintf(" %s %s ", chevrons, path)
 	}
 
 	lines := []string{headerStyle.Render(header), ""} // space after header
@@ -548,24 +772,49 @@ func (m *Model) renderThreadPanel() string {
 			continue
 		}
 		label := m.threadEntryLabel(entry)
-		line := label
+		wrappedLines := []string{label}
 		if width > 0 {
-			line = truncateLine(label, width-1)
+			wrappedLines = wrapLine(label, width-1)
 		}
 		style := itemStyle
+
+		// Check if this is a collapsed non-subscribed thread (for dim grey styling)
+		isCollapsedNonSubscribed := entry.Kind == threadEntryThread && entry.Collapsed && entry.Thread != nil && !m.subscribedThreads[entry.Thread.GUID]
+		if isCollapsedNonSubscribed {
+			style = collapsedStyle
+		}
+
+		// Active highlighting (overrides collapsed styling)
 		if entry.Kind == threadEntryThread && m.currentThread != nil && entry.Thread != nil && entry.Thread.GUID == m.currentThread.GUID {
 			style = activeStyle
 		}
 		if entry.Kind == threadEntryMain && m.currentThread == nil && m.currentPseudo == "" {
 			style = activeStyle
 		}
-		if entry.Kind == threadEntryPseudo && entry.Pseudo == m.currentPseudo {
+		if entry.Kind == threadEntryMessageCollection && entry.MessageCollection == messageCollectionView(m.currentPseudo) {
 			style = activeStyle
 		}
-		if index == m.threadIndex && m.threadPanelFocus {
+
+		// Selection highlighting (overrides all other styles)
+		isSelected := index == m.threadIndex && m.threadPanelFocus
+		if isSelected {
 			style = selectedStyle
 		}
-		lines = append(lines, style.Render(" "+line))
+
+		// Append all wrapped lines
+		for i, wrappedLine := range wrappedLines {
+			line := " " + wrappedLine
+			if isSelected {
+				// Pad to full width for selection background
+				line = lipgloss.NewStyle().Width(width).Render(line)
+			}
+			if i == 0 {
+				lines = append(lines, style.Render(line))
+			} else {
+				// Continuation lines (already have 2-char indent from wrapLine)
+				lines = append(lines, style.Render(line))
+			}
+		}
 	}
 
 	if m.height > 0 {
@@ -589,8 +838,8 @@ func (m *Model) handleThreadPanelKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 			m.resize()
 			return true, nil
 		}
-		m.threadPanelFocus = false
-		m.resize()
+		// Close panel and focus message pane
+		m.closePanels()
 		return true, nil
 	}
 
@@ -639,11 +888,17 @@ func (m *Model) handleThreadPanelKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 		m.moveThreadSelection(-1)
 		return true, nil
 	case "h":
-		m.collapseSelectedThread()
+		m.drillOutAction()
 		return true, nil
 	case "l":
-		m.expandSelectedThread()
+		m.drillInAction()
 		return true, nil
+	case "f":
+		// /f to toggle fave (when not in filter mode)
+		if !m.threadFilterActive {
+			m.toggleFaveSelectedThread()
+			return true, nil
+		}
 	}
 
 	switch msg.Type {
@@ -654,13 +909,31 @@ func (m *Model) handleThreadPanelKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 		m.moveThreadSelection(1)
 		return true, nil
 	case tea.KeyLeft:
-		m.collapseSelectedThread()
+		m.drillOutAction()
 		return true, nil
 	case tea.KeyRight:
-		m.expandSelectedThread()
+		m.drillInAction()
 		return true, nil
-	case tea.KeyEnter:
-		m.selectThreadEntry()
+	case tea.KeyCtrlF:
+		// Ctrl-f to toggle fave
+		m.toggleFaveSelectedThread()
+		return true, nil
+	case tea.KeyCtrlN:
+		// Ctrl-n hint for nickname
+		entries := m.threadEntries()
+		if m.threadIndex >= 0 && m.threadIndex < len(entries) {
+			entry := entries[m.threadIndex]
+			if entry.Kind == threadEntryThread && entry.Thread != nil {
+				m.status = fmt.Sprintf("Type /n <nickname> to set nickname for %s (or /n to clear)", entry.Thread.Name)
+			}
+		}
+		return true, nil
+	case tea.KeyCtrlM:
+		// Ctrl-m toggle mute
+		_, err := m.toggleMuteThread()
+		if err != nil {
+			m.status = err.Error()
+		}
 		return true, nil
 	}
 
@@ -844,6 +1117,31 @@ func (m *Model) selectThreadEntry() {
 		m.threadMessages = nil
 		m.markRoomAsRead()
 	case threadEntryThread:
+		// If selecting from search mode, drill sidebar to parent level (Option A)
+		if m.threadFilterActive && entry.Thread != nil && entry.Thread.ParentThread != nil && *entry.Thread.ParentThread != "" {
+			// Find parent thread and drill to it
+			parentGUID := *entry.Thread.ParentThread
+			for _, t := range m.threads {
+				if t.GUID == parentGUID {
+					// Build drill path to parent
+					m.drillPath = make([]string, 0)
+					current := &t
+					path := []string{current.GUID}
+					for current.ParentThread != nil && *current.ParentThread != "" {
+						for _, pt := range m.threads {
+							if pt.GUID == *current.ParentThread {
+								path = append([]string{pt.GUID}, path...)
+								current = &pt
+								break
+							}
+						}
+					}
+					m.drillPath = path
+					break
+				}
+			}
+		}
+
 		m.currentThread = entry.Thread
 		m.currentPseudo = ""
 		// Track visited threads for persistence in list
@@ -852,8 +1150,22 @@ func (m *Model) selectThreadEntry() {
 			m.addRecentThread(*entry.Thread)
 			m.markThreadAsRead(entry.Thread.GUID)
 		}
-	case threadEntryPseudo:
-		m.currentPseudo = entry.Pseudo
+
+		// Exit search mode after selection
+		if m.threadFilterActive {
+			m.resetThreadFilter()
+		}
+	case threadEntryMessageCollection:
+		// Convert messageCollectionView back to pseudoThreadKind for compatibility
+		m.currentPseudo = pseudoThreadKind(entry.MessageCollection)
+	case threadEntryThreadCollection:
+		// Handle thread collection views - show list of threads in collection
+		// For now, just set status indicating this is a thread collection
+		// TODO: Implement proper drill-in to show muted threads as a list
+		if entry.ThreadCollection == threadCollectionMuted {
+			m.status = fmt.Sprintf("Muted threads (%d) - drill-in not yet implemented", len(m.mutedThreads))
+		}
+		return
 	default:
 		return
 	}
@@ -878,6 +1190,207 @@ func (m *Model) addRecentThread(thread types.Thread) {
 	if len(m.recentThreads) > 10 {
 		m.recentThreads = m.recentThreads[:10]
 	}
+}
+
+func (m *Model) drillDepth() int {
+	return len(m.drillPath)
+}
+
+func (m *Model) currentDrillThread() *types.Thread {
+	if len(m.drillPath) == 0 {
+		return nil
+	}
+	guid := m.drillPath[len(m.drillPath)-1]
+	for _, t := range m.threads {
+		if t.GUID == guid {
+			return &t
+		}
+	}
+	return nil
+}
+
+func (m *Model) drillIn(thread *types.Thread) {
+	if thread == nil {
+		return
+	}
+	m.drillPath = append(m.drillPath, thread.GUID)
+	m.threadIndex = 0 // Focus first child
+}
+
+func (m *Model) drillOut() string {
+	if len(m.drillPath) == 0 {
+		return ""
+	}
+	// Pop last element
+	lastGUID := m.drillPath[len(m.drillPath)-1]
+	m.drillPath = m.drillPath[:len(m.drillPath)-1]
+	return lastGUID // Return the thread we were drilled into (for focus restoration)
+}
+
+func (m *Model) depthColor() lipgloss.Color {
+	depth := m.drillDepth()
+	switch depth {
+	case 0:
+		return lipgloss.Color("75") // blue
+	case 1:
+		return lipgloss.Color("141") // purple
+	case 2:
+		return lipgloss.Color("78") // green
+	default:
+		return lipgloss.Color("227") // yellow
+	}
+}
+
+func (m *Model) drillInAction() {
+	entries := m.threadEntries()
+	if m.threadIndex < 0 || m.threadIndex >= len(entries) {
+		return
+	}
+	entry := entries[m.threadIndex]
+	if entry.Kind != threadEntryThread || entry.Thread == nil {
+		return
+	}
+	// Check if thread has children
+	hasChildren := false
+	for _, t := range m.threads {
+		if t.ParentThread != nil && *t.ParentThread == entry.Thread.GUID {
+			hasChildren = true
+			break
+		}
+	}
+	if !hasChildren {
+		// Leaf node - just select it to view messages
+		m.selectThreadEntry()
+		return
+	}
+	// Drill in
+	m.drillIn(entry.Thread)
+}
+
+func (m *Model) toggleFaveSelectedThread() {
+	if m.db == nil || m.username == "" {
+		return
+	}
+	entries := m.threadEntries()
+	if m.threadIndex < 0 || m.threadIndex >= len(entries) {
+		return
+	}
+	entry := entries[m.threadIndex]
+	if entry.Kind != threadEntryThread || entry.Thread == nil {
+		return
+	}
+
+	guid := entry.Thread.GUID
+	isFaved := m.favedThreads[guid]
+
+	if isFaved {
+		if err := db.RemoveFave(m.db, m.username, "thread", guid); err != nil {
+			m.status = fmt.Sprintf("Error unfaving: %v", err)
+			return
+		}
+		m.status = fmt.Sprintf("Unfaved %s", entry.Thread.Name)
+	} else {
+		if _, err := db.AddFave(m.db, m.username, "thread", guid); err != nil {
+			m.status = fmt.Sprintf("Error faving: %v", err)
+			return
+		}
+		m.status = fmt.Sprintf("Faved %s", entry.Thread.Name)
+	}
+
+	// Refresh faved threads
+	m.refreshFavedThreads()
+}
+
+func (m *Model) drillOutAction() {
+	if m.drillDepth() == 0 {
+		return // Already at top level
+	}
+	returningFrom := m.drillOut()
+	// Focus the thread we were drilled into
+	if returningFrom != "" {
+		entries := m.threadEntries()
+		for i, entry := range entries {
+			if entry.Kind == threadEntryThread && entry.Thread != nil && entry.Thread.GUID == returningFrom {
+				m.threadIndex = i
+				break
+			}
+		}
+	}
+}
+
+func (m *Model) calculateThreadPanelWidth() {
+	// Calculate width based on longest visible thread name + 4 char buffer, max 50
+	maxLen := 10 // minimum width for " Threads "
+	entries := m.threadEntries()
+	for _, entry := range entries {
+		label := m.threadEntryLabel(entry)
+		// Strip ANSI codes for accurate length calculation
+		cleanLabel := stripANSI(label)
+		if len(cleanLabel) > maxLen {
+			maxLen = len(cleanLabel)
+		}
+	}
+	// Add 4 char buffer (1 for leading space in render + 3 for padding)
+	width := maxLen + 4
+	// Max 50 chars
+	if width > 50 {
+		width = 50
+	}
+	m.cachedThreadPanelWidth = width
+}
+
+func stripANSI(s string) string {
+	// Simple ANSI code stripper for length calculation
+	result := ""
+	inEscape := false
+	for _, ch := range s {
+		if ch == '\x1b' {
+			inEscape = true
+			continue
+		}
+		if inEscape {
+			if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') {
+				inEscape = false
+			}
+			continue
+		}
+		result += string(ch)
+	}
+	return result
+}
+
+func wrapLine(value string, maxLen int) []string {
+	if maxLen <= 0 {
+		return []string{value}
+	}
+	runes := []rune(value)
+	if len(runes) <= maxLen {
+		return []string{value}
+	}
+	// Wrap with 2-char indent on continuation lines
+	lines := make([]string, 0)
+	firstLineMax := maxLen
+	contLineMax := maxLen - 2 // 2-char indent
+
+	if contLineMax < 1 {
+		// Width too small to wrap, just truncate
+		return []string{string(runes[:maxLen])}
+	}
+
+	// First line
+	lines = append(lines, string(runes[:firstLineMax]))
+	remaining := runes[firstLineMax:]
+
+	// Continuation lines with 2-char indent
+	for len(remaining) > 0 {
+		if len(remaining) <= contLineMax {
+			lines = append(lines, "  "+string(remaining))
+			break
+		}
+		lines = append(lines, "  "+string(remaining[:contLineMax]))
+		remaining = remaining[contLineMax:]
+	}
+	return lines
 }
 
 func loadChannels(currentRoot string) ([]channelEntry, int) {
@@ -916,9 +1429,7 @@ func loadThreads(dbConn *sql.DB, username string) ([]types.Thread, int) {
 	if dbConn == nil || username == "" {
 		return nil, 0
 	}
-	threads, err := db.GetThreads(dbConn, &types.ThreadQueryOptions{
-		SubscribedAgent: &username,
-	})
+	threads, err := db.GetThreads(dbConn, &types.ThreadQueryOptions{})
 	if err != nil {
 		return nil, 0
 	}

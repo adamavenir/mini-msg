@@ -14,7 +14,10 @@ func (m *Model) threadPanelWidth() int {
 	if !m.threadPanelOpen {
 		return 0
 	}
-	return 20
+	if m.cachedThreadPanelWidth > 0 {
+		return m.cachedThreadPanelWidth
+	}
+	return 20 // fallback
 }
 
 func (m *Model) mainWidth() int {
@@ -34,6 +37,61 @@ func (m *Model) mainWidth() int {
 	return width
 }
 
+func (m *Model) openThreadPanel() {
+	if m.threadPanelOpen && !m.sidebarPersistent {
+		// Already open and not persistent - close it
+		m.threadPanelOpen = false
+		m.threadPanelFocus = false
+		m.resetThreadFilter()
+	} else {
+		// Open/focus threads panel
+		m.sidebarOpen = false
+		m.sidebarFocus = false
+		m.resetSidebarFilter()
+		m.threadPanelOpen = true
+		m.threadPanelFocus = true
+		if !m.sidebarPersistent {
+			m.calculateThreadPanelWidth() // Calculate width when opening
+		}
+	}
+	m.clearSuggestions()
+	m.resize()
+}
+
+func (m *Model) openChannelPanel() {
+	if m.sidebarOpen && !m.sidebarPersistent {
+		// Already open and not persistent - close it
+		m.sidebarOpen = false
+		m.sidebarFocus = false
+		m.resetSidebarFilter()
+	} else {
+		// Open/focus channels panel
+		m.threadPanelOpen = false
+		m.threadPanelFocus = false
+		m.resetThreadFilter()
+		m.sidebarOpen = true
+		m.sidebarFocus = true
+	}
+	m.clearSuggestions()
+	m.resize()
+}
+
+func (m *Model) closePanels() {
+	m.threadPanelOpen = false
+	m.threadPanelFocus = false
+	m.sidebarOpen = false
+	m.sidebarFocus = false
+	m.resetThreadFilter()
+	m.resetSidebarFilter()
+	m.clearSuggestions()
+	m.resize()
+}
+
+func (m *Model) toggleSidebarPersistence() {
+	m.sidebarPersistent = !m.sidebarPersistent
+}
+
+// Legacy function for backwards compatibility
 func (m *Model) cyclePanelFocus() {
 	// Cycle: threads → channels → hidden → threads
 	// Only one panel visible at a time
@@ -53,6 +111,7 @@ func (m *Model) cyclePanelFocus() {
 		// hidden → threads
 		m.threadPanelOpen = true
 		m.threadPanelFocus = true
+		m.calculateThreadPanelWidth() // Calculate width when opening
 	}
 	m.clearSuggestions()
 	m.resize()

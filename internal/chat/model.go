@@ -82,10 +82,11 @@ type Model struct {
 	reactionMode        bool
 	lastInputValue      string
 	lastInputPos        int
-	threads             []types.Thread
-	threadIndex         int
-	threadPanelOpen     bool
-	threadPanelFocus    bool
+	threads                 []types.Thread
+	threadIndex             int
+	threadPanelOpen         bool
+	threadPanelFocus        bool
+	cachedThreadPanelWidth  int               // calculated width (snapshot when panel opens)
 	threadFilter        string
 	threadMatches       []int
 	threadFilterActive  bool
@@ -101,13 +102,18 @@ type Model struct {
 	roomUnreadCount     int               // unread count for main room
 	collapsedThreads    map[string]bool   // collapsed state per thread GUID
 	favedThreads        map[string]bool   // faved threads for current user
+	subscribedThreads   map[string]bool   // subscribed threads for current user
+	mutedThreads        map[string]bool   // muted threads for current user
+	threadNicknames     map[string]string // thread nicknames for current user
+	drillPath           []string          // current drill path (thread GUIDs from root to current)
 	channels            []channelEntry
 	channelIndex        int
-	sidebarOpen         bool
-	sidebarFocus        bool
-	sidebarFilter       string
-	sidebarMatches      []int
-	sidebarFilterActive bool
+	sidebarOpen          bool
+	sidebarFocus         bool
+	sidebarFilter        string
+	sidebarMatches       []int
+	sidebarFilterActive  bool
+	sidebarPersistent    bool              // if true, Tab just changes focus (doesn't close)
 	helpMessageID       string
 	initialScroll       bool
 	lastClickID         string
@@ -203,6 +209,9 @@ func NewModel(opts Options) (*Model, error) {
 		unreadCounts:       make(map[string]int),
 		collapsedThreads:   make(map[string]bool),
 		favedThreads:       make(map[string]bool),
+		subscribedThreads:  make(map[string]bool),
+		mutedThreads:       make(map[string]bool),
+		threadNicknames:    make(map[string]string),
 		channels:        channels,
 		channelIndex:    channelIndex,
 		initialScroll:   true,
@@ -210,6 +219,9 @@ func NewModel(opts Options) (*Model, error) {
 	model.refreshQuestionCounts()
 	model.refreshUnreadCounts()
 	model.refreshFavedThreads()
+	model.refreshSubscribedThreads()
+	model.refreshMutedThreads()
+	model.refreshThreadNicknames()
 	return model, nil
 }
 
@@ -288,11 +300,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 			return m, m.handleSubmit(value)
+		case tea.KeyShiftTab:
+			// Shift-Tab: open channels panel
+			m.openChannelPanel()
+			return m, nil
 		case tea.KeyTab:
+			// Tab: open threads panel
 			if len(m.suggestions) > 0 {
 				return m, nil
 			}
-			m.cyclePanelFocus()
+			m.openThreadPanel()
+			return m, nil
+		case tea.KeyCtrlB:
+			// Ctrl-B: toggle sidebar persistence
+			m.toggleSidebarPersistence()
 			return m, nil
 		case tea.KeyPgUp, tea.KeyPgDown, tea.KeyHome, tea.KeyEnd:
 			var cmd tea.Cmd
@@ -791,6 +812,44 @@ func (m *Model) refreshFavedThreads() {
 	for _, guid := range guids {
 		m.favedThreads[guid] = true
 	}
+}
+
+func (m *Model) refreshSubscribedThreads() {
+	if m.db == nil || m.username == "" {
+		return
+	}
+	threads, err := db.GetThreads(m.db, &types.ThreadQueryOptions{
+		SubscribedAgent: &m.username,
+	})
+	if err != nil {
+		return
+	}
+	m.subscribedThreads = make(map[string]bool)
+	for _, t := range threads {
+		m.subscribedThreads[t.GUID] = true
+	}
+}
+
+func (m *Model) refreshMutedThreads() {
+	if m.db == nil || m.username == "" {
+		return
+	}
+	guids, err := db.GetMutedThreadGUIDs(m.db, m.username)
+	if err != nil {
+		return
+	}
+	m.mutedThreads = guids
+}
+
+func (m *Model) refreshThreadNicknames() {
+	if m.db == nil || m.username == "" {
+		return
+	}
+	nicknames, err := db.GetThreadNicknames(m.db, m.username)
+	if err != nil {
+		return
+	}
+	m.threadNicknames = nicknames
 }
 
 

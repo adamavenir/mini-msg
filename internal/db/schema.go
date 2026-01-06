@@ -238,7 +238,8 @@ CREATE TABLE IF NOT EXISTS fray_faves (
   agent_id TEXT NOT NULL,
   item_type TEXT NOT NULL,  -- 'thread' | 'message'
   item_guid TEXT NOT NULL,
-  faved_at INTEGER NOT NULL,
+  faved_at INTEGER,         -- NULL if not faved, just has nickname
+  nickname TEXT,            -- personal nickname for thread/message
   PRIMARY KEY (agent_id, item_type, item_guid)
 );
 CREATE INDEX IF NOT EXISTS idx_fray_faves_agent ON fray_faves(agent_id);

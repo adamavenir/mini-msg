@@ -11,13 +11,14 @@ import (
 
 const questionStaleSeconds = 7 * 24 * 3600
 
-type pseudoThreadKind string
+// Legacy type alias for backwards compatibility
+type pseudoThreadKind = messageCollectionView
 
 const (
-	pseudoThreadOpen   pseudoThreadKind = "open-qs"
-	pseudoThreadClosed pseudoThreadKind = "closed-qs"
-	pseudoThreadWonder pseudoThreadKind = "wondering"
-	pseudoThreadStale  pseudoThreadKind = "stale-qs"
+	pseudoThreadOpen   = messageCollectionOpenQuestions
+	pseudoThreadClosed = messageCollectionClosedQuestions
+	pseudoThreadWonder = messageCollectionWondering
+	pseudoThreadStale  = messageCollectionStaleQuestions
 )
 
 func (m *Model) renderQuestions() string {

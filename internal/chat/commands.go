@@ -50,6 +50,19 @@ func (m *Model) runSlashCommand(input string) (tea.Cmd, error) {
 	case "/help":
 		m.showHelp()
 		return nil, nil
+	case "/n":
+		// Set nickname for selected thread
+		return m.setThreadNickname(fields[1:])
+	case "/f":
+		// Toggle fave for selected thread (if thread panel focused)
+		if m.threadPanelFocus {
+			m.toggleFaveSelectedThread()
+			return nil, nil
+		}
+		return nil, fmt.Errorf("/f only works when thread panel is focused (press Tab)")
+	case "/M":
+		// Mute/unmute selected thread
+		return m.toggleMuteThread()
 	case "/edit":
 		return nil, m.runEditCommand(input)
 	case "/delete", "/rm":
@@ -59,6 +72,78 @@ func (m *Model) runSlashCommand(input string) (tea.Cmd, error) {
 	}
 
 	return nil, fmt.Errorf("unknown command: %s", fields[0])
+}
+
+func (m *Model) toggleMuteThread() (tea.Cmd, error) {
+	if !m.threadPanelFocus {
+		return nil, fmt.Errorf("/M only works when thread panel is focused (press Tab)")
+	}
+	entries := m.threadEntries()
+	if m.threadIndex < 0 || m.threadIndex >= len(entries) {
+		return nil, fmt.Errorf("no thread selected")
+	}
+	entry := entries[m.threadIndex]
+	if entry.Kind != threadEntryThread || entry.Thread == nil {
+		return nil, fmt.Errorf("selected item is not a thread")
+	}
+
+	guid := entry.Thread.GUID
+	isMuted := m.mutedThreads[guid]
+
+	if isMuted {
+		// Unmute by deleting from mutes table
+		if err := db.UnmuteThread(m.db, guid, m.username); err != nil {
+			return nil, fmt.Errorf("failed to unmute: %w", err)
+		}
+		m.status = fmt.Sprintf("Unmuted %s", entry.Thread.Name)
+	} else {
+		// Mute
+		if err := db.MuteThread(m.db, guid, m.username, 0, nil); err != nil {
+			return nil, fmt.Errorf("failed to mute: %w", err)
+		}
+		m.status = fmt.Sprintf("Muted %s", entry.Thread.Name)
+	}
+
+	m.refreshMutedThreads()
+	m.input.SetValue("")
+	m.input.CursorEnd()
+	return nil, nil
+}
+
+func (m *Model) setThreadNickname(args []string) (tea.Cmd, error) {
+	if !m.threadPanelFocus {
+		return nil, fmt.Errorf("/n only works when thread panel is focused (press Tab)")
+	}
+	entries := m.threadEntries()
+	if m.threadIndex < 0 || m.threadIndex >= len(entries) {
+		return nil, fmt.Errorf("no thread selected")
+	}
+	entry := entries[m.threadIndex]
+	if entry.Kind != threadEntryThread || entry.Thread == nil {
+		return nil, fmt.Errorf("selected item is not a thread")
+	}
+
+	nickname := strings.Join(args, " ")
+	guid := entry.Thread.GUID
+
+	if nickname == "" {
+		// Clear nickname
+		if err := db.SetNickname(m.db, m.username, "thread", guid, ""); err != nil {
+			return nil, fmt.Errorf("failed to clear nickname: %w", err)
+		}
+		m.status = fmt.Sprintf("Cleared nickname for %s", entry.Thread.Name)
+	} else {
+		// Set nickname
+		if err := db.SetNickname(m.db, m.username, "thread", guid, nickname); err != nil {
+			return nil, fmt.Errorf("failed to set nickname: %w", err)
+		}
+		m.status = fmt.Sprintf("Set nickname '%s' for %s", nickname, entry.Thread.Name)
+	}
+
+	m.refreshThreadNicknames()
+	m.input.SetValue("")
+	m.input.CursorEnd()
+	return nil, nil
 }
 
 func (m *Model) showHelp() {
