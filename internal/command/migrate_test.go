@@ -41,7 +41,7 @@ func TestMigrateCommandFailsWhenConfigExists(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got output: %q", output)
 	}
-	if !strings.Contains(output, "fray-config.json already exists") {
+	if !strings.Contains(output, "already migrated") {
 		t.Fatalf("unexpected output: %q", output)
 	}
 }

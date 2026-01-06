@@ -699,6 +699,9 @@ func ReadAgents(projectPath string) ([]AgentJSONLRecord, error) {
 			if update.Purpose != nil {
 				existing.Purpose = update.Purpose
 			}
+			if update.Avatar != nil {
+				existing.Avatar = update.Avatar
+			}
 			if update.LastSeen != nil {
 				existing.LastSeen = *update.LastSeen
 			}

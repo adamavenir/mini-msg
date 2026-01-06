@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -514,6 +515,17 @@ func outputThreadsTree(cmd *cobra.Command, ctx *CommandContext, threads []types.
 			children[parent] = append(children[parent], t)
 		}
 	}
+
+	// Sort roots: meta first, then alphabetically
+	sort.Slice(roots, func(i, j int) bool {
+		if roots[i].Name == "meta" {
+			return true
+		}
+		if roots[j].Name == "meta" {
+			return false
+		}
+		return roots[i].Name < roots[j].Name
+	})
 
 	// Get indicators data
 	pinnedGUIDs := make(map[string]bool)

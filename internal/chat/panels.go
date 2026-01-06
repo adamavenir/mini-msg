@@ -58,6 +58,7 @@ type threadEntry struct {
 	HasChildren       bool
 	Collapsed         bool
 	Faved             bool
+	Avatar            string // Agent avatar for display in meta view
 }
 
 func (m *Model) renderSidebar() string {
@@ -281,7 +282,9 @@ func channelMatchesFilter(entry channelEntry, term string) bool {
 }
 
 func (m *Model) sidebarIndexAtLine(line int) int {
-	if line <= 0 {
+	// Sidebar has: header(1) + blank(1) = 2 lines before content
+	headerLines := 2
+	if line < headerLines {
 		return -1
 	}
 	if len(m.channels) == 0 {
@@ -297,11 +300,13 @@ func (m *Model) sidebarIndexAtLine(line int) int {
 	if len(indices) == 0 {
 		return -1
 	}
-	index := line - 1
-	if index < 0 || index >= len(indices) {
+	// Convert Y coordinate to index: subtract headers, add scroll offset
+	contentLine := line - headerLines
+	actualIndex := contentLine + m.sidebarScrollOffset
+	if actualIndex < 0 || actualIndex >= len(indices) {
 		return -1
 	}
-	return indices[index]
+	return indices[actualIndex]
 }
 
 func (m *Model) moveChannelSelection(delta int) {
@@ -511,6 +516,7 @@ func (m *Model) threadEntries() []threadEntry {
 			entries = append(entries, threadEntry{Kind: threadEntrySectionHeader, Label: "agents"})
 			for _, thread := range agents {
 				t := thread
+				avatar := m.avatarMap[thread.Name] // thread.Name is the agent_id under meta/
 				entries = append(entries, threadEntry{
 					Kind:        threadEntryThread,
 					Thread:      &t,
@@ -519,6 +525,7 @@ func (m *Model) threadEntries() []threadEntry {
 					HasChildren: len(children[thread.GUID]) > 0,
 					Collapsed:   m.collapsedThreads[thread.GUID],
 					Faved:       m.favedThreads[thread.GUID],
+					Avatar:      avatar,
 				})
 			}
 		}
@@ -541,12 +548,11 @@ func (m *Model) threadEntries() []threadEntry {
 		return entries
 	}
 
-	// Helper to walk thread hierarchy
+	// Helper to add thread entry (no recursion - children shown via drill-in)
 	var walk func(thread types.Thread, indent int)
 	walk = func(thread types.Thread, indent int) {
 		t := thread
 		kids, hasKids := children[thread.GUID]
-		collapsed := m.collapsedThreads[thread.GUID]
 		faved := m.favedThreads[thread.GUID]
 		entries = append(entries, threadEntry{
 			Kind:        threadEntryThread,
@@ -554,14 +560,10 @@ func (m *Model) threadEntries() []threadEntry {
 			Label:       thread.Name,
 			Indent:      indent,
 			HasChildren: hasKids && len(kids) > 0,
-			Collapsed:   collapsed,
+			Collapsed:   false, // Not used - drill handles children
 			Faved:       faved,
 		})
-		if hasKids && !collapsed {
-			for _, child := range kids {
-				walk(child, indent+1)
-			}
-		}
+		// No recursion - children are shown when user drills in
 	}
 
 	// Helper to check if thread has unreads with mentions
@@ -569,10 +571,25 @@ func (m *Model) threadEntries() []threadEntry {
 		return false // TODO: implement mention detection
 	}
 
+	// Tracking for shown GUIDs (start early so meta is tracked)
+	shownGUIDs := make(map[string]bool)
+
+	// 1b. Meta thread always appears first (if it exists and at top level)
+	if drilledThread == nil {
+		for _, thread := range roots {
+			if thread.Name == "meta" && (thread.ParentThread == nil || *thread.ParentThread == "") {
+				t := thread
+				walk(t, 0)
+				shownGUIDs[thread.GUID] = true
+				break
+			}
+		}
+	}
+
 	// 2. Threads with unread mentions/replies (special indicator)
 	var unreadMentionThreads []types.Thread
 	for _, thread := range roots {
-		if hasUnreadMentions(thread.GUID) {
+		if hasUnreadMentions(thread.GUID) && !shownGUIDs[thread.GUID] {
 			unreadMentionThreads = append(unreadMentionThreads, thread)
 		}
 	}
@@ -580,8 +597,7 @@ func (m *Model) threadEntries() []threadEntry {
 		walk(thread, 0)
 	}
 
-	// 3. Faved threads (excluding those already shown in unreads)
-	shownGUIDs := make(map[string]bool)
+	// 3. Faved threads (excluding those already shown)
 	for _, t := range unreadMentionThreads {
 		shownGUIDs[t.GUID] = true
 	}
@@ -756,10 +772,13 @@ func (m *Model) threadEntryLabel(entry threadEntry) string {
 
 		// Priority order for left indicator:
 		// 1. Yellow ✦ for unread mentions/replies (highest priority)
-		// 2. ★ for faved threads
-		// 3. Three spaces otherwise
+		// 2. Agent avatar (replaces ★ for agent threads, even when faved)
+		// 3. ★ for faved threads (non-agent)
+		// 4. Three spaces otherwise
 		if hasMentions {
 			leftIndicator = " ✦ "
+		} else if entry.Avatar != "" {
+			leftIndicator = " " + entry.Avatar + " "
 		} else if entry.Faved {
 			leftIndicator = " ★ "
 		}
@@ -772,8 +791,9 @@ func (m *Model) threadEntryLabel(entry threadEntry) string {
 			}
 		}
 
-		// Build label with right chevrons for drillable items
-		label := leftIndicator + displayName
+		// Build label with indentation for nested threads
+		indent := strings.Repeat("  ", entry.Indent) // 2 spaces per level
+		label := leftIndicator + indent + displayName
 
 		// Add ❯ suffix for drillable items (has children)
 		if entry.HasChildren {
@@ -844,7 +864,9 @@ func (m *Model) renderThreadPanel() string {
 				header = fmt.Sprintf(" filter: %s ", m.threadFilter)
 			}
 		} else if m.drillDepth() > 0 {
-			// Build drill path display
+			// Build drill path display with depth chevrons
+			depth := m.drillDepth()
+			chevrons := strings.Repeat("❮", depth)
 			path := ""
 			if m.db != nil {
 				for i, guid := range m.drillPath {
@@ -860,7 +882,7 @@ func (m *Model) renderThreadPanel() string {
 				}
 				path += "/"
 			}
-			header = fmt.Sprintf(" %s ", path)
+			header = fmt.Sprintf(" %s %s ", chevrons, path)
 		}
 		lines = []string{headerStyle.Render(header), ""} // space after header
 	} else {
@@ -1236,7 +1258,15 @@ func threadEntryMatchesFilter(entry threadEntry, term string) bool {
 }
 
 func (m *Model) threadIndexAtLine(line int) int {
-	if line <= 0 {
+	// Thread panel has:
+	// - When filtering or drilled: header(1) + blank(1) = 2 lines
+	// - When at top level: blank(1) = 1 line
+	showHeader := m.threadFilterActive || m.drillDepth() > 0
+	headerLines := 1
+	if showHeader {
+		headerLines = 2
+	}
+	if line < headerLines {
 		return -1
 	}
 	entries := m.threadEntries()
@@ -1247,7 +1277,7 @@ func (m *Model) threadIndexAtLine(line int) int {
 	if !m.threadFilterActive {
 		indices = make([]int, 0, len(entries))
 		for i, entry := range entries {
-			if entry.Kind == threadEntrySeparator {
+			if entry.Kind == threadEntrySeparator || entry.Kind == threadEntrySectionHeader {
 				continue
 			}
 			indices = append(indices, i)
@@ -1256,12 +1286,14 @@ func (m *Model) threadIndexAtLine(line int) int {
 	if len(indices) == 0 {
 		return -1
 	}
-	index := line - 1
-	if index < 0 || index >= len(indices) {
+	// Convert Y coordinate to index: subtract headers, add scroll offset
+	contentLine := line - headerLines
+	actualIndex := contentLine + m.threadScrollOffset
+	if actualIndex < 0 || actualIndex >= len(indices) {
 		return -1
 	}
-	selected := indices[index]
-	if entries[selected].Kind == threadEntrySeparator {
+	selected := indices[actualIndex]
+	if entries[selected].Kind == threadEntrySeparator || entries[selected].Kind == threadEntrySectionHeader {
 		return -1
 	}
 	return selected
@@ -1471,20 +1503,38 @@ func (m *Model) drillInAction() {
 		return
 	}
 	// Check if thread has children
-	hasChildren := false
+	var children []types.Thread
 	for _, t := range m.threads {
 		if t.ParentThread != nil && *t.ParentThread == entry.Thread.GUID {
-			hasChildren = true
-			break
+			children = append(children, t)
 		}
 	}
-	if !hasChildren {
+	if len(children) == 0 {
 		// Leaf node - just select it to view messages
 		m.selectThreadEntry()
 		return
 	}
 	// Drill in
 	m.drillIn(entry.Thread)
+
+	// Auto-select "notes" child if drilling into agent thread from meta
+	// Agent threads are direct children of meta with a "notes" subthread
+	if drilledThread != nil && drilledThread.Name == "meta" {
+		for _, child := range children {
+			if child.Name == "notes" {
+				// Find and select the notes entry
+				newEntries := m.threadEntries()
+				for i, e := range newEntries {
+					if e.Kind == threadEntryThread && e.Thread != nil && e.Thread.GUID == child.GUID {
+						m.threadIndex = i
+						m.selectThreadEntry()
+						break
+					}
+				}
+				break
+			}
+		}
+	}
 }
 
 func (m *Model) toggleFaveSelectedThread() {

@@ -673,8 +673,18 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 			m.sidebarFocus = false
 			if msg.Y < lipgloss.Height(m.renderThreadPanel()) {
 				if index := m.threadIndexAtLine(msg.Y); index >= 0 {
-					m.threadIndex = index
-					m.selectThreadEntry()
+					// If clicking already-selected thread, drill in (if it has children)
+					if index == m.threadIndex {
+						m.drillInAction()
+					} else {
+						m.threadIndex = index
+						m.selectThreadEntry()
+					}
+					return true, nil
+				}
+				// Click on header (line 0) when drilled in -> drill out
+				if msg.Y == 0 && m.drillDepth() > 0 {
+					m.drillOutAction()
 					return true, nil
 				}
 				return true, nil
