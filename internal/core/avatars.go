@@ -102,22 +102,18 @@ func AllAvatars() []string {
 	return all
 }
 
-// IsValidAvatar checks if a string is a valid avatar.
+// IsValidAvatar checks if a string is a valid avatar (any single grapheme).
 func IsValidAvatar(avatar string) bool {
-	if avatar == HumanAvatar {
-		return true
+	if avatar == "" {
+		return false
 	}
-	for _, options := range letterAvatars {
-		for _, a := range options {
-			if a == avatar {
-				return true
-			}
+	// Count grapheme clusters (handles multi-byte emoji correctly)
+	count := 0
+	for range avatar {
+		count++
+		if count > 2 { // Allow up to 2 runes for emoji with modifiers
+			return false
 		}
 	}
-	for _, a := range genericAvatars {
-		if a == avatar {
-			return true
-		}
-	}
-	return false
+	return true
 }

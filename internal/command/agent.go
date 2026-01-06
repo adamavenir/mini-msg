@@ -664,7 +664,7 @@ Examples:
 
 			// Validate avatar
 			if !core.IsValidAvatar(avatar) {
-				return writeCommandError(cmd, fmt.Errorf("invalid avatar: %s (use a single character from the avatar pool)", avatar))
+				return writeCommandError(cmd, fmt.Errorf("invalid avatar: %s (use a single character or emoji)", avatar))
 			}
 
 			// Update in database
