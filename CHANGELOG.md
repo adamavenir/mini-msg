@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0 (unreleased)]
 
 ### Added
+- Chat: inline `#`-prefixed IDs (e.g., `#fray-abc123`, `#msg-xyz`) are bold+underlined; double-click copies ID
 - Chat: `/` command autocomplete with fuzzy matching (type `/` to see commands, filter as you type)
 - Chat: `/mv` command moves messages (`/mv #msg-id dest`) or reparents current thread (`/mv parent`)
 - `fray mv`: thread reparenting (`fray mv <thread> <parent>`, `fray mv <thread> root`)
