@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Chat: inline `#`-prefixed IDs (e.g., `#fray-abc123`, `#msg-xyz`) are bold+underlined; double-click copies ID
 - Chat: `/` command autocomplete with fuzzy matching (type `/` to see commands, filter as you type)
 - Chat: `/mv` command moves messages (`/mv #msg-id dest`) or reparents current thread (`/mv parent`)
+- Chat: `/thread` (`/t`) and `/subthread` (`/st`) commands create threads with optional anchor text
+- Chat: click-then-command pattern: click message, type `/mv dest`, submits as `/mv #clicked-id dest`
+- Thread creation: meta/ collision detection blocks creating `foo` when `meta/foo` exists
+- `fray rm`, `fray archive`, `fray restore`: accept `--as` flag for agent attribution
 - `fray mv`: thread reparenting (`fray mv <thread> <parent>`, `fray mv <thread> root`)
 - `fray mv`: room destination accepts `main`, `room`, or channel name
 - Chat: new slash commands operate on current thread: `/fave`, `/unfave`, `/follow`, `/unfollow`, `/mute`, `/unmute`, `/archive`, `/restore`, `/rename`
@@ -46,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fray history`: now accepts users as well as agents
 - `fray @agent`: includes mentions from thread messages, not just room
 - Chat: Enter key now submits message immediately (was requiring double-enter when suggestions shown)
+- Chat: up-to-edit now prefills default reason "edit" so enter works immediately
 - Chat: faved_at column now nullable (can have nickname without fave)
 - Chat: Enter key in sidebar selects thread instead of muting
 - Chat: drilling into childless items no longer loops infinitely
