@@ -21,20 +21,30 @@ const (
 
 // questionSourceMessages returns the source messages for questions in the current pseudo-thread.
 // This allows questions to be displayed using the standard message rendering.
+// Messages with multiple questions are deduplicated - each message appears once.
 func (m *Model) questionSourceMessages() []types.Message {
 	if len(m.pseudoQuestions) == 0 {
 		return nil
 	}
+	seen := make(map[string]struct{})
 	messages := make([]types.Message, 0, len(m.pseudoQuestions))
 	for _, q := range m.pseudoQuestions {
 		if q.AskedIn != nil {
+			if _, exists := seen[*q.AskedIn]; exists {
+				continue
+			}
 			// Fetch the actual source message
 			msg, err := db.GetMessage(m.db, *q.AskedIn)
 			if err == nil && msg != nil {
+				seen[*q.AskedIn] = struct{}{}
 				messages = append(messages, *msg)
 			}
 		} else {
 			// For questions without a source message (e.g., wondering), create a synthetic one
+			if _, exists := seen[q.GUID]; exists {
+				continue
+			}
+			seen[q.GUID] = struct{}{}
 			messages = append(messages, types.Message{
 				ID:        q.GUID,
 				TS:        q.CreatedAt,

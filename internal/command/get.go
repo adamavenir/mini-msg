@@ -279,8 +279,14 @@ Legacy (deprecated):
 						useGhostCursorBoundary = true
 					}
 				}
+				// Fall back to watermark-based boundary if no ghost cursor
 				if !useGhostCursorBoundary {
-					mentionOpts.UnreadOnly = true
+					mentionWatermark, _ := db.GetReadTo(ctx.DB, agentBase, "mentions")
+					if mentionWatermark != nil {
+						mentionOpts.Since = &types.MessageCursor{GUID: mentionWatermark.MessageGUID, TS: mentionWatermark.MessageTS}
+					} else {
+						mentionOpts.UnreadOnly = true
+					}
 				}
 
 				mentionMessages, err := db.GetMessagesWithMention(ctx.DB, agentBase, mentionOpts)
@@ -319,6 +325,9 @@ Legacy (deprecated):
 					if err := db.MarkMessagesRead(ctx.DB, ids, agentBase); err != nil {
 						return writeCommandError(cmd, err)
 					}
+					// Also set mentions watermark for durable read state
+					lastMentionMsg := filtered[len(filtered)-1]
+					_ = db.SetReadTo(ctx.DB, agentBase, "mentions", lastMentionMsg.ID, lastMentionMsg.TS)
 				}
 
 				// Ack ghost cursor if we used it as boundary (first view this session)
@@ -676,8 +685,16 @@ func getNotifications(cmd *cobra.Command, ctx *CommandContext, asRef, projectNam
 			useGhostCursorBoundary = true
 		}
 	}
+	// Fall back to watermark-based boundary if no ghost cursor
+	// This handles users and agents without ghost cursors
 	if !useGhostCursorBoundary {
-		mentionOpts.UnreadOnly = true
+		mentionWatermark, _ := db.GetReadTo(ctx.DB, agentBase, "mentions")
+		if mentionWatermark != nil {
+			mentionOpts.Since = &types.MessageCursor{GUID: mentionWatermark.MessageGUID, TS: mentionWatermark.MessageTS}
+		} else {
+			// No watermark either - use UnreadOnly as last resort
+			mentionOpts.UnreadOnly = true
+		}
 	}
 
 	mentionMessages, err := db.GetMessagesWithMention(ctx.DB, agentBase, mentionOpts)
@@ -772,7 +789,7 @@ func getNotifications(cmd *cobra.Command, ctx *CommandContext, asRef, projectNam
 		}
 	}
 
-	// Mark messages as read
+	// Mark messages as read and update watermark
 	if len(filtered) > 0 {
 		ids := make([]string, 0, len(filtered))
 		for _, msg := range filtered {
@@ -781,6 +798,10 @@ func getNotifications(cmd *cobra.Command, ctx *CommandContext, asRef, projectNam
 		if err := db.MarkMessagesRead(ctx.DB, ids, agentBase); err != nil {
 			return writeCommandError(cmd, err)
 		}
+		// Also set watermark to the latest mention for durable read state
+		// This survives DB rebuilds unlike read receipts
+		lastMsg := filtered[len(filtered)-1]
+		_ = db.SetReadTo(ctx.DB, agentBase, "mentions", lastMsg.ID, lastMsg.TS)
 	}
 
 	// Ack ghost cursor if we used it as boundary
