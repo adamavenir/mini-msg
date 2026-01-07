@@ -19,6 +19,9 @@ type ActivityDetector interface {
 
 	// RecordActivity manually records activity for a process (e.g., from stdout).
 	RecordActivity(pid int)
+
+	// Cleanup removes tracking for a process.
+	Cleanup(pid int)
 }
 
 // activityRecord tracks activity state for a process.

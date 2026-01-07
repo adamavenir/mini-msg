@@ -120,11 +120,7 @@ func (d *Daemon) Stop() error {
 			driver.Cleanup(proc)
 		}
 		if proc.Cmd.Process != nil {
-			if base, ok := d.detector.(*FallbackDetector); ok {
-				base.Cleanup(proc.Cmd.Process.Pid)
-			} else if darwin, ok := d.detector.(*DarwinDetector); ok {
-				darwin.Cleanup(proc.Cmd.Process.Pid)
-			}
+			d.detector.Cleanup(proc.Cmd.Process.Pid)
 		}
 	}
 	d.processes = make(map[string]*Process)

@@ -85,3 +85,8 @@ func (d *DarwinDetector) hasCPUActivity(pid int) bool {
 	// Consider active if using more than 0.1% CPU
 	return cpu > 0.1
 }
+
+// Cleanup removes tracking for a process.
+func (d *DarwinDetector) Cleanup(pid int) {
+	d.BaseActivityDetector.Cleanup(pid)
+}
