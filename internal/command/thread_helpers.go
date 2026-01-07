@@ -1,9 +1,13 @@
 package command
 
 import (
+	"bufio"
 	"database/sql"
 	"fmt"
+	"os"
+	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
@@ -106,6 +110,94 @@ func validateThreadName(name string) error {
 		return fmt.Errorf("thread name cannot contain '/'")
 	}
 	return nil
+}
+
+// validKebabCase matches lowercase kebab-case names (e.g., my-thread-name)
+var validKebabCase = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+
+// ConfirmSanitizedName prompts the user to confirm a sanitized name.
+// Returns the confirmed name or error if declined.
+// In non-TTY mode, auto-accepts the sanitized name.
+func ConfirmSanitizedName(original, sanitized string, out, in *os.File) (string, error) {
+	// Check if stdin is a TTY
+	info, err := in.Stat()
+	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
+		// Non-TTY: auto-accept sanitized name
+		return sanitized, nil
+	}
+
+	fmt.Fprintf(out, "Creating '%s' -- ok? [Y/n]: ", sanitized)
+	reader := bufio.NewReader(in)
+	text, _ := reader.ReadString('\n')
+	response := strings.ToLower(strings.TrimSpace(text))
+
+	// Accept: empty (default Y), y, yes
+	if response == "" || response == "y" || response == "yes" {
+		return sanitized, nil
+	}
+
+	return "", fmt.Errorf("cancelled: thread name '%s' would be sanitized to '%s'", original, sanitized)
+}
+
+// SanitizeThreadName converts a name to kebab-case lowercase.
+// Returns the sanitized name and whether it differs from the original.
+func SanitizeThreadName(name string) (string, bool) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "", false
+	}
+
+	// If already valid kebab-case, return as-is
+	if validKebabCase.MatchString(trimmed) {
+		return trimmed, false
+	}
+
+	// Convert to kebab-case:
+	// 1. Replace camelCase boundaries with hyphens (lowercase followed by uppercase)
+	// 2. Replace spaces and underscores with hyphens
+	// 3. Remove invalid characters
+	// 4. Lowercase everything
+	// 5. Collapse multiple hyphens
+	// 6. Trim leading/trailing hyphens
+
+	runes := []rune(trimmed)
+	var result strings.Builder
+	prevWasHyphen := true // Start true to avoid leading hyphen
+
+	for i, r := range runes {
+		switch {
+		case unicode.IsUpper(r):
+			// Add hyphen before uppercase only if preceded by lowercase
+			// (camelCase boundary, not ALLCAPS or start of word)
+			if i > 0 && !prevWasHyphen {
+				prevRune := runes[i-1]
+				if unicode.IsLower(prevRune) {
+					result.WriteRune('-')
+				}
+			}
+			result.WriteRune(unicode.ToLower(r))
+			prevWasHyphen = false
+		case unicode.IsLower(r) || unicode.IsDigit(r):
+			result.WriteRune(r)
+			prevWasHyphen = false
+		case r == '-' || r == '_' || r == ' ':
+			if !prevWasHyphen {
+				result.WriteRune('-')
+				prevWasHyphen = true
+			}
+		default:
+			// Skip invalid characters
+		}
+	}
+
+	sanitized := strings.Trim(result.String(), "-")
+
+	// Handle edge case: empty result after sanitization
+	if sanitized == "" {
+		return "", false
+	}
+
+	return sanitized, sanitized != trimmed
 }
 
 func collectParticipants(messages []types.Message) []string {

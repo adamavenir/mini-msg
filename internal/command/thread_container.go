@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -230,6 +231,21 @@ func createThreadFromPath(cmd *cobra.Command, ctx *CommandContext, args []string
 	name = strings.TrimSpace(name)
 	if err := validateThreadName(name); err != nil {
 		return writeCommandError(cmd, err)
+	}
+
+	// Sanitize name to kebab-case and confirm if changed
+	sanitized, changed := SanitizeThreadName(name)
+	if sanitized == "" {
+		return writeCommandError(cmd, fmt.Errorf("invalid thread name: '%s'", name))
+	}
+	if changed {
+		confirmed, err := ConfirmSanitizedName(name, sanitized, os.Stdout, os.Stdin)
+		if err != nil {
+			return writeCommandError(cmd, err)
+		}
+		name = confirmed
+	} else {
+		name = sanitized
 	}
 
 	// Check if thread already exists
@@ -638,6 +654,21 @@ func NewThreadNewCmd() *cobra.Command {
 			name := strings.TrimSpace(args[0])
 			if err := validateThreadName(name); err != nil {
 				return writeCommandError(cmd, err)
+			}
+
+			// Sanitize name to kebab-case and confirm if changed
+			sanitized, changed := SanitizeThreadName(name)
+			if sanitized == "" {
+				return writeCommandError(cmd, fmt.Errorf("invalid thread name: '%s'", name))
+			}
+			if changed {
+				confirmed, err := ConfirmSanitizedName(name, sanitized, os.Stdout, os.Stdin)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				name = confirmed
+			} else {
+				name = sanitized
 			}
 
 			parentRef, _ := cmd.Flags().GetString("parent")
@@ -1054,6 +1085,21 @@ func NewThreadRenameCmd() *cobra.Command {
 			name := strings.TrimSpace(args[1])
 			if err := validateThreadName(name); err != nil {
 				return writeCommandError(cmd, err)
+			}
+
+			// Sanitize name to kebab-case and confirm if changed
+			sanitized, changed := SanitizeThreadName(name)
+			if sanitized == "" {
+				return writeCommandError(cmd, fmt.Errorf("invalid thread name: '%s'", name))
+			}
+			if changed {
+				confirmed, err := ConfirmSanitizedName(name, sanitized, os.Stdout, os.Stdin)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				name = confirmed
+			} else {
+				name = sanitized
 			}
 
 			var parentGUID *string

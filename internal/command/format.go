@@ -14,7 +14,7 @@ import (
 	"github.com/adamavenir/fray/internal/types"
 )
 
-const maxDisplayLines = 20
+const maxDisplayLines = 60
 
 // Accordion settings
 const (

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -26,14 +27,15 @@ type answerModel struct {
 	dbPath   string
 	identity string
 
-	sets         []questionSet
-	currentSet   int
-	currentQ     int
-	phase        answerPhase
-	answered     []qaPair
-	skipped      []types.Question
-	reviewIndex  int
-	reviewChoice string
+	sets           []questionSet
+	currentSet     int
+	currentQ       int
+	phase          answerPhase
+	answered       []qaPair
+	skipped        []types.Question
+	reviewIndex    int
+	reviewChoice   string
+	contextCache   map[string]string // msgID -> cleaned context (non-question part)
 
 	input    textarea.Model
 	width    int
@@ -58,13 +60,31 @@ func newAnswerModel(database *sql.DB, dbPath, identity string, questions []types
 	})
 	input.Focus()
 
+	// Pre-cache context for all questions that have an AskedIn message
+	contextCache := make(map[string]string)
+	for _, q := range questions {
+		if q.AskedIn != nil && *q.AskedIn != "" {
+			if _, exists := contextCache[*q.AskedIn]; !exists {
+				if msg, err := db.GetMessage(database, *q.AskedIn); err == nil && msg != nil {
+					// Strip question sections to get just the context
+					cleaned := core.StripQuestionSections(msg.Body)
+					cleaned = strings.TrimSpace(cleaned)
+					if cleaned != "" {
+						contextCache[*q.AskedIn] = cleaned
+					}
+				}
+			}
+		}
+	}
+
 	return answerModel{
-		database: database,
-		dbPath:   dbPath,
-		identity: identity,
-		sets:     sets,
-		input:    input,
-		phase:    phaseAnswering,
+		database:     database,
+		dbPath:       dbPath,
+		identity:     identity,
+		sets:         sets,
+		input:        input,
+		phase:        phaseAnswering,
+		contextCache: contextCache,
 	}
 }
 
@@ -312,8 +332,24 @@ func (m answerModel) renderQuestion() string {
 	}
 	b.WriteString("\n")
 
-	// Question text
-	b.WriteString(answerQuestionStyle.Render(q.Re))
+	// Context from source message (if any)
+	if q.AskedIn != nil {
+		if context, exists := m.contextCache[*q.AskedIn]; exists {
+			contextStyle := answerMetaStyle
+			if m.width > 4 {
+				contextStyle = contextStyle.Width(m.width - 4)
+			}
+			b.WriteString(contextStyle.Render(context))
+			b.WriteString("\n\n")
+		}
+	}
+
+	// Question text (wrapped to available width)
+	questionStyle := answerQuestionStyle
+	if m.width > 4 {
+		questionStyle = questionStyle.Width(m.width - 4)
+	}
+	b.WriteString(questionStyle.Render(q.Re))
 	b.WriteString("\n\n")
 
 	// Options with pros/cons
