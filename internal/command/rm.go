@@ -23,7 +23,8 @@ The ID prefix determines the type:
 
 Examples:
   fray rm msg-abc123
-  fray rm thrd-xyz789`,
+  fray rm thrd-xyz789
+  fray rm design-thread --as opus`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := GetContext(cmd)
@@ -51,6 +52,8 @@ Examples:
 			return deleteMessage(cmd, ctx, input)
 		},
 	}
+
+	cmd.Flags().String("as", "", "agent performing the deletion (for attribution)")
 
 	return cmd
 }

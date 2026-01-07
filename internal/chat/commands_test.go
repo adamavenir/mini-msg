@@ -76,3 +76,75 @@ func TestParsePruneArgs(t *testing.T) {
 		t.Fatalf("expected error for missing --keep value")
 	}
 }
+
+func TestRewriteClickThenCommand(t *testing.T) {
+	tests := []struct {
+		input    string
+		want     string
+		wantOK   bool
+	}{
+		// Valid click-then-command patterns
+		{"#msg-abc123 /mv meta", "/mv #msg-abc123 meta", true},
+		{"#msg-abc /delete", "/delete #msg-abc", true},
+		{"#abc /mv design-thread", "/mv #abc design-thread", true},
+		{"#thrd-xyz /archive", "/archive #thrd-xyz", true},
+
+		// Not click-then-command (regular slash commands)
+		{"/mv meta", "", false},
+		{"/delete #msg-abc", "", false},
+
+		// Not click-then-command (regular messages)
+		{"hello world", "", false},
+		{"#msg-abc hello", "", false},
+	}
+
+	for _, tt := range tests {
+		got, ok := rewriteClickThenCommand(tt.input)
+		if ok != tt.wantOK {
+			t.Errorf("rewriteClickThenCommand(%q): ok = %v, want %v", tt.input, ok, tt.wantOK)
+			continue
+		}
+		if ok && got != tt.want {
+			t.Errorf("rewriteClickThenCommand(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestParseThreadArgs(t *testing.T) {
+	tests := []struct {
+		input      string
+		wantName   string
+		wantAnchor string
+		wantErr    bool
+	}{
+		{"/thread my-thread", "my-thread", "", false},
+		{"/t my-thread", "my-thread", "", false},
+		{"/thread my-thread \"anchor text\"", "my-thread", "anchor text", false},
+		{"/t design \"This is the anchor\"", "design", "This is the anchor", false},
+		{"/subthread sub-name", "sub-name", "", false},
+		{"/st sub-name \"sub anchor\"", "sub-name", "sub anchor", false},
+		{"/thread", "", "", true},           // no name
+		{"/t", "", "", true},                 // no name
+		{"/thread \"just anchor\"", "", "", true}, // no name before quote
+	}
+
+	for _, tt := range tests {
+		name, anchor, err := parseThreadArgs(tt.input)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("parseThreadArgs(%q): expected error", tt.input)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("parseThreadArgs(%q): unexpected error: %v", tt.input, err)
+			continue
+		}
+		if name != tt.wantName {
+			t.Errorf("parseThreadArgs(%q): name = %q, want %q", tt.input, name, tt.wantName)
+		}
+		if anchor != tt.wantAnchor {
+			t.Errorf("parseThreadArgs(%q): anchor = %q, want %q", tt.input, anchor, tt.wantAnchor)
+		}
+	}
+}

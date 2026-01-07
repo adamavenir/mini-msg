@@ -482,12 +482,15 @@ Accepts thread GUID, name, or path.
 
 Examples:
   fray archive design-thread
-  fray archive opus/notes`,
+  fray archive opus/notes --as opus`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return updateThreadStatusTopLevel(cmd, args[0], "archived")
 		},
 	}
+
+	cmd.Flags().String("as", "", "agent performing the archive (for attribution)")
+
 	return cmd
 }
 
@@ -502,12 +505,15 @@ Accepts thread GUID, name, or path.
 
 Examples:
   fray restore design-thread
-  fray restore opus/notes`,
+  fray restore opus/notes --as opus`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return updateThreadStatusTopLevel(cmd, args[0], "open")
 		},
 	}
+
+	cmd.Flags().String("as", "", "agent performing the restore (for attribution)")
+
 	return cmd
 }
 

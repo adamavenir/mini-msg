@@ -194,3 +194,59 @@ func getThreadDepth(dbConn *sql.DB, thread *types.Thread) (int, error) {
 	}
 	return depth, nil
 }
+
+// CheckMetaPathCollision checks if a path would collide with an existing meta/ equivalent.
+// For example, creating "opus/notes" when "meta/opus/notes" exists is likely an error.
+// Returns the suggested meta path if collision detected, empty string otherwise.
+func CheckMetaPathCollision(dbConn *sql.DB, path string) (string, error) {
+	// Skip if path already starts with meta
+	if strings.HasPrefix(path, "meta/") || path == "meta" {
+		return "", nil
+	}
+
+	// Check if meta/<path> exists
+	metaPath := "meta/" + path
+	thread, err := resolveThreadPath(dbConn, metaPath)
+	if err != nil {
+		// Path doesn't exist, no collision
+		return "", nil
+	}
+	if thread != nil {
+		return metaPath, nil
+	}
+	return "", nil
+}
+
+// CheckMetaPathCollisionForCreate checks before creating a thread at the given path.
+// parentGUID is the parent thread (nil for root), name is the new thread name.
+// Returns error if a meta/ equivalent exists.
+func CheckMetaPathCollisionForCreate(dbConn *sql.DB, parentGUID *string, name string) error {
+	// Build the full path that would be created
+	var fullPath string
+	if parentGUID == nil {
+		fullPath = name
+	} else {
+		parentThread, err := db.GetThread(dbConn, *parentGUID)
+		if err != nil {
+			return err
+		}
+		if parentThread == nil {
+			return nil // Parent doesn't exist, let normal validation handle it
+		}
+		parentPath, err := buildThreadPath(dbConn, parentThread)
+		if err != nil {
+			return err
+		}
+		fullPath = parentPath + "/" + name
+	}
+
+	// Check for meta collision
+	suggestedPath, err := CheckMetaPathCollision(dbConn, fullPath)
+	if err != nil {
+		return err
+	}
+	if suggestedPath != "" {
+		return fmt.Errorf("thread exists at %s - use that path instead", suggestedPath)
+	}
+	return nil
+}

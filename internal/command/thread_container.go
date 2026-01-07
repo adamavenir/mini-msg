@@ -241,6 +241,11 @@ func createThreadFromPath(cmd *cobra.Command, ctx *CommandContext, args []string
 		return writeCommandError(cmd, fmt.Errorf("thread already exists: %s", pathArg))
 	}
 
+	// Check for meta/ path collision (e.g., creating "opus/notes" when "meta/opus/notes" exists)
+	if err := CheckMetaPathCollisionForCreate(ctx.DB, parentGUID, name); err != nil {
+		return writeCommandError(cmd, err)
+	}
+
 	// Create the thread
 	thread, err := db.CreateThread(ctx.DB, types.Thread{
 		Name:         name,
@@ -663,6 +668,11 @@ func NewThreadNewCmd() *cobra.Command {
 			}
 			if existing != nil {
 				return writeCommandError(cmd, fmt.Errorf("thread already exists: %s", name))
+			}
+
+			// Check for meta/ path collision
+			if err := CheckMetaPathCollisionForCreate(ctx.DB, parentGUID, name); err != nil {
+				return writeCommandError(cmd, err)
 			}
 
 			thread, err := db.CreateThread(ctx.DB, types.Thread{
