@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Chat: OS native notifications for direct @mentions and replies to your messages
   - macOS: Run `fray install-notifier` for branded notifications with fray icon
   - Other platforms: Falls back to system notifications via beeep
+- Chat: notification click focuses the correct terminal window running fray chat
+  - Works across Ghostty, iTerm2, and Terminal
+  - Reinstall with `fray install-notifier --force` to enable
 - `fray install-notifier`: Downloads and installs `Fray-Notifier.app` for macOS notification icon
 - Chat: inline `#`-prefixed IDs (e.g., `#fray-abc123`, `#msg-xyz`) are bold+underlined; double-click copies ID
 - Chat: `/` command autocomplete with fuzzy matching (type `/` to see commands, filter as you type)
