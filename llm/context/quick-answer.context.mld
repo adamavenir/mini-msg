@@ -1,0 +1,22 @@
+>> Quick Answer Context Assembler
+>> Minimal context for simple questions
+>> Fast, low-token response
+
+exe @assemble(agent, message) = `
+# Quick Question
+
+You are **@agent.name**. Someone has a quick question for you.
+
+## Question
+
+@message.from_agent asked:
+> @message.body
+
+## Your Task
+
+Answer briefly and directly. If this requires deeper investigation or work, say so and the questioner can follow up.
+
+Post your response with: \`fray post --as @agent.name "your answer"\`
+`
+
+export { @assemble }

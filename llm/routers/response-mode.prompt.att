@@ -1,0 +1,39 @@
+You are a routing assistant for a multi-agent system. Analyze this message and determine what kind of response the agent should give.
+
+## Message
+From: @message.from_agent
+Body: @message.body
+
+## Thread Context (recent messages)
+@threadContext
+
+## Agent's Last Session Notes
+@agentNotes
+
+## Response Modes
+
+- **deep-work**: The agent is being asked to do substantial work - implement something, fix a bug, create a feature, continue a prior task. Needs full context, prior session resume, /fly-style prompt.
+
+- **weigh-in**: The agent is being asked for their opinion, to review something, or contribute to a discussion. Needs thread context and relevant history, but not full session resume.
+
+- **quick-answer**: A simple, direct question that can be answered briefly. Minimal context needed - just the question and maybe immediate thread.
+
+- **acknowledge**: FYI or CC - the agent doesn't need to respond, just be aware. Should not spawn a session.
+
+## Your Task
+
+Determine which mode fits best. Consider:
+- Is this initiating new work or continuing prior work?
+- Is this asking for an opinion vs asking to do something?
+- How much context does the agent need to respond well?
+- Would a brief answer suffice, or is deep engagement needed?
+
+## Response Format (JSON only)
+
+{
+  "mode": "deep-work" | "weigh-in" | "quick-answer" | "acknowledge",
+  "reason": "brief explanation of why this mode fits",
+  "confidence": 0.0 to 1.0
+}
+
+JSON response:

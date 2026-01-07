@@ -42,3 +42,24 @@ func resolveMessageRef(dbConn *sql.DB, ref string) (*types.Message, error) {
 	}
 	return msg, nil
 }
+
+// CollectQuotedMessages fetches all quoted messages for a list of messages.
+// Returns a map of message ID -> quoted message for use in formatting.
+func CollectQuotedMessages(dbConn *sql.DB, messages []types.Message) map[string]*types.Message {
+	quotedMsgs := make(map[string]*types.Message)
+	for _, msg := range messages {
+		if msg.QuoteMessageGUID == nil {
+			continue
+		}
+		quoteID := *msg.QuoteMessageGUID
+		if _, exists := quotedMsgs[quoteID]; exists {
+			continue
+		}
+		quoted, err := db.GetMessage(dbConn, quoteID)
+		if err != nil || quoted == nil {
+			continue
+		}
+		quotedMsgs[quoteID] = quoted
+	}
+	return quotedMsgs
+}

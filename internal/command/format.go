@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -14,6 +15,13 @@ import (
 )
 
 const maxDisplayLines = 20
+
+// Accordion settings
+const (
+	DefaultAccordionThreshold = 10 // Show accordion if more than this many messages
+	AccordionHeadCount        = 3  // Number of messages to show at start
+	AccordionTailCount        = 3  // Number of messages to show at end
+)
 
 var (
 	noColor = os.Getenv("NO_COLOR") != ""
@@ -51,23 +59,152 @@ func GetProjectName(projectRoot string) string {
 
 // FormatMessage formats a message for display.
 func FormatMessage(msg types.Message, projectName string, agentBases map[string]struct{}) string {
+	return formatMessageWithOptions(msg, projectName, agentBases, true, nil)
+}
+
+// FormatMessageFull formats a message without truncation (for anchors).
+func FormatMessageFull(msg types.Message, projectName string, agentBases map[string]struct{}) string {
+	return formatMessageWithOptions(msg, projectName, agentBases, false, nil)
+}
+
+// FormatMessageWithQuote formats a message with an optional quoted message for inline display.
+func FormatMessageWithQuote(msg types.Message, projectName string, agentBases map[string]struct{}, quotedMsg *types.Message) string {
+	return formatMessageWithOptions(msg, projectName, agentBases, true, quotedMsg)
+}
+
+func formatMessageWithOptions(msg types.Message, projectName string, agentBases map[string]struct{}, truncate bool, quotedMsg *types.Message) string {
 	editedSuffix := ""
 	if msg.Edited || msg.EditCount > 0 || msg.EditedAt != nil {
 		editedSuffix = " (edited)"
 	}
 	idBlock := fmt.Sprintf("%s[%s#%s%s %s]%s", dim, bold, projectName, reset, dim+msg.ID+editedSuffix, reset)
 
-	color := getAgentColor(msg.FromAgent, msg.Type, nil)
-	truncated := truncateForDisplay(msg.Body, msg.ID)
-
-	if color != "" {
-		body := colorizeBody(truncated, color, agentBases)
-		body = highlightIssueIDs(body, color)
-		return fmt.Sprintf("%s %s@%s: \"%s\"%s", idBlock, color, msg.FromAgent, body, reset)
+	// Check for answer message format
+	if strings.HasPrefix(msg.Body, "answered @") {
+		return formatAnswerMessage(msg, projectName, idBlock, agentBases)
 	}
 
-	body := highlightIssueIDs(highlightMentions(truncated), "")
-	return fmt.Sprintf("%s @%s: \"%s\"", idBlock, msg.FromAgent, body)
+	color := getAgentColor(msg.FromAgent, msg.Type, nil)
+	displayBody := msg.Body
+	if truncate {
+		displayBody = truncateForDisplay(msg.Body, msg.ID)
+	}
+
+	// Format quote block if present
+	quoteBlock := ""
+	if quotedMsg != nil {
+		quoteBlock = formatQuoteBlock(quotedMsg, agentBases)
+	}
+
+	// Format reactions if present
+	reactionSuffix := formatReactionSummary(msg.Reactions)
+	if reactionSuffix != "" {
+		reactionSuffix = " " + gray + "(" + reactionSuffix + ")" + reset
+	}
+
+	if color != "" {
+		coloredBody := colorizeBody(displayBody, color, agentBases)
+		coloredBody = highlightIssueIDs(coloredBody, color)
+		if quoteBlock != "" {
+			return fmt.Sprintf("%s %s@%s:%s\n%s\n\"%s\"%s%s", idBlock, color, msg.FromAgent, reset, quoteBlock, color+coloredBody, reset, reactionSuffix)
+		}
+		return fmt.Sprintf("%s %s@%s: \"%s\"%s%s", idBlock, color, msg.FromAgent, coloredBody, reset, reactionSuffix)
+	}
+
+	highlightedBody := highlightIssueIDs(highlightMentions(displayBody), "")
+	if quoteBlock != "" {
+		return fmt.Sprintf("%s @%s:\n%s\n\"%s\"%s", idBlock, msg.FromAgent, quoteBlock, highlightedBody, reactionSuffix)
+	}
+	return fmt.Sprintf("%s @%s: \"%s\"%s", idBlock, msg.FromAgent, highlightedBody, reactionSuffix)
+}
+
+// formatQuoteBlock formats the quoted message for inline display.
+func formatQuoteBlock(quotedMsg *types.Message, _ map[string]struct{}) string {
+	// Get first few lines of quoted message, truncated
+	lines := strings.Split(quotedMsg.Body, "\n")
+
+	// Take at most 3 lines, truncate each
+	maxLines := 3
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+	}
+
+	var quotedLines []string
+	for _, line := range lines {
+		if len(line) > 80 {
+			line = line[:77] + "..."
+		}
+		quotedLines = append(quotedLines, gray+"> "+line+reset)
+	}
+
+	// Add source info
+	shortID := quotedMsg.ID
+	if len(shortID) > 12 {
+		shortID = shortID[:12]
+	}
+	quotedLines = append(quotedLines, fmt.Sprintf("%s> [%s @%s]%s", gray, shortID, quotedMsg.FromAgent, reset))
+
+	return strings.Join(quotedLines, "\n")
+}
+
+// formatAnswerMessage renders answer messages with Q&A colorization.
+func formatAnswerMessage(msg types.Message, projectName, idBlock string, agentBases map[string]struct{}) string {
+	lines := strings.Split(msg.Body, "\n")
+	if len(lines) == 0 {
+		return idBlock + " " + msg.Body
+	}
+
+	// Parse header: "answered @opus @designer"
+	header := lines[0]
+	askerPart := strings.TrimPrefix(header, "answered ")
+
+	// Get colors
+	answererColor := getAgentColor(msg.FromAgent, msg.Type, nil)
+	if answererColor == "" {
+		answererColor = reset
+	}
+
+	// Extract first asker for question color
+	askerColor := gray
+	if matches := mentionRe.FindStringSubmatch(askerPart); len(matches) > 1 {
+		askerColor = getAgentColor(matches[1], types.MessageTypeAgent, nil)
+		if askerColor == "" {
+			askerColor = gray
+		}
+	}
+
+	// Build formatted output
+	var out strings.Builder
+
+	// Header: @answerer answered @asker:
+	out.WriteString(fmt.Sprintf("%s %s@%s%s answered %s:\n", idBlock, answererColor, msg.FromAgent, reset, askerPart))
+
+	// Parse Q&A blocks
+	inAnswer := false
+	boldWhite := ansiCode("\x1b[1;37m")
+
+	for i := 1; i < len(lines); i++ {
+		line := lines[i]
+
+		if strings.HasPrefix(line, "Q: ") {
+			inAnswer = false
+			questionText := strings.TrimPrefix(line, "Q: ")
+			out.WriteString(fmt.Sprintf("%sQ:%s %s%s%s\n", boldWhite, reset, askerColor, questionText, reset))
+		} else if strings.HasPrefix(line, "A: ") {
+			inAnswer = true
+			answerText := strings.TrimPrefix(line, "A: ")
+			out.WriteString(fmt.Sprintf("%sA:%s %s%s%s\n", boldWhite, reset, answererColor, answerText, reset))
+		} else if strings.TrimSpace(line) == "" {
+			out.WriteString("\n")
+		} else if inAnswer && strings.HasPrefix(line, "   ") {
+			// Continuation of answer
+			out.WriteString(fmt.Sprintf("%s%s%s\n", answererColor, line, reset))
+		} else {
+			out.WriteString(line + "\n")
+		}
+	}
+
+	return strings.TrimRight(out.String(), "\n")
 }
 
 func ansiCode(code string) string {
@@ -236,9 +373,136 @@ func truncateForDisplay(body, msgID string) string {
 
 	truncated := strings.Join(lines[:maxDisplayLines], "\n")
 	remaining := len(lines) - maxDisplayLines
-	return fmt.Sprintf("%s\n... (%d more lines. Use 'fray view %s' to see full)", truncated, remaining, msgID)
+	return fmt.Sprintf("%s\n... (%d more lines. Use 'fray get %s' to see full)", truncated, remaining, msgID)
 }
 
 func isAlphaNum(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// FormatMessagePreview formats a message as a one-line preview for accordion display.
+// Format: "  [msg-abc123] @agent: First line of message..."
+func FormatMessagePreview(msg types.Message, projectName string) string {
+	// Get first line of body
+	firstLine := strings.Split(msg.Body, "\n")[0]
+
+	// Truncate if too long
+	maxLen := 50
+	if len(firstLine) > maxLen {
+		firstLine = firstLine[:maxLen] + "..."
+	}
+
+	shortID := msg.ID
+	if len(shortID) > 12 {
+		shortID = shortID[:12]
+	}
+
+	return fmt.Sprintf("  %s[%s]%s @%s: %s", dim, shortID, reset, msg.FromAgent, firstLine)
+}
+
+// AccordionOptions configures accordion behavior.
+type AccordionOptions struct {
+	Threshold    int  // Show accordion if more than this many messages (0 = use default)
+	HeadCount    int  // Messages to show at start (0 = use default)
+	TailCount    int  // Messages to show at end (0 = use default)
+	ShowAll      bool // If true, disable accordion and show all messages
+	ProjectName  string
+	AgentBases   map[string]struct{}
+	QuotedMsgs   map[string]*types.Message // Map of message ID -> quoted message for inline display
+}
+
+// FormatMessageListAccordion formats a list of messages with accordion collapsing.
+// Returns a slice of formatted lines ready to print.
+func FormatMessageListAccordion(messages []types.Message, opts AccordionOptions) []string {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	threshold := opts.Threshold
+	if threshold == 0 {
+		threshold = DefaultAccordionThreshold
+	}
+	headCount := opts.HeadCount
+	if headCount == 0 {
+		headCount = AccordionHeadCount
+	}
+	tailCount := opts.TailCount
+	if tailCount == 0 {
+		tailCount = AccordionTailCount
+	}
+
+	// Helper to format a message with its quote if available
+	formatMsg := func(msg types.Message) string {
+		var quotedMsg *types.Message
+		if msg.QuoteMessageGUID != nil && opts.QuotedMsgs != nil {
+			quotedMsg = opts.QuotedMsgs[*msg.QuoteMessageGUID]
+		}
+		return formatMessageWithOptions(msg, opts.ProjectName, opts.AgentBases, true, quotedMsg)
+	}
+
+	// If ShowAll or under threshold, format all messages normally
+	if opts.ShowAll || len(messages) <= threshold {
+		lines := make([]string, len(messages))
+		for i, msg := range messages {
+			lines[i] = formatMsg(msg)
+		}
+		return lines
+	}
+
+	// Accordion: head + collapsed middle + tail
+	var lines []string
+
+	// Head messages (full format)
+	for i := 0; i < headCount && i < len(messages); i++ {
+		lines = append(lines, formatMsg(messages[i]))
+	}
+
+	// Middle messages (preview format)
+	middleStart := headCount
+	middleEnd := len(messages) - tailCount
+	if middleEnd > middleStart {
+		collapsedCount := middleEnd - middleStart
+		lines = append(lines, fmt.Sprintf("%s  ... %d messages collapsed ...%s", dim, collapsedCount, reset))
+		for i := middleStart; i < middleEnd; i++ {
+			lines = append(lines, FormatMessagePreview(messages[i], opts.ProjectName))
+		}
+		lines = append(lines, fmt.Sprintf("%s  ... end collapsed ...%s", dim, reset))
+	}
+
+	// Tail messages (full format)
+	for i := middleEnd; i < len(messages); i++ {
+		if i >= headCount { // Avoid duplicates if list is small
+			lines = append(lines, formatMsg(messages[i]))
+		}
+	}
+
+	return lines
+}
+
+// formatReactionSummary formats reactions for display.
+// Single reaction: "👍 alice", multiple: "👍x3"
+func formatReactionSummary(reactions map[string][]types.ReactionEntry) string {
+	if len(reactions) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(reactions))
+	for reaction := range reactions {
+		keys = append(keys, reaction)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, reaction := range keys {
+		entries := reactions[reaction]
+		count := len(entries)
+		if count == 0 {
+			continue
+		}
+		if count == 1 {
+			parts = append(parts, fmt.Sprintf("%s %s", reaction, entries[0].AgentID))
+		} else {
+			parts = append(parts, fmt.Sprintf("%sx%d", reaction, count))
+		}
+	}
+	return strings.Join(parts, " · ")
 }

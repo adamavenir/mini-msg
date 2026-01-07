@@ -33,7 +33,20 @@ func DiscoverProject(startDir string) (Project, error) {
 		info, err := os.Stat(frayDir)
 		if err == nil && info.IsDir() {
 			dbPath := filepath.Join(frayDir, "fray.db")
-			if _, err := os.Stat(dbPath); err != nil {
+			// DB file is optional - OpenDatabase will rebuild from JSONL if needed
+			// Just check that either db or at least one JSONL file exists
+			hasDB := false
+			if _, err := os.Stat(dbPath); err == nil {
+				hasDB = true
+			}
+			hasJSONL := false
+			for _, name := range []string{"messages.jsonl", "agents.jsonl"} {
+				if _, err := os.Stat(filepath.Join(frayDir, name)); err == nil {
+					hasJSONL = true
+					break
+				}
+			}
+			if !hasDB && !hasJSONL {
 				return Project{}, fmt.Errorf("fray database not found. Run 'fray init' first")
 			}
 			return Project{Root: current, DBPath: dbPath}, nil

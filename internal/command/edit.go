@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 // NewEditCmd creates the edit command.
 func NewEditCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "edit <msgid> <message> -m <reason>",
+		Use:   "edit <msgid> <new-content> [flags]",
 		Short: "Edit a message you posted",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -26,8 +27,13 @@ func NewEditCmd() *cobra.Command {
 			defer ctx.DB.Close()
 
 			agentRef, _ := cmd.Flags().GetString("as")
+			isAgentEnv := false
 			if agentRef == "" {
-				return writeCommandError(cmd, fmt.Errorf("--as is required"))
+				agentRef = os.Getenv("FRAY_AGENT_ID")
+				isAgentEnv = agentRef != ""
+			}
+			if agentRef == "" {
+				return writeCommandError(cmd, fmt.Errorf("--as flag or FRAY_AGENT_ID env var required"))
 			}
 			agentID, err := resolveAgentRef(ctx, agentRef)
 			if err != nil {
@@ -35,8 +41,8 @@ func NewEditCmd() *cobra.Command {
 			}
 
 			reason, _ := cmd.Flags().GetString("message")
-			if strings.TrimSpace(reason) == "" {
-				return writeCommandError(cmd, fmt.Errorf("--message (-m) is required"))
+			if isAgentEnv && strings.TrimSpace(reason) == "" {
+				return writeCommandError(cmd, fmt.Errorf("-m (reason) is required for agents"))
 			}
 
 			msg, err := resolveMessageRef(ctx.DB, args[0])
@@ -59,7 +65,10 @@ func NewEditCmd() *cobra.Command {
 				return writeCommandError(cmd, fmt.Errorf("message %s not found", msgID))
 			}
 
-			update := db.MessageUpdateJSONLRecord{ID: updated.ID, EditedAt: updated.EditedAt, Reason: &reason}
+			update := db.MessageUpdateJSONLRecord{ID: updated.ID, EditedAt: updated.EditedAt}
+			if reason != "" {
+				update.Reason = &reason
+			}
 			body := updated.Body
 			update.Body = &body
 			if err := db.AppendMessageUpdate(ctx.Project.DBPath, update); err != nil {
@@ -71,7 +80,12 @@ func NewEditCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 			prefixLength := core.GetDisplayPrefixLength(int(totalCount))
-			eventBody := fmt.Sprintf("edited #%s: %s", core.GetGUIDPrefix(updated.ID, prefixLength), reason)
+			var eventBody string
+			if reason != "" {
+				eventBody = fmt.Sprintf("edited #%s: %s", core.GetGUIDPrefix(updated.ID, prefixLength), reason)
+			} else {
+				eventBody = fmt.Sprintf("edited #%s", core.GetGUIDPrefix(updated.ID, prefixLength))
+			}
 			eventTS := time.Now().Unix()
 			if updated.EditedAt != nil {
 				eventTS = *updated.EditedAt
@@ -102,10 +116,8 @@ func NewEditCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().String("as", "", "agent ID editing the message")
-	cmd.Flags().StringP("message", "m", "", "reason for the edit")
-	_ = cmd.MarkFlagRequired("as")
-	_ = cmd.MarkFlagRequired("message")
+	cmd.Flags().String("as", "", "agent identity (uses FRAY_AGENT_ID if not set)")
+	cmd.Flags().StringP("message", "m", "", "optional reason for the edit")
 
 	return cmd
 }

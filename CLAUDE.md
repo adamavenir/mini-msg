@@ -64,6 +64,32 @@ internal/types/   # Go types
 
 **Threading**: Messages can reply to other messages via `reply_to` field (GUID). Use `--reply-to <guid>` when posting. In chat, prefix matching is supported: type `#abc hello` to reply (resolves to full GUID). View reply chains with `fray reply <guid>`. Container threads are playlists: messages have a `home` (room or thread) and can be curated into multiple threads.
 
+**Thread Curation**: Threads support:
+- **Anchors**: A designated message serving as TL;DR, shown at top of thread display
+- **Pins**: Messages can be pinned within threads for easy reference (per-thread, not global)
+- **Moving**: Use `fray mv` to move messages between threads/room, or reparent threads under different parents
+- **Activity tracking**: `last_activity_at` tracks when messages are added/moved
+
+**Thread Types**: Threads have a `type` field:
+- `standard` - normal user-created threads
+- `knowledge` - knowledge hierarchy threads (auto-created for agents/roles)
+- `system` - system-managed threads (notes, keys, jrnl)
+
+**Knowledge Hierarchy**: Agents and roles have dedicated thread hierarchies:
+```
+{agent}/                 # Agent's root thread (knowledge type)
+├── meta/                # Self-knowledge, identity (persistent)
+├── notes/               # Working notes (ephemeral)
+└── jrnl/                # Personal journal
+
+roles/{role}/            # Role's root thread (knowledge type)
+├── meta/                # Role-specific context
+└── keys/                # Atomic insights for the role
+```
+- Agent hierarchies auto-created on `fray new`
+- Role hierarchies auto-created on `fray role add/play`
+- Use `fray post roles/<role>/keys` to record role insights, `fray get roles/<role>/keys` to view
+
 **Message types**: Messages have a `type` field: `'agent'`, `'user'`, `'event'`, or `'surface'`. Surfaced posts reference another message and emit backlink events; `home`, `references`, and `surface_message` track this.
 
 **Database**: Uses `modernc.org/sqlite` (pure Go). Tables are prefixed `fray_`. Primary keys are GUIDs (`guid TEXT PRIMARY KEY`).
@@ -75,6 +101,38 @@ internal/types/   # Go types
 **Time Queries**: `ParseTimeExpression()` handles relative (`1h`, `2d`), absolute (`today`, `yesterday`), and GUID prefix (`#abc`) formats.
 
 **Project discovery**: `DiscoverProject()` walks up from cwd looking for `.fray/` directory. Initialize with `fray init`. Running `fray chat` in an uninitialized directory prompts to init.
+
+## Managed Agents (Daemon Support)
+
+Agents can be daemon-managed, enabling automatic spawning on @mentions.
+
+**Agent fields:**
+- `managed: bool` - whether daemon controls this agent
+- `invoke.driver` - CLI driver: `claude`, `codex`, `opencode`
+- `invoke.prompt_delivery` - how prompts are passed: `args`, `stdin`, `tempfile`
+- `invoke.spawn_timeout_ms` - max time in 'spawning' state (default: 30000)
+- `invoke.idle_after_ms` - time since activity before 'idle' (default: 5000)
+- `invoke.min_checkin_ms` - done-detection: idle + no fray posts = kill (default: 600000 / 10m)
+- `invoke.max_runtime_ms` - zombie safety net: forced termination (default: 0 = unlimited)
+- `presence` - daemon-tracked state: `active`, `spawning`, `idle`, `error`, `offline`
+- `mention_watermark` - last processed msg_id for debouncing
+
+**Done-detection:** Daemon detects "probably done" agents via checkin mechanism:
+- Any fray activity (posts, replies, threads) resets the checkin timer
+- If agent is idle AND no fray posts for `min_checkin_ms` → session killed (resumable on next @mention)
+- Natural communication = checkin; silence = probably done
+- For long-running work without posts: use `fray heartbeat` for silent checkin
+- Use `fray clock` to see timer countdown + pending notification counts
+
+**Session events** (stored in `agents.jsonl`):
+- `session_start`: agent spawned (includes `triggered_by` msg_id)
+- `session_end`: session completed (includes `exit_code`, `duration_ms`)
+- `session_heartbeat`: periodic health updates
+
+**JSONL record types:**
+- `agent` - agent registration
+- `agent_update` - partial updates (status, presence, watermark)
+- `session_start`, `session_end`, `session_heartbeat` - session lifecycle
 
 ## Claims System
 
@@ -162,43 +220,111 @@ fray here                      # Who's active (with claim counts)
 fray bye alice "message"       # Leave (auto-clears claims)
 fray whoami                    # Show your identity and nicknames
 
-# Messaging
-fray post --as alice "message" # Post (use @mentions)
-fray post --as alice -r <guid> # Reply to message
-fray post --as alice --thread <ref> "message" # Post in thread
-fray post --as alice --answer <q> "message"   # Answer question
-fray get alice                 # Room + my @mentions
-fray @alice                    # Check mentions for alice
-fray reply <guid>              # View reply chain
-fray versions <guid>           # Show message edit history
-fray thread <ref>              # View thread messages
-fray threads                   # List threads
-fray wonder "..." --as alice   # Create unasked question
-fray ask "..." --to bob --as alice # Ask question
-fray questions                 # List questions
-fray question <id>             # View/close question
-fray surface <msg> "..." --as alice # Surface message with backlink
-fray note "..." --as alice     # Post to notes
-fray notes --as alice          # View notes thread
-fray meta "..." --as alice     # Post to meta
-fray meta                      # View meta
-fray history alice             # Show agent's message history
-fray between alice bob         # Messages between two agents
+# Messaging (path-based)
+fray post "message" --as alice         # Post to room
+fray post meta "message" --as alice    # Post to project meta
+fray post opus/notes "msg" --as alice  # Post to agent notes path
+fray post design-thread "msg" --as a   # Post to named thread
+fray post -r <guid> "reply" --as alice # Reply to message
+fray get                               # Room + notifs (uses FRAY_AGENT_ID)
+fray get --as opus                     # Room + notifs for agent
+fray get meta                          # View project meta
+fray get opus/notes                    # View agent notes path
+fray get design-thread                 # View thread by name
+fray get design-thread --pinned        # Pinned messages only
+fray get design-thread --by @alice     # Messages from agent
+fray get design-thread --with "text"   # Messages containing text
+fray get design-thread --reactions     # Messages with reactions
+fray get notifs --as opus              # Notifications only
+fray msg-abc123                        # View specific message (shorthand)
+fray @alice                            # Check mentions for alice
+
+# Thread operations (path-based)
+fray thread design-thread              # View or create thread
+fray thread opus/notes "Summary"       # Create nested thread with anchor
+fray threads                           # List threads
+fray threads --following               # List threads you follow
+fray threads --activity                # Sort by recent activity
+fray threads --pinned                  # List pinned threads only
+fray threads --muted                   # List muted threads only
+fray threads --all                     # Include muted threads
+fray threads --tree                    # Show as tree with indicators
+fray follow design-thread --as alice   # Follow/subscribe to thread
+fray unfollow design-thread --as alice # Unfollow thread
+fray mute design-thread --as alice     # Mute thread notifications
+fray unmute design-thread --as alice   # Unmute thread
+fray add design-thread msg-abc         # Add message to thread
+fray remove design-thread msg-abc      # Remove from thread
+fray anchor design-thread msg-abc      # Set thread anchor
+fray archive design-thread             # Archive thread
+fray restore design-thread             # Restore archived thread
+fray thread rename <thread> <name>     # Rename a thread
+fray pin <msg> [--thread <ref>]        # Pin message in thread
+fray unpin <msg> [--thread <ref>]      # Unpin message
+fray mv <msg...> <dest>                # Move messages to thread/room
+fray mv <msg> main                     # Move message back to room (also: room, channel-name)
+fray mv <thread> <parent>              # Reparent thread under another thread
+fray mv <thread> <parent> "anchor"     # Reparent + set anchor message
+fray mv <thread> root                  # Make thread root-level (also: /)
+
+# Universal operations (by ID prefix)
+fray rm msg-abc123                     # Delete message
+fray rm thrd-xyz789                    # Delete (archive) thread
+fray fave msg-abc --as alice           # Fave message
+fray fave thrd-xyz --as alice          # Fave thread (also subscribes)
+
+# Message editing
+fray edit <msgid> "new text" --as a    # Edit a message
+fray edit <msgid> "text" -m "reason"   # Edit with reason
+fray versions <msgid>                  # Show edit history
+
+# Reactions & Surfacing
+fray react <emoji> <msg> --as alice    # Add reaction to message
+fray surface <msg> "comment" --as a    # Surface message to room with backlink
+
+# Questions
+fray wonder "..." --as alice           # Create unasked question
+fray ask "..." --to bob --as alice     # Ask question
+fray questions                         # List questions
+fray question <id>                     # View/close question
+fray post --answer <q> "answer" --as a # Answer question
+
+# Knowledge hierarchy (via path-based commands)
+fray post opus/notes "..." --as opus   # Post to agent notes
+fray get opus/notes                    # View agent notes
+fray post meta "..." --as opus         # Post to project meta
+fray get meta                          # View project meta
+fray post roles/architect/keys "..."   # Record role key insight
+fray get roles/architect/keys          # View architect keys
+
+# Legacy (still works)
+fray thread subscribe <ref> --as a     # Old subscribe syntax
+fray thread unsubscribe <ref> --as a   # Old unsubscribe syntax
+fray get alice                         # Agent-based room + mentions
 
 # Time-based queries
-fray get --since 1h            # Last hour
-fray get --since today         # Since midnight
-fray get --since #abc          # After specific message
-fray history alice --since 2d  # Last 2 days
+fray get --since 1h --as opus          # Last hour
+fray get --since today --as opus       # Since midnight
+fray get --since #abc --as opus        # After specific message
 
 # Channels
-fray ls                        # List registered channels
-fray chat <channel>            # Chat in specific channel
-fray --in <channel> ...        # Operate in another channel
+fray ls                                # List registered channels
+fray chat <channel>                    # Chat in specific channel
+fray --in <channel> ...                # Operate in another channel
 
 # Nicknames
-fray nick @alice --as helper   # Add nickname
-fray nicks @alice              # Show nicknames
+fray nick @alice --as helper           # Add nickname
+fray nicks @alice                      # Show nicknames
+
+# Faves (personal collections)
+fray fave <item> --as alice            # Fave thread or message
+fray unfave <item> --as alice          # Remove from faves
+fray faves --as alice                  # List all faves
+fray faves --as alice --threads        # List only faved threads
+
+# Reactions (cross-thread queries)
+fray reactions --by alice              # Messages alice reacted to
+fray reactions --to alice              # Reactions on alice's messages
 
 # Claims (collision prevention)
 fray claim @alice --file path      # Claim a file
@@ -212,14 +338,42 @@ fray claims @alice                 # List agent's claims
 fray clear @alice                  # Clear all claims
 fray clear @alice --file path      # Clear specific claim
 
+# Managed agents (daemon-controlled)
+fray agent create <name> --driver claude  # Create managed agent config
+fray agent list                    # Show agents with presence/driver
+fray agent list --managed          # Show only managed agents
+fray agent start <name>            # Start fresh session (/fly prompt)
+fray agent start <name> --prompt "..." # Start with custom prompt
+fray agent refresh <name>          # End current + start new session
+fray agent end <name>              # Graceful session end
+fray agent check <name>            # Daemon-less poll (for CI/cron)
+fray heartbeat --as <name>         # Silent checkin (resets done-detection timer)
+fray heartbeat                     # Uses FRAY_AGENT_ID env var
+fray clock                         # Ambient status: timer + notification counts
+
+# Daemon
+fray daemon                        # Start daemon (watches @mentions)
+fray daemon --debug                # Enable debug logging
+fray daemon --poll-interval 2s     # Custom poll interval
+fray daemon status                 # Check if daemon is running
+
+# Ghost cursors (session handoffs)
+fray cursor set <agent> <home> <msg>       # Set ghost cursor for handoff
+fray cursor set <agent> <home> <msg> --must-read  # Mark as must-read
+fray cursor show <agent>                   # Show ghost cursors for agent
+fray cursor clear <agent>                  # Clear all ghost cursors
+fray cursor clear <agent> <home>           # Clear cursor for specific home
+
 # For humans
 fray chat                      # Interactive chat mode
-fray watch                     # Tail messages
+fray watch                     # Tail messages (shows heartbeat timer if FRAY_AGENT_ID set)
 fray prune                     # Archive old messages
 
 # JSON output
 fray get --last 10 --json      # Most read commands support --json (chat does not)
 
-# Migration
+# Maintenance
+fray rebuild                   # Rebuild database from JSONL (fixes schema errors)
 fray migrate                   # Migrate from v0.1.0 to v0.2.0
+fray install-notifier          # Install macOS notification app with fray icon
 ```

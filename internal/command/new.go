@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adamavenir/fray/internal/command/hooks"
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
@@ -101,6 +102,10 @@ func NewNewCmd() *cobra.Command {
 				}
 
 				isRejoin = true
+				// Clear ghost cursor session acks so cursors become "unread" for new session
+				if err := db.ClearGhostCursorSessionAcks(ctx.DB, agentID); err != nil {
+					return writeCommandError(cmd, err)
+				}
 				now := time.Now().Unix()
 				updates := db.AgentUpdates{
 					LastSeen: types.OptionalInt64{Set: true, Value: &now},
@@ -151,11 +156,24 @@ func NewNewCmd() *cobra.Command {
 					}
 				}
 
+				// Collect used avatars from existing agents
+				usedAvatars := make(map[string]struct{})
+				existingAgents, _ := db.GetAgents(ctx.DB)
+				for _, a := range existingAgents {
+					if a.Avatar != nil && *a.Avatar != "" {
+						usedAvatars[*a.Avatar] = struct{}{}
+					}
+				}
+
+				// Assign avatar based on agent name
+				avatar := core.AssignAvatar(agentID, usedAvatars)
+
 				agent := types.Agent{
 					GUID:         agentGUID,
 					AgentID:      agentID,
 					Status:       optionalString(statusOpt),
 					Purpose:      optionalString(purposeOpt),
+					Avatar:       &avatar,
 					RegisteredAt: now,
 					LastSeen:     now,
 					LeftAt:       nil,
@@ -175,6 +193,13 @@ func NewNewCmd() *cobra.Command {
 
 			if err := db.AppendAgent(ctx.Project.DBPath, *agentRecord); err != nil {
 				return writeCommandError(cmd, err)
+			}
+
+			// Create agent thread hierarchy for new agents
+			if !isRejoin {
+				if err := ensureAgentHierarchy(ctx, agentID); err != nil {
+					return writeCommandError(cmd, err)
+				}
 			}
 
 			var existingKnown *db.ProjectKnownAgent
@@ -235,6 +260,20 @@ func NewNewCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
+			// Create default DM thread between agent and user (if username configured)
+			var dmThread *types.Thread
+			if !isRejoin {
+				username, _ := db.GetConfig(ctx.DB, "username")
+				if username != "" {
+					threadName := fmt.Sprintf("dm-%s", agentID)
+					subscribers := []string{agentID, username}
+					dmThread, err = ensureThread(ctx, threadName, nil, subscribers)
+					if err != nil {
+						return writeCommandError(cmd, err)
+					}
+				}
+			}
+
 			// Post optional user message
 			var posted *types.Message
 			if message != "" {
@@ -259,7 +298,7 @@ func NewNewCmd() *cobra.Command {
 				posted = &userMsg
 			}
 
-			wroteEnv := WriteClaudeEnv(agentID)
+			wroteEnv := hooks.WriteClaudeEnv(agentID)
 
 			if ctx.JSONMode {
 				payload := map[string]any{
@@ -270,6 +309,9 @@ func NewNewCmd() *cobra.Command {
 				}
 				if posted != nil {
 					payload["message_id"] = posted.ID
+				}
+				if dmThread != nil {
+					payload["dm_thread"] = dmThread.GUID
 				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 			}
@@ -288,6 +330,9 @@ func NewNewCmd() *cobra.Command {
 			}
 			if posted != nil {
 				fmt.Fprintf(out, "  Posted: [%s] %s\n", posted.ID, message)
+			}
+			if dmThread != nil {
+				fmt.Fprintf(out, "  DM thread: %s (%s)\n", dmThread.Name, dmThread.GUID)
 			}
 			if wroteEnv {
 				fmt.Fprintln(out, "  Registered with Claude hooks")
@@ -397,4 +442,110 @@ func parseNumeric(value string) int {
 		num = num*10 + int(r-'0')
 	}
 	return num
+}
+
+// ensureMetaThread ensures the root meta/ thread exists.
+func ensureMetaThread(ctx *CommandContext) (*types.Thread, error) {
+	metaThread, err := db.GetThreadByName(ctx.DB, "meta", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if metaThread == nil {
+		thread, err := db.CreateThread(ctx.DB, types.Thread{
+			Name: "meta",
+			Type: types.ThreadTypeKnowledge,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := db.AppendThread(ctx.Project.DBPath, thread, []string{"meta"}); err != nil {
+			return nil, err
+		}
+		metaThread = &thread
+	}
+
+	return metaThread, nil
+}
+
+// ensureAgentHierarchy creates the agent thread hierarchy if it doesn't exist.
+// Creates: meta/{agent}/ (knowledge), meta/{agent}/notes (system), meta/{agent}/jrnl (system)
+func ensureAgentHierarchy(ctx *CommandContext, agentID string) error {
+	// First ensure meta/ root thread exists
+	metaThread, err := ensureMetaThread(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Check if agent thread exists under meta/
+	agentThread, err := db.GetThreadByName(ctx.DB, agentID, &metaThread.GUID)
+	if err != nil {
+		return err
+	}
+
+	if agentThread == nil {
+		// Create agent thread as child of meta/ (knowledge type)
+		thread, err := db.CreateThread(ctx.DB, types.Thread{
+			Name:         agentID,
+			ParentThread: &metaThread.GUID,
+			Type:         types.ThreadTypeKnowledge,
+		})
+		if err != nil {
+			return err
+		}
+		if err := db.AppendThread(ctx.Project.DBPath, thread, []string{agentID}); err != nil {
+			return err
+		}
+		// Subscribe agent to their own thread
+		if err := db.SubscribeThread(ctx.DB, thread.GUID, agentID, time.Now().Unix()); err != nil {
+			return err
+		}
+		agentThread = &thread
+	}
+
+	// Check and create notes subthread
+	notesThread, err := db.GetThreadByName(ctx.DB, "notes", &agentThread.GUID)
+	if err != nil {
+		return err
+	}
+	if notesThread == nil {
+		thread, err := db.CreateThread(ctx.DB, types.Thread{
+			Name:         "notes",
+			ParentThread: &agentThread.GUID,
+			Type:         types.ThreadTypeSystem,
+		})
+		if err != nil {
+			return err
+		}
+		if err := db.AppendThread(ctx.Project.DBPath, thread, []string{agentID}); err != nil {
+			return err
+		}
+		if err := db.SubscribeThread(ctx.DB, thread.GUID, agentID, time.Now().Unix()); err != nil {
+			return err
+		}
+	}
+
+	// Check and create jrnl subthread
+	jrnlThread, err := db.GetThreadByName(ctx.DB, "jrnl", &agentThread.GUID)
+	if err != nil {
+		return err
+	}
+	if jrnlThread == nil {
+		thread, err := db.CreateThread(ctx.DB, types.Thread{
+			Name:         "jrnl",
+			ParentThread: &agentThread.GUID,
+			Type:         types.ThreadTypeSystem,
+		})
+		if err != nil {
+			return err
+		}
+		if err := db.AppendThread(ctx.Project.DBPath, thread, []string{agentID}); err != nil {
+			return err
+		}
+		if err := db.SubscribeThread(ctx.DB, thread.GUID, agentID, time.Now().Unix()); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

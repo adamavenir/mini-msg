@@ -211,6 +211,132 @@ func TestAppendAndReadAgents(t *testing.T) {
 	}
 }
 
+func TestReadAgentsFiltersAndAppliesUpdates(t *testing.T) {
+	projectDir := t.TempDir()
+	frayDir := filepath.Join(projectDir, ".fray")
+	if err := os.MkdirAll(frayDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	// Write mixed record types to agents.jsonl
+	agentRecord := `{"type":"agent","id":"usr-abc12345","agent_id":"alice","name":"alice","registered_at":100,"last_seen":100,"managed":false,"presence":"offline"}`
+	agentUpdate := `{"type":"agent_update","agent_id":"alice","status":"working","managed":true,"presence":"active"}`
+	sessionStart := `{"type":"session_start","agent_id":"alice","session_id":"sess-123","started_at":200}`
+	sessionEnd := `{"type":"session_end","agent_id":"alice","session_id":"sess-123","exit_code":0,"duration_ms":1000,"ended_at":1200}`
+	sessionHeartbeat := `{"type":"session_heartbeat","agent_id":"alice","session_id":"sess-123","status":"active","at":500}`
+
+	content := agentRecord + "\n" + agentUpdate + "\n" + sessionStart + "\n" + sessionEnd + "\n" + sessionHeartbeat + "\n"
+	if err := os.WriteFile(filepath.Join(frayDir, agentsFile), []byte(content), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	readBack, err := ReadAgents(projectDir)
+	if err != nil {
+		t.Fatalf("read agents: %v", err)
+	}
+
+	// Should only return 1 agent (session events filtered out)
+	if len(readBack) != 1 {
+		t.Fatalf("expected 1 agent, got %d", len(readBack))
+	}
+
+	// Update should be applied
+	if readBack[0].Status == nil || *readBack[0].Status != "working" {
+		t.Fatalf("expected status 'working', got %v", readBack[0].Status)
+	}
+	if !readBack[0].Managed {
+		t.Fatalf("expected managed=true after update")
+	}
+	if readBack[0].Presence != "active" {
+		t.Fatalf("expected presence 'active', got %s", readBack[0].Presence)
+	}
+}
+
+func TestReadAgentsUpdateDoesNotCreateNewAgent(t *testing.T) {
+	projectDir := t.TempDir()
+	frayDir := filepath.Join(projectDir, ".fray")
+	if err := os.MkdirAll(frayDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	// Write an agent_update for a non-existent agent
+	agentUpdate := `{"type":"agent_update","agent_id":"ghost","status":"working"}`
+	if err := os.WriteFile(filepath.Join(frayDir, agentsFile), []byte(agentUpdate+"\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	readBack, err := ReadAgents(projectDir)
+	if err != nil {
+		t.Fatalf("read agents: %v", err)
+	}
+
+	// Should return 0 agents (update for non-existent agent ignored)
+	if len(readBack) != 0 {
+		t.Fatalf("expected 0 agents, got %d", len(readBack))
+	}
+}
+
+func TestRebuildPreservesManagedAgentFields(t *testing.T) {
+	projectDir := t.TempDir()
+
+	invokeConfig := &types.InvokeConfig{
+		Driver:         "claude",
+		PromptDelivery: types.PromptDeliveryStdin,
+		SpawnTimeoutMs: 30000,
+		IdleAfterMs:    5000,
+		MaxRuntimeMs:   600000,
+		Config:         map[string]any{"model": "opus-4"},
+	}
+
+	agent := types.Agent{
+		GUID:             "usr-managed01",
+		AgentID:          "managed-agent",
+		Status:           strPtr("running daemon tasks"),
+		RegisteredAt:     100,
+		LastSeen:         200,
+		Managed:          true,
+		Invoke:           invokeConfig,
+		Presence:         types.PresenceActive,
+		MentionWatermark: strPtr("msg-lastread"),
+	}
+
+	if err := AppendAgent(projectDir, agent); err != nil {
+		t.Fatalf("append agent: %v", err)
+	}
+
+	dbConn := openTestDB(t)
+	if err := RebuildDatabaseFromJSONL(dbConn, projectDir); err != nil {
+		t.Fatalf("rebuild: %v", err)
+	}
+
+	rebuiltAgent, err := GetAgent(dbConn, agent.AgentID)
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	if rebuiltAgent == nil {
+		t.Fatal("expected agent after rebuild")
+	}
+
+	if !rebuiltAgent.Managed {
+		t.Fatalf("expected managed=true after rebuild")
+	}
+	if rebuiltAgent.Presence != types.PresenceActive {
+		t.Fatalf("expected presence 'active', got %s", rebuiltAgent.Presence)
+	}
+	if rebuiltAgent.MentionWatermark == nil || *rebuiltAgent.MentionWatermark != "msg-lastread" {
+		t.Fatalf("expected mention_watermark to roundtrip")
+	}
+	if rebuiltAgent.Invoke == nil {
+		t.Fatal("expected invoke config after rebuild")
+	}
+	if rebuiltAgent.Invoke.Driver != "claude" {
+		t.Fatalf("expected driver 'claude', got %s", rebuiltAgent.Invoke.Driver)
+	}
+	if rebuiltAgent.Invoke.PromptDelivery != types.PromptDeliveryStdin {
+		t.Fatalf("expected prompt_delivery 'stdin', got %s", rebuiltAgent.Invoke.PromptDelivery)
+	}
+}
+
 func TestUpdateProjectConfigMergesKnownAgents(t *testing.T) {
 	projectDir := t.TempDir()
 

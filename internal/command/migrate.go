@@ -58,9 +58,11 @@ type readReceiptRow struct {
 
 // NewMigrateCmd creates the migrate command.
 func NewMigrateCmd() *cobra.Command {
+	var fixThreads bool
+
 	cmd := &cobra.Command{
 		Use:   "migrate",
-		Short: "Migrate fray project from v0.1.0 to v0.2.0 format",
+		Short: "Migrate fray project from v0.1.0 to v0.2.0 format, or fix thread hierarchy",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			project, err := core.DiscoverProject("")
 			if err != nil {
@@ -71,7 +73,15 @@ func NewMigrateCmd() *cobra.Command {
 			configPath := filepath.Join(frayDir, "fray-config.json")
 
 			if _, err := os.Stat(configPath); err == nil {
-				return writeCommandError(cmd, fmt.Errorf("fray-config.json already exists. Nothing to migrate."))
+				if !fixThreads {
+					fmt.Fprintln(cmd.OutOrStdout(), "Project already migrated to v0.2.0.")
+					fmt.Fprintln(cmd.OutOrStdout(), "Checking for legacy thread patterns...")
+					fixThreads = true
+				}
+				if fixThreads {
+					return migrateThreadHierarchy(cmd, &project)
+				}
+				return nil
 			}
 
 			backupDir := filepath.Join(project.Root, ".fray.bak")
@@ -283,9 +293,13 @@ func NewMigrateCmd() *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "✓ Registered channel %s as '%s'\n", channelID, channelName)
 			fmt.Fprintln(cmd.OutOrStdout(), "Migration complete. Backup at .fray.bak/")
 			fmt.Fprintf(cmd.OutOrStdout(), "Migrated %d agents and %d messages.\n", len(agentsJSONL), len(messagesJSONL))
-			return nil
+
+			fmt.Fprintln(cmd.OutOrStdout(), "\nChecking for legacy thread patterns...")
+			return migrateThreadHierarchy(cmd, &project)
 		},
 	}
+
+	cmd.Flags().BoolVar(&fixThreads, "fix-threads", false, "Fix legacy thread naming patterns only")
 
 	return cmd
 }
@@ -760,5 +774,180 @@ func copyFile(src, dst string, mode fs.FileMode) error {
 	if _, err := io.Copy(out, in); err != nil {
 		return err
 	}
+	return nil
+}
+
+func migrateThreadHierarchy(cmd *cobra.Command, project *core.Project) error {
+	dbConn, err := sql.Open("sqlite", project.DBPath)
+	if err != nil {
+		return writeCommandError(cmd, err)
+	}
+	defer dbConn.Close()
+
+	if _, err := dbConn.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		return writeCommandError(cmd, err)
+	}
+	if _, err := dbConn.Exec("PRAGMA journal_mode = WAL"); err != nil {
+		return writeCommandError(cmd, err)
+	}
+	if _, err := dbConn.Exec("PRAGMA busy_timeout = 5000"); err != nil {
+		return writeCommandError(cmd, err)
+	}
+
+	var fixes []string
+
+	// Ensure meta/ root thread exists
+	metaThread, err := db.GetThreadByName(dbConn, "meta", nil)
+	if err != nil {
+		return writeCommandError(cmd, fmt.Errorf("failed to check meta thread: %w", err))
+	}
+	var metaGUID string
+	if metaThread == nil {
+		newMeta := types.Thread{
+			Name:   "meta",
+			Type:   types.ThreadTypeKnowledge,
+			Status: types.ThreadStatusOpen,
+		}
+		created, err := db.CreateThread(dbConn, newMeta)
+		if err != nil {
+			return writeCommandError(cmd, fmt.Errorf("failed to create meta thread: %w", err))
+		}
+		metaGUID = created.GUID
+		if err := db.AppendThread(project.Root, created, nil); err != nil {
+			return writeCommandError(cmd, fmt.Errorf("failed to append meta thread event: %w", err))
+		}
+		fixes = append(fixes, "  Created meta/ thread")
+	} else {
+		metaGUID = metaThread.GUID
+	}
+
+	agents, err := db.GetAllAgents(dbConn)
+	if err != nil {
+		return writeCommandError(cmd, fmt.Errorf("failed to get agents: %w", err))
+	}
+
+	// Migrate top-level agent threads to meta/{agent}/
+	for _, agent := range agents {
+		// Check for legacy top-level agent thread
+		agentThread, err := db.GetThreadByName(dbConn, agent.AgentID, nil)
+		if err != nil {
+			continue
+		}
+		if agentThread != nil && (agentThread.ParentThread == nil || *agentThread.ParentThread == "") {
+			// Move to meta/
+			updates := db.ThreadUpdates{
+				ParentThread: types.OptionalString{Set: true, Value: &metaGUID},
+			}
+			updated, err := db.UpdateThread(dbConn, agentThread.GUID, updates)
+			if err != nil {
+				return writeCommandError(cmd, fmt.Errorf("failed to move agent thread %s: %w", agent.AgentID, err))
+			}
+			if err := db.AppendThreadUpdate(project.Root, db.ThreadUpdateJSONLRecord{
+				GUID:         updated.GUID,
+				ParentThread: updated.ParentThread,
+			}); err != nil {
+				return writeCommandError(cmd, fmt.Errorf("failed to append thread update: %w", err))
+			}
+			fixes = append(fixes, fmt.Sprintf("  Migrated: %s/ -> meta/%s/", agent.AgentID, agent.AgentID))
+		}
+
+		// Also handle legacy {agent}-{suffix} format from older versions
+		suffixes := []string{"notes", "meta", "jrnl"}
+		for _, suffix := range suffixes {
+			legacyName := fmt.Sprintf("%s-%s", agent.AgentID, suffix)
+			thread, err := db.GetThreadByName(dbConn, legacyName, nil)
+			if err != nil || thread == nil {
+				continue
+			}
+
+			// Find or create the agent parent under meta/
+			parentThread, err := db.GetThreadByName(dbConn, agent.AgentID, &metaGUID)
+			var parentGUID string
+			if err != nil || parentThread == nil {
+				newParent := types.Thread{
+					Name:         agent.AgentID,
+					ParentThread: &metaGUID,
+					Type:         types.ThreadTypeKnowledge,
+					Status:       types.ThreadStatusOpen,
+				}
+				createdParent, err := db.CreateThread(dbConn, newParent)
+				if err != nil {
+					return writeCommandError(cmd, fmt.Errorf("failed to create agent thread %s: %w", agent.AgentID, err))
+				}
+				parentGUID = createdParent.GUID
+				if err := db.AppendThread(project.Root, createdParent, nil); err != nil {
+					return writeCommandError(cmd, fmt.Errorf("failed to append agent thread event: %w", err))
+				}
+				fixes = append(fixes, fmt.Sprintf("  Created: meta/%s/", agent.AgentID))
+			} else {
+				parentGUID = parentThread.GUID
+			}
+
+			// Rename and reparent the suffix thread
+			updates := db.ThreadUpdates{
+				Name:         types.OptionalString{Set: true, Value: &suffix},
+				ParentThread: types.OptionalString{Set: true, Value: &parentGUID},
+			}
+			updated, err := db.UpdateThread(dbConn, thread.GUID, updates)
+			if err != nil {
+				return writeCommandError(cmd, fmt.Errorf("failed to update thread %s: %w", legacyName, err))
+			}
+			updatedName := updated.Name
+			if err := db.AppendThreadUpdate(project.Root, db.ThreadUpdateJSONLRecord{
+				GUID:         updated.GUID,
+				Name:         &updatedName,
+				ParentThread: updated.ParentThread,
+			}); err != nil {
+				return writeCommandError(cmd, fmt.Errorf("failed to append thread update: %w", err))
+			}
+			fixes = append(fixes, fmt.Sprintf("  Migrated: %s -> meta/%s/%s", legacyName, agent.AgentID, suffix))
+		}
+	}
+
+	// Migrate roles/{role}/ to meta/role-{role}/
+	allThreads, err := db.GetThreads(dbConn, nil)
+	if err != nil {
+		return writeCommandError(cmd, fmt.Errorf("failed to get threads: %w", err))
+	}
+	for _, thread := range allThreads {
+		if !strings.HasPrefix(thread.Name, "roles/") {
+			continue
+		}
+		if thread.ParentThread != nil && *thread.ParentThread != "" {
+			continue // Already nested, skip
+		}
+
+		roleName := strings.TrimPrefix(thread.Name, "roles/")
+		newName := fmt.Sprintf("role-%s", roleName)
+
+		updates := db.ThreadUpdates{
+			Name:         types.OptionalString{Set: true, Value: &newName},
+			ParentThread: types.OptionalString{Set: true, Value: &metaGUID},
+		}
+		updated, err := db.UpdateThread(dbConn, thread.GUID, updates)
+		if err != nil {
+			return writeCommandError(cmd, fmt.Errorf("failed to update role thread %s: %w", thread.Name, err))
+		}
+		if err := db.AppendThreadUpdate(project.Root, db.ThreadUpdateJSONLRecord{
+			GUID:         updated.GUID,
+			Name:         &newName,
+			ParentThread: updated.ParentThread,
+		}); err != nil {
+			return writeCommandError(cmd, fmt.Errorf("failed to append thread update: %w", err))
+		}
+		fixes = append(fixes, fmt.Sprintf("  Migrated: %s -> meta/%s", thread.Name, newName))
+	}
+
+	if len(fixes) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "✓ No legacy thread patterns found")
+		return nil
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout(), "✓ Fixed legacy thread patterns:")
+	for _, fix := range fixes {
+		fmt.Fprintln(cmd.OutOrStdout(), fix)
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "\nTotal: %d threads migrated\n", len(fixes))
+
 	return nil
 }

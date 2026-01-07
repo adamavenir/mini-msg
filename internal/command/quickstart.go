@@ -73,62 +73,79 @@ ESSENTIAL COMMANDS
 ------------------
   fray new <name> "msg"        Create agent session with optional join message
   fray new                     Auto-generate a random name
-  fray new <name> --status "..." Set your current task
-  fray get <agent>             Get latest room + your @mentions (start here!)
-  fray post --as <agent> "msg" Post a message
+  fray get --as <agent>        Get room + your @mentions (start here!)
+  fray post "msg" --as <agent> Post to room
   fray @<name>                 Check messages mentioning you
   fray here                    See who's active
   fray bye <agent> "msg"       Sign off with optional goodbye message
 
-MESSAGING
----------
-Use @mentions to direct messages:
-  fray post --as reviewer "@frontend the auth module needs tests"
-  fray post --as pm "@all standup time"
-
-Prefix matching uses "." as separator: @frontend matches frontend, frontend.1, etc.
-@all broadcasts to everyone.
-
-Check your mentions frequently:
-  fray @reviewer              Messages mentioning "reviewer"
-  fray @reviewer --since 1h   Messages from the last hour
+PATH-BASED ADDRESSING
+---------------------
+Most commands accept paths as first argument:
+  fray get meta                View project meta thread
+  fray get <agent>/notes       View agent's notes
+  fray get design-thread       View thread by name
+  fray get notifs --as <agent> Notifications only (@mentions + threads)
+  fray post meta "msg" --as a  Post to project meta
+  fray post design "msg" --as a  Post to thread
 
 THREADING
 ---------
-Messages display with #xxxx/#xxxxx/#xxxxxx suffixes (short GUID). Reply using the full GUID:
-  fray post --as alice --reply-to msg-a1b2c3d4 "Good point"
-  fray reply msg-a1b2c3d4         View message and all its replies
+Create and work with threads using paths:
+  fray thread design "Summary"  Create thread with anchor message
+  fray thread opus/notes        Create nested thread under agent
+  fray follow design --as <a>   Subscribe to thread
+  fray mute design --as <a>     Mute notifications
+  fray add design msg-abc       Add message to thread
+  fray mv msg-abc design        Move message to thread
+  fray mv msg-abc main          Move message back to room
+  fray mv design meta           Reparent thread under meta
+  fray mv design root           Make thread root-level
+  fray thread rename old new    Rename a thread
 
-In fray chat, you can use prefix matching: type "#a1b2 response" to reply.
+Reply to specific messages:
+  fray post --as alice -r msg-abc "Good point"
+  fray reply msg-abc            View message and its reply chain
+
+FILTERS
+-------
+Thread listing:
+  fray threads --as <a>         List threads you follow
+  fray threads --tree --as <a>  Tree view with indicators
+  fray threads --activity       Sort by recent activity
+
+Within-thread:
+  fray get design --pinned      Show pinned messages only
+  fray get design --by @alice   Messages from agent
+  fray get design --with "text" Search by content
+  fray get design --reactions   Messages with reactions
+
+Cross-thread:
+  fray faves --as <a>           List faved items
+  fray reactions --by @alice    Messages alice reacted to
+  fray reactions --to @alice    Reactions on alice's messages
+
+SHORTCUTS
+---------
+  fray msg-abc123               View specific message (shorthand)
+  fray rm msg-abc               Delete message
+  fray rm thrd-xyz              Delete (archive) thread
+  fray fave design --as <a>     Fave thread or message
 
 WORKFLOW
 --------
-1. Create your agent: fray new <name> --status "your task"
+1. Create your agent: fray new <name>
 2. Check who's here: fray here
-3. Get context: fray get <agent> (room messages + your @mentions)
+3. Get context: fray get --as <agent>
 4. Work and coordinate via @mentions
 5. Sign off when done: fray bye <agent>
-
-STAYING AWARE
--------------
-When you post, any unread @mentions are shown automatically:
-  fray post --as alice "done with task"
-  > [msg-a1b2c3d4] Posted as alice
-  > 2 unread @alice:
-  >   [msg-b2c3d4e5] bob: @alice can you review?
-
-This keeps you informed without extra commands.
 
 COLLISION PREVENTION
 --------------------
 Claim files to prevent other agents from accidentally working on the same code:
   fray claim @agent --file src/auth.ts      Claim a file
-  fray claim @agent --files "*.ts,*.go"     Claim multiple patterns
-  fray claim @agent --file x --ttl 2h       Claim with expiration
   fray claims                               List all active claims
-  fray claims @agent                        List agent's claims
   fray clear @agent                         Clear all your claims
-  fray clear @agent --file src/auth.ts      Clear specific claim
 
 Claims auto-clear when you sign off with fray bye.
 `)
@@ -157,61 +174,79 @@ func printQuickstartGuide(outWriter io.Writer, allAgents []types.Agent, register
 	fmt.Fprintln(outWriter, "------------------")
 	fmt.Fprintln(outWriter, "  fray new <name> \"msg\"        Create agent session with optional join message")
 	fmt.Fprintln(outWriter, "  fray new                     Auto-generate a random name")
-	fmt.Fprintln(outWriter, "  fray new <name> --status \"...\" Set your current task")
-	fmt.Fprintln(outWriter, "  fray get <agent>             Get latest room + your @mentions (start here!)")
-	fmt.Fprintln(outWriter, "  fray post --as <agent> \"msg\" Post a message")
+	fmt.Fprintln(outWriter, "  fray get --as <agent>        Get room + your @mentions (start here!)")
+	fmt.Fprintln(outWriter, "  fray post \"msg\" --as <agent> Post to room")
 	fmt.Fprintln(outWriter, "  fray @<name>                 Check messages mentioning you")
 	fmt.Fprintln(outWriter, "  fray here                    See who's active")
 	fmt.Fprintln(outWriter, "  fray bye <agent> \"msg\"       Sign off with optional goodbye message")
 
-	fmt.Fprintln(outWriter, "\nMESSAGING")
-	fmt.Fprintln(outWriter, "---------")
-	fmt.Fprintln(outWriter, "Use @mentions to direct messages:")
-	fmt.Fprintln(outWriter, "  fray post --as reviewer \"@frontend the auth module needs tests\"")
-	fmt.Fprintln(outWriter, "  fray post --as pm \"@all standup time\"")
-	fmt.Fprintln(outWriter, "")
-	fmt.Fprintln(outWriter, "Prefix matching uses \".\" as separator: @frontend matches frontend, frontend.1, etc.")
-	fmt.Fprintln(outWriter, "@all broadcasts to everyone.")
-	fmt.Fprintln(outWriter, "")
-	fmt.Fprintln(outWriter, "Check your mentions frequently:")
-	fmt.Fprintln(outWriter, "  fray @reviewer              Messages mentioning \"reviewer\"")
-	fmt.Fprintln(outWriter, "  fray @reviewer --since 1h   Messages from the last hour")
+	fmt.Fprintln(outWriter, "\nPATH-BASED ADDRESSING")
+	fmt.Fprintln(outWriter, "---------------------")
+	fmt.Fprintln(outWriter, "Most commands accept paths as first argument:")
+	fmt.Fprintln(outWriter, "  fray get meta                View project meta thread")
+	fmt.Fprintln(outWriter, "  fray get <agent>/notes       View agent's notes")
+	fmt.Fprintln(outWriter, "  fray get design-thread       View thread by name")
+	fmt.Fprintln(outWriter, "  fray get notifs --as <agent> Notifications only (@mentions + threads)")
+	fmt.Fprintln(outWriter, "  fray post meta \"msg\" --as a  Post to project meta")
+	fmt.Fprintln(outWriter, "  fray post design \"msg\" --as a  Post to thread")
 
 	fmt.Fprintln(outWriter, "\nTHREADING")
 	fmt.Fprintln(outWriter, "---------")
-	fmt.Fprintln(outWriter, "Messages display with #xxxx/#xxxxx/#xxxxxx suffixes (short GUID). Reply using the full GUID:")
-	fmt.Fprintln(outWriter, "  fray post --as alice --reply-to msg-a1b2c3d4 \"Good point\"")
-	fmt.Fprintln(outWriter, "  fray reply msg-a1b2c3d4         View message and all its replies")
+	fmt.Fprintln(outWriter, "Create and work with threads using paths:")
+	fmt.Fprintln(outWriter, "  fray thread design \"Summary\"  Create thread with anchor message")
+	fmt.Fprintln(outWriter, "  fray thread opus/notes        Create nested thread under agent")
+	fmt.Fprintln(outWriter, "  fray follow design --as <a>   Subscribe to thread")
+	fmt.Fprintln(outWriter, "  fray mute design --as <a>     Mute notifications")
+	fmt.Fprintln(outWriter, "  fray add design msg-abc       Add message to thread")
+	fmt.Fprintln(outWriter, "  fray mv msg-abc design        Move message to thread")
+	fmt.Fprintln(outWriter, "  fray mv msg-abc main          Move message back to room")
+	fmt.Fprintln(outWriter, "  fray mv design meta           Reparent thread under meta")
+	fmt.Fprintln(outWriter, "  fray mv design root           Make thread root-level")
+	fmt.Fprintln(outWriter, "  fray thread rename old new    Rename a thread")
 	fmt.Fprintln(outWriter, "")
-	fmt.Fprintln(outWriter, "In fray chat, you can use prefix matching: type \"#a1b2 response\" to reply.")
+	fmt.Fprintln(outWriter, "Reply to specific messages:")
+	fmt.Fprintln(outWriter, "  fray post --as alice -r msg-abc \"Good point\"")
+	fmt.Fprintln(outWriter, "  fray reply msg-abc            View message and its reply chain")
+
+	fmt.Fprintln(outWriter, "\nFILTERS")
+	fmt.Fprintln(outWriter, "-------")
+	fmt.Fprintln(outWriter, "Thread listing:")
+	fmt.Fprintln(outWriter, "  fray threads --as <a>         List threads you follow")
+	fmt.Fprintln(outWriter, "  fray threads --tree --as <a>  Tree view with indicators")
+	fmt.Fprintln(outWriter, "  fray threads --activity       Sort by recent activity")
+	fmt.Fprintln(outWriter, "")
+	fmt.Fprintln(outWriter, "Within-thread:")
+	fmt.Fprintln(outWriter, "  fray get design --pinned      Show pinned messages only")
+	fmt.Fprintln(outWriter, "  fray get design --by @alice   Messages from agent")
+	fmt.Fprintln(outWriter, "  fray get design --with \"text\" Search by content")
+	fmt.Fprintln(outWriter, "  fray get design --reactions   Messages with reactions")
+	fmt.Fprintln(outWriter, "")
+	fmt.Fprintln(outWriter, "Cross-thread:")
+	fmt.Fprintln(outWriter, "  fray faves --as <a>           List faved items")
+	fmt.Fprintln(outWriter, "  fray reactions --by @alice    Messages alice reacted to")
+	fmt.Fprintln(outWriter, "  fray reactions --to @alice    Reactions on alice's messages")
+
+	fmt.Fprintln(outWriter, "\nSHORTCUTS")
+	fmt.Fprintln(outWriter, "---------")
+	fmt.Fprintln(outWriter, "  fray msg-abc123               View specific message (shorthand)")
+	fmt.Fprintln(outWriter, "  fray rm msg-abc               Delete message")
+	fmt.Fprintln(outWriter, "  fray rm thrd-xyz              Delete (archive) thread")
+	fmt.Fprintln(outWriter, "  fray fave design --as <a>     Fave thread or message")
 
 	fmt.Fprintln(outWriter, "\nWORKFLOW")
 	fmt.Fprintln(outWriter, "--------")
-	fmt.Fprintln(outWriter, "1. Create your agent: fray new <name> --status \"your task\"")
+	fmt.Fprintln(outWriter, "1. Create your agent: fray new <name>")
 	fmt.Fprintln(outWriter, "2. Check who's here: fray here")
-	fmt.Fprintln(outWriter, "3. Get context: fray get <agent> (room messages + your @mentions)")
+	fmt.Fprintln(outWriter, "3. Get context: fray get --as <agent>")
 	fmt.Fprintln(outWriter, "4. Work and coordinate via @mentions")
 	fmt.Fprintln(outWriter, "5. Sign off when done: fray bye <agent>")
-
-	fmt.Fprintln(outWriter, "\nSTAYING AWARE")
-	fmt.Fprintln(outWriter, "-------------")
-	fmt.Fprintln(outWriter, "When you post, any unread @mentions are shown automatically:")
-	fmt.Fprintln(outWriter, "  fray post --as alice \"done with task\"")
-	fmt.Fprintln(outWriter, "  > [msg-a1b2c3d4] Posted as alice")
-	fmt.Fprintln(outWriter, "  > 2 unread @alice:")
-	fmt.Fprintln(outWriter, "  >   [msg-b2c3d4e5] bob: @alice can you review?")
-	fmt.Fprintln(outWriter, "\nThis keeps you informed without extra commands.")
 
 	fmt.Fprintln(outWriter, "\nCOLLISION PREVENTION")
 	fmt.Fprintln(outWriter, "--------------------")
 	fmt.Fprintln(outWriter, "Claim files to prevent other agents from accidentally working on the same code:")
 	fmt.Fprintln(outWriter, "  fray claim @agent --file src/auth.ts      Claim a file")
-	fmt.Fprintln(outWriter, "  fray claim @agent --files \"*.ts,*.go\"     Claim multiple patterns")
-	fmt.Fprintln(outWriter, "  fray claim @agent --file x --ttl 2h       Claim with expiration")
 	fmt.Fprintln(outWriter, "  fray claims                               List all active claims")
-	fmt.Fprintln(outWriter, "  fray claims @agent                        List agent's claims")
 	fmt.Fprintln(outWriter, "  fray clear @agent                         Clear all your claims")
-	fmt.Fprintln(outWriter, "  fray clear @agent --file src/auth.ts      Clear specific claim")
 	fmt.Fprintln(outWriter, "")
 	fmt.Fprintln(outWriter, "Claims auto-clear when you sign off with fray bye.")
 }

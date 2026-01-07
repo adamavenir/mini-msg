@@ -14,10 +14,33 @@ CREATE TABLE IF NOT EXISTS fray_agents (
   agent_id TEXT NOT NULL UNIQUE,       -- e.g., "alice.419", "pm.3.sub.1"
   status TEXT,                         -- current task/focus (mutable)
   purpose TEXT,                        -- static identity/role info
+  avatar TEXT,                         -- single-char avatar for display
   registered_at INTEGER NOT NULL,      -- unix timestamp
   last_seen INTEGER NOT NULL,          -- updated on post
-  left_at INTEGER                      -- set by "bye", null if active
+  left_at INTEGER,                     -- set by "bye", null if active
+  managed INTEGER NOT NULL DEFAULT 0,  -- whether daemon controls this agent
+  invoke TEXT,                         -- JSON: driver config for spawning
+  presence TEXT DEFAULT 'offline',     -- active, spawning, idle, error, offline
+  mention_watermark TEXT,              -- last processed mention msg_id
+  last_heartbeat INTEGER,              -- last silent checkin timestamp (ms)
+  last_session_id TEXT                 -- Claude Code session UUID for --resume
 );
+
+-- Agent sessions (daemon-managed)
+CREATE TABLE IF NOT EXISTS fray_agent_sessions (
+  session_id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  triggered_by TEXT,                   -- msg_id that triggered spawn
+  thread_guid TEXT,                    -- thread context if applicable
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  exit_code INTEGER,
+  duration_ms INTEGER,
+  FOREIGN KEY (agent_id) REFERENCES fray_agents(agent_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fray_agent_sessions_agent ON fray_agent_sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_fray_agent_sessions_started ON fray_agent_sessions(started_at);
 
 -- Room messages
 CREATE TABLE IF NOT EXISTS fray_messages (
@@ -32,6 +55,7 @@ CREATE TABLE IF NOT EXISTS fray_messages (
   "references" TEXT,                   -- referenced message guid (surface)
   surface_message TEXT,                -- surface message guid (backlink event)
   reply_to TEXT,                       -- parent message guid for threading
+  quote_message_guid TEXT,             -- quoted message guid for inline quotes
   edited_at INTEGER,                   -- unix timestamp of last edit
   archived_at INTEGER,                 -- unix timestamp of archival
   reactions TEXT NOT NULL DEFAULT '{}' -- JSON object of reactions
@@ -52,6 +76,7 @@ CREATE TABLE IF NOT EXISTS fray_questions (
   thread_guid TEXT,
   asked_in TEXT,
   answered_in TEXT,
+  options TEXT DEFAULT '[]',
   created_at INTEGER NOT NULL
 );
 
@@ -64,12 +89,18 @@ CREATE TABLE IF NOT EXISTS fray_threads (
   name TEXT NOT NULL,
   parent_thread TEXT,
   status TEXT DEFAULT 'open',
+  type TEXT DEFAULT 'standard',
   created_at INTEGER NOT NULL,
+  anchor_message_guid TEXT,
+  anchor_hidden INTEGER NOT NULL DEFAULT 0,
+  last_activity_at INTEGER,
   FOREIGN KEY (parent_thread) REFERENCES fray_threads(guid)
 );
 
 CREATE INDEX IF NOT EXISTS idx_fray_threads_parent ON fray_threads(parent_thread);
 CREATE INDEX IF NOT EXISTS idx_fray_threads_status ON fray_threads(status);
+CREATE INDEX IF NOT EXISTS idx_fray_threads_activity ON fray_threads(last_activity_at);
+CREATE INDEX IF NOT EXISTS idx_fray_threads_type ON fray_threads(type);
 
 -- Thread subscriptions
 CREATE TABLE IF NOT EXISTS fray_thread_subscriptions (
@@ -91,6 +122,36 @@ CREATE TABLE IF NOT EXISTS fray_thread_messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_fray_thread_messages_message ON fray_thread_messages(message_guid);
+
+-- Message pins (per-thread)
+CREATE TABLE IF NOT EXISTS fray_message_pins (
+  message_guid TEXT NOT NULL,
+  thread_guid TEXT NOT NULL,
+  pinned_by TEXT NOT NULL,
+  pinned_at INTEGER NOT NULL,
+  PRIMARY KEY (message_guid, thread_guid)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fray_message_pins_thread ON fray_message_pins(thread_guid);
+
+-- Thread pins (public, any agent can pin/unpin)
+CREATE TABLE IF NOT EXISTS fray_thread_pins (
+  thread_guid TEXT PRIMARY KEY,
+  pinned_by TEXT NOT NULL,
+  pinned_at INTEGER NOT NULL
+);
+
+-- Thread mutes (per-agent, with optional expiry)
+CREATE TABLE IF NOT EXISTS fray_thread_mutes (
+  thread_guid TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  muted_at INTEGER NOT NULL,
+  expires_at INTEGER,
+  PRIMARY KEY (thread_guid, agent_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fray_thread_mutes_agent ON fray_thread_mutes(agent_id);
+CREATE INDEX IF NOT EXISTS idx_fray_thread_mutes_expires ON fray_thread_mutes(expires_at);
 
 -- Linked projects for cross-project messaging
 CREATE TABLE IF NOT EXISTS fray_linked_projects (
@@ -133,6 +194,19 @@ CREATE TABLE IF NOT EXISTS fray_read_to (
 
 CREATE INDEX IF NOT EXISTS idx_fray_read_to_home ON fray_read_to(home);
 
+-- Ghost cursors for session handoffs
+CREATE TABLE IF NOT EXISTS fray_ghost_cursors (
+  agent_id TEXT NOT NULL,
+  home TEXT NOT NULL,            -- "room" or thread GUID
+  message_guid TEXT NOT NULL,    -- start reading from here
+  must_read INTEGER NOT NULL DEFAULT 0,  -- inject full content vs hint only
+  set_at INTEGER NOT NULL,
+  session_ack_at INTEGER,        -- when first viewed this session (null = not yet acked)
+  PRIMARY KEY (agent_id, home)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fray_ghost_cursors_agent ON fray_ghost_cursors(agent_id);
+
 -- Resource claims for collision prevention
 CREATE TABLE IF NOT EXISTS fray_claims (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -148,6 +222,48 @@ CREATE TABLE IF NOT EXISTS fray_claims (
 CREATE INDEX IF NOT EXISTS idx_fray_claims_agent ON fray_claims(agent_id);
 CREATE INDEX IF NOT EXISTS idx_fray_claims_type ON fray_claims(claim_type);
 CREATE INDEX IF NOT EXISTS idx_fray_claims_expires ON fray_claims(expires_at);
+
+-- Reactions (not deduplicated, no remove)
+CREATE TABLE IF NOT EXISTS fray_reactions (
+  message_guid TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  emoji TEXT NOT NULL,
+  reacted_at INTEGER NOT NULL,
+  PRIMARY KEY (message_guid, agent_id, emoji, reacted_at)
+);
+CREATE INDEX IF NOT EXISTS idx_fray_reactions_message ON fray_reactions(message_guid);
+CREATE INDEX IF NOT EXISTS idx_fray_reactions_agent ON fray_reactions(agent_id);
+
+-- Faves (per-agent, polymorphic - threads or messages)
+CREATE TABLE IF NOT EXISTS fray_faves (
+  agent_id TEXT NOT NULL,
+  item_type TEXT NOT NULL,  -- 'thread' | 'message'
+  item_guid TEXT NOT NULL,
+  faved_at INTEGER,         -- NULL if not faved, just has nickname
+  nickname TEXT,            -- personal nickname for thread/message
+  PRIMARY KEY (agent_id, item_type, item_guid)
+);
+CREATE INDEX IF NOT EXISTS idx_fray_faves_agent ON fray_faves(agent_id);
+CREATE INDEX IF NOT EXISTS idx_fray_faves_item ON fray_faves(item_type, item_guid);
+
+-- Role assignments (held roles - persistent)
+CREATE TABLE IF NOT EXISTS fray_role_assignments (
+  agent_id TEXT NOT NULL,
+  role_name TEXT NOT NULL,
+  assigned_at INTEGER NOT NULL,
+  PRIMARY KEY (agent_id, role_name)
+);
+CREATE INDEX IF NOT EXISTS idx_fray_role_assignments_role ON fray_role_assignments(role_name);
+
+-- Session roles (playing - cleared on bye/land)
+CREATE TABLE IF NOT EXISTS fray_session_roles (
+  agent_id TEXT NOT NULL,
+  role_name TEXT NOT NULL,
+  session_id TEXT,
+  started_at INTEGER NOT NULL,
+  PRIMARY KEY (agent_id, role_name)
+);
+CREATE INDEX IF NOT EXISTS idx_fray_session_roles_role ON fray_session_roles(role_name);
 `
 
 const defaultConfigSQL = `
@@ -523,6 +639,11 @@ func migrateSchema(db DBTX) error {
 				return err
 			}
 		}
+		if !hasColumn(messageColumns, "quote_message_guid") {
+			if _, err := db.Exec("ALTER TABLE fray_messages ADD COLUMN quote_message_guid TEXT"); err != nil {
+				return err
+			}
+		}
 	}
 
 	receiptColumns, err := getTableInfo(db, "fray_read_receipts")
@@ -585,6 +706,78 @@ func migrateSchema(db DBTX) error {
 		}
 		if _, err := db.Exec("ALTER TABLE fray_read_receipts_new RENAME TO fray_read_receipts"); err != nil {
 			return err
+		}
+	}
+
+	// Add options column to questions if missing
+	questionColumns, err := getTableInfo(db, "fray_questions")
+	if err != nil {
+		return err
+	}
+	if len(questionColumns) > 0 && !hasColumn(questionColumns, "options") {
+		if _, err := db.Exec("ALTER TABLE fray_questions ADD COLUMN options TEXT DEFAULT '[]'"); err != nil {
+			return err
+		}
+	}
+
+	// Add managed agent columns if missing
+	agentColumns, err = getTableInfo(db, "fray_agents")
+	if err != nil {
+		return err
+	}
+	if len(agentColumns) > 0 {
+		if !hasColumn(agentColumns, "managed") {
+			if _, err := db.Exec("ALTER TABLE fray_agents ADD COLUMN managed INTEGER NOT NULL DEFAULT 0"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(agentColumns, "invoke") {
+			if _, err := db.Exec("ALTER TABLE fray_agents ADD COLUMN invoke TEXT"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(agentColumns, "presence") {
+			if _, err := db.Exec("ALTER TABLE fray_agents ADD COLUMN presence TEXT DEFAULT 'offline'"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(agentColumns, "mention_watermark") {
+			if _, err := db.Exec("ALTER TABLE fray_agents ADD COLUMN mention_watermark TEXT"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(agentColumns, "last_heartbeat") {
+			if _, err := db.Exec("ALTER TABLE fray_agents ADD COLUMN last_heartbeat INTEGER"); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Add thread anchor and activity columns if missing
+	threadColumns, err := getTableInfo(db, "fray_threads")
+	if err != nil {
+		return err
+	}
+	if len(threadColumns) > 0 {
+		if !hasColumn(threadColumns, "anchor_message_guid") {
+			if _, err := db.Exec("ALTER TABLE fray_threads ADD COLUMN anchor_message_guid TEXT"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(threadColumns, "anchor_hidden") {
+			if _, err := db.Exec("ALTER TABLE fray_threads ADD COLUMN anchor_hidden INTEGER NOT NULL DEFAULT 0"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(threadColumns, "last_activity_at") {
+			if _, err := db.Exec("ALTER TABLE fray_threads ADD COLUMN last_activity_at INTEGER"); err != nil {
+				return err
+			}
+		}
+		if !hasColumn(threadColumns, "type") {
+			if _, err := db.Exec("ALTER TABLE fray_threads ADD COLUMN type TEXT DEFAULT 'standard'"); err != nil {
+				return err
+			}
 		}
 	}
 

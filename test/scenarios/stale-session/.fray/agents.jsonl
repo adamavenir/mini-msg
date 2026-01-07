@@ -1,0 +1,4 @@
+{"type":"agent","id":"usr-human001","name":"adam","global_name":"fray-adam","home_channel":"ch-test-stale","created_at":"2026-01-01T00:00:00Z","active_status":"active","agent_id":"adam","registered_at":1767300000,"last_seen":1767400000,"left_at":null,"managed":false,"presence":"active"}
+{"type":"agent","id":"usr-stale001","name":"stale","global_name":"fray-stale","home_channel":"ch-test-stale","created_at":"2026-01-01T00:00:00Z","active_status":"active","agent_id":"stale","registered_at":1767300000,"last_seen":1767300500,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-old00001"}
+{"type":"session_start","agent_id":"stale","session_id":"sess-old001","triggered_by":"msg-old00001","ts":1767300100}
+{"type":"session_end","agent_id":"stale","session_id":"sess-old001","exit_code":0,"duration_ms":120000,"ts":1767300220}

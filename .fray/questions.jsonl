@@ -5,3 +5,104 @@
 {"type":"question_update","guid":"qstn-m0ccmkvh","status":"open","to":"adam","asked_in":"msg-pejrb60e"}
 {"type":"question","guid":"qstn-d82om2zp","re":"Should 'fray neo' auto-subscribe agent to meta thread if not already subscribed?","from_agent":"designer","to":"adam","status":"open","created_at":1767210015}
 {"type":"question_update","guid":"qstn-d82om2zp","status":"open","to":"adam","asked_in":"msg-rvlvjuk9"}
+{"type":"question","guid":"qstn-waezextv","re":"Is the extraction working now?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-eon33yxq","options":[{"label":"Yes","pros":["It's great"]},{"label":"No"}],"created_at":1767223780}
+{"type":"question","guid":"qstn-vccm2y1u","re":"What about this?","from_agent":"opus","status":"unasked","asked_in":"msg-eon33yxq","created_at":1767223780}
+{"type":"question_update","guid":"qstn-waezextv","status":"closed"}
+{"type":"question","guid":"qstn-f4e6mvjm","re":"Which color scheme should we use for the sidebar?","from_agent":"gpt52","to":"opus","status":"open","asked_in":"msg-iz1yaykg","options":[{"label":"Blue theme","pros":["Matches existing brand"],"cons":["Might be too corporate"]},{"label":"Green theme","pros":["Fresh and modern"],"cons":["Less contrast"]},{"label":"Keep current gray","pros":["No changes needed"],"cons":["Boring"]}],"created_at":1767225452}
+{"type":"question_update","guid":"qstn-f4e6mvjm","status":"answered","answered_in":"msg-0crsgd56"}
+{"type":"question","guid":"qstn-vvi0bxnn","re":"Should we add unit tests?","from_agent":"gpt52","to":"opus","status":"open","asked_in":"msg-8vxgsxks","created_at":1767225477}
+{"type":"question","guid":"qstn-5o6z01xn","re":"What framework should we use?","from_agent":"gpt52","to":"opus","status":"open","asked_in":"msg-8vxgsxks","options":[{"label":"Jest"},{"label":"Vitest"}],"created_at":1767225477}
+{"type":"question_update","guid":"qstn-5o6z01xn","status":"answered","answered_in":"msg-uscj8ymd"}
+{"type":"question_update","guid":"qstn-vvi0bxnn","status":"answered","answered_in":"msg-d6m2ckzz"}
+{"type":"question","guid":"qstn-sppi7heq","re":"Should we use Redis or Memcached?","from_agent":"gpt52","to":"opus","status":"open","asked_in":"msg-sok87vnz","options":[{"label":"Redis","pros":["More features"]},{"label":"Memcached","pros":["Simpler"]}],"created_at":1767226571}
+{"type":"question_update","guid":"qstn-sppi7heq","status":"answered","answered_in":"msg-21985488"}
+{"type":"question","guid":"qstn-lh4k8e4n","re":"What should the default behavior be when running bare `fray` with pending questions?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-spexdbf8","options":[{"label":"Show question count in status, don't prompt","pros":["Non-intrusive"],"cons":["Easy to miss"]},{"label":"Prompt to enter answer mode (press Enter to answer, any key to skip)","pros":["Encourages engagement"],"cons":["Could be annoying"]},{"label":"Auto-enter answer mode","pros":["Forces attention"],"cons":["Too aggressive"]}],"created_at":1767226701}
+{"type":"question","guid":"qstn-9bm9rc0o","re":"Should agents be able to use the interactive answer mode via `--as`?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-spexdbf8","options":[{"label":"Yes, keep it available","pros":["Flexibility for testing"]},{"label":"No, restrict to direct mode only","pros":["Cleaner separation of concerns"]}],"created_at":1767226701}
+{"type":"question","guid":"qstn-2fwh62bd","re":"For the accept/close flow: should user answers require explicit accept from the asking agent?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-spexdbf8","created_at":1767226701}
+{"type":"question_update","guid":"qstn-lh4k8e4n","status":"answered","answered_in":"msg-ounmr3sr"}
+{"type":"question_update","guid":"qstn-9bm9rc0o","status":"answered","answered_in":"msg-lzigetgu"}
+{"type":"question_update","guid":"qstn-2fwh62bd","status":"answered","answered_in":"msg-ktswr8rc"}
+{"type":"question_update","guid":"qstn-d82om2zp","status":"answered","answered_in":"msg-9ppuauj2"}
+{"type":"question_update","guid":"qstn-m0ccmkvh","status":"answered","answered_in":"msg-164ru7ns"}
+{"type":"question","guid":"qstn-3cxf6wk2","re":"Do you like the new Q\u0026A format?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-lhwwftzc","created_at":1767229447}
+{"type":"question","guid":"qstn-eslwd0u2","re":"Should we add more styling?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-lhwwftzc","created_at":1767229447}
+{"type":"question_update","guid":"qstn-3cxf6wk2","status":"answered","answered_in":"msg-80jxnh7e"}
+{"type":"question_update","guid":"qstn-eslwd0u2","status":"answered","answered_in":"msg-80jxnh7e"}
+{"type":"question","guid":"qstn-akyivbyh","re":"Does this Q\u0026A format look better?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-6no87r9g","created_at":1767231085}
+{"type":"question","guid":"qstn-zcykyl26","re":"Should the question ID be more or less prominent?","from_agent":"opus","to":"adam","status":"open","asked_in":"msg-6no87r9g","created_at":1767231085}
+{"type":"question_update","guid":"qstn-akyivbyh","status":"answered","answered_in":"msg-xrnd8zb5"}
+{"type":"question_update","guid":"qstn-zcykyl26","status":"answered","answered_in":"msg-xrnd8zb5"}
+{"type":"question","guid":"qstn-npxbg8om","re":"Should Phase 1 be anchors+rehome (foundational) or pins+rehome (current spec)?","from_agent":"opus","to":"adam","status":"open","thread_guid":"thrd-er0npge4","created_at":1767326906}
+{"type":"question_update","guid":"qstn-npxbg8om","status":"open","to":"adam","asked_in":"msg-ops5hdj5"}
+{"type":"question","guid":"qstn-70bgrrfl","re":"Reactions: keep no-dedup (same emoji multiple times) or first-wins with timestamps?","from_agent":"opus","to":"adam","status":"open","thread_guid":"thrd-er0npge4","created_at":1767326906}
+{"type":"question_update","guid":"qstn-70bgrrfl","status":"open","to":"adam","asked_in":"msg-z8n6jlmn"}
+{"type":"question","guid":"qstn-qk46k9q0","re":"Subscription semantics: implicit (post=subscribe), explicit only, or both?","from_agent":"opus","to":"adam","status":"open","thread_guid":"thrd-er0npge4","created_at":1767326907}
+{"type":"question_update","guid":"qstn-qk46k9q0","status":"open","to":"adam","asked_in":"msg-eat1rm7t"}
+{"type":"question","guid":"qstn-as55eju0","re":"Saved views (fray-cfxv): include in this epic or defer to v2?","from_agent":"opus","to":"adam","status":"open","thread_guid":"thrd-er0npge4","created_at":1767326913}
+{"type":"question_update","guid":"qstn-as55eju0","status":"open","to":"adam","asked_in":"msg-01dsd2ae"}
+{"type":"question","guid":"qstn-rndcq3rs","re":"Pin/fave distinction: keep both (public vs private curation) or collapse for messages?","from_agent":"opus","to":"adam","status":"open","thread_guid":"thrd-er0npge4","created_at":1767326913}
+{"type":"question_update","guid":"qstn-rndcq3rs","status":"open","to":"adam","asked_in":"msg-lbx0gkoz"}
+{"type":"question_update","guid":"qstn-as55eju0","status":"answered","answered_in":"msg-rs8aatxl"}
+{"type":"question_update","guid":"qstn-rndcq3rs","status":"answered","answered_in":"msg-rs8aatxl"}
+{"type":"question_update","guid":"qstn-qk46k9q0","status":"answered","answered_in":"msg-rs8aatxl"}
+{"type":"question_update","guid":"qstn-70bgrrfl","status":"answered","answered_in":"msg-rs8aatxl"}
+{"type":"question_update","guid":"qstn-npxbg8om","status":"closed"}
+{"type":"question_update","guid":"qstn-70bgrrfl","status":"closed"}
+{"type":"question_update","guid":"qstn-qk46k9q0","status":"closed"}
+{"type":"question_update","guid":"qstn-as55eju0","status":"closed"}
+{"type":"question_update","guid":"qstn-rndcq3rs","status":"closed"}
+{"type":"question","guid":"qstn-bwjiyn0d","re":"**reaction_remove granularity**: 'deletes most recent row for (msg, agent, emoji)' - what if agent reacted twice in same second? Unlikely but possible. Maybe reaction_remove should include the specific reacted_at to target?","from_agent":"designer","status":"open","thread_guid":"thrd-er0npge4","asked_in":"msg-p0evkd4n","created_at":1767331849}
+{"type":"question","guid":"qstn-pv6pw86k","re":"**Subscription source tracking**: You mention optional `source` column. I'd defer - we can derive this from JSONL events on rebuild if needed later. Keep table minimal for now.","from_agent":"designer","status":"open","thread_guid":"thrd-er0npge4","asked_in":"msg-p0evkd4n","created_at":1767331849}
+{"type":"question","guid":"qstn-f4xtx1yf","re":"**quote_message_guid vs quote**: Spec shows `quote` field, you show `quote_message_guid`. The longer name is more explicit - fine either way, just align on one.","from_agent":"designer","status":"open","thread_guid":"thrd-er0npge4","asked_in":"msg-p0evkd4n","created_at":1767331849}
+{"type":"question","guid":"qstn-gcpivnoi","re":"How many presence states should we support?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-r3z3e4gk","asked_in":"msg-vaeui6bv","options":[{"label":"3 states: active, idle, offline","pros":["Simpler mental model","Less UI complexity"],"cons":["Can't distinguish 'spawning' from 'active'","Can't surface errors to humans"]},{"label":"5 states: active, spawning, idle, error, offline","pros":["Visibility into transitional states","Errors surface for human attention"],"cons":["More states to track/display","Need to define state transitions"]}],"created_at":1767337202}
+{"type":"question","guid":"qstn-1u7wcikh","re":"How should driver configs be structured?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-r3z3e4gk","asked_in":"msg-vaeui6bv","options":[{"label":"Flat invoke block with optional fields","pros":["Simpler for common cases","All fields visible at one level"],"cons":["Mixes generic and driver-specific options","Harder to validate per-driver"]},{"label":"Nested driver + config structure","pros":["Driver-specific options isolated","Easier to add new drivers","Cleaner validation per driver type"],"cons":["More nesting to navigate"]}],"created_at":1767337202}
+{"type":"question","guid":"qstn-losrvkr0","re":"How should prompts be delivered to CLIs?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-r3z3e4gk","asked_in":"msg-vaeui6bv","options":[{"label":"Command-line args only","pros":["Simple, works everywhere"],"cons":["Shell quoting issues","Arg length limits on some systems"]},{"label":"Stdin or temp file option","pros":["Avoids shell injection risks","No length limits"],"cons":["Not all CLIs support stdin","Temp file cleanup needed"]}],"created_at":1767337202}
+{"type":"question","guid":"qstn-qkvmixeh","re":"Should heartbeats be explicit or implicit?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-r3z3e4gk","asked_in":"msg-vaeui6bv","options":[{"label":"Implicit (daemon checks if process alive)","pros":["No agent cooperation needed","Works with any CLI"],"cons":["Can't detect hung processes (alive but stuck)"]},{"label":"Explicit (agent posts heartbeat via hook)","pros":["Detects hung/stuck agents","Richer status info possible"],"cons":["Requires hook setup per CLI","Adds complexity"]}],"created_at":1767337202}
+{"type":"question","guid":"qstn-ngk0ce3k","re":"Should resume and fresh-start use different prompt templates?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-r3z3e4gk","asked_in":"msg-vaeui6bv","options":[{"label":"Single template with context","pros":["Simpler to maintain","Consistent behavior"],"cons":["Resume might not need full context"]},{"label":"Separate templates","pros":["Resume can be minimal (you have context)","Fresh start can be richer"],"cons":["Two templates to maintain","Risk of divergence"]}],"created_at":1767337202}
+{"type":"question_update","guid":"qstn-gcpivnoi","status":"answered","answered_in":"msg-fginuidn"}
+{"type":"question_update","guid":"qstn-1u7wcikh","status":"answered","answered_in":"msg-fginuidn"}
+{"type":"question_update","guid":"qstn-losrvkr0","status":"answered","answered_in":"msg-fginuidn"}
+{"type":"question_update","guid":"qstn-qkvmixeh","status":"answered","answered_in":"msg-fginuidn"}
+{"type":"question_update","guid":"qstn-ngk0ce3k","status":"answered","answered_in":"msg-fginuidn"}
+{"type":"question","guid":"qstn-ine0su4o","re":"How common are zombie agent sessions in practice?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-7xyvibhj","asked_in":"msg-y7gme8mz","options":[{"label":"Rare - crashed processes are the main exit"},{"label":"Common enough to need active detection"}],"created_at":1767373302}
+{"type":"question","guid":"qstn-82m1edtx","re":"Should we require checkins or just encourage them?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-7xyvibhj","asked_in":"msg-y7gme8mz","options":[{"label":"Require with timeout (current proposal)"},{"label":"Advisory nudges only"}],"created_at":1767373302}
+{"type":"question","guid":"qstn-hlesj0nc","re":"Should we rename existing `{agent}-notes` to `{agent}/notes` format? (Breaking change)","from_agent":"opus","status":"open","thread_guid":"thrd-vm68zug1","asked_in":"msg-14ty2mmq","created_at":1767597700}
+{"type":"question","guid":"qstn-jvnolsme","re":"Should `meta/` subthreads be auto-created or user-created?","from_agent":"opus","status":"open","thread_guid":"thrd-vm68zug1","asked_in":"msg-14ty2mmq","created_at":1767597700}
+{"type":"question","guid":"qstn-yfg6t1ln","re":"How should /fly inject role reflections? Top 10 across all held roles, or per-role?","from_agent":"opus","status":"open","thread_guid":"thrd-vm68zug1","asked_in":"msg-14ty2mmq","created_at":1767597700}
+{"type":"question_update","guid":"qstn-ine0su4o","status":"answered","answered_in":"msg-hgwdrxln"}
+{"type":"question_update","guid":"qstn-82m1edtx","status":"answered","answered_in":"msg-hgwdrxln"}
+{"type":"question","guid":"qstn-c06um20m","re":"Looking for bead about advanced click behavior for copying content (GUIDs, message IDs, etc). User mentioned it has nuanced requirements. Checked fray-gwg6 (click textarea) but that's just closing sidebar. May be in a different thread or recent discussion?","from_agent":"opus","status":"unasked","created_at":1767661003}
+{"type":"question_update","guid":"qstn-hlesj0nc","status":"answered","answered_in":"msg-a9e7sqlj"}
+{"type":"question_update","guid":"qstn-jvnolsme","status":"answered","answered_in":"msg-a9e7sqlj"}
+{"type":"question_update","guid":"qstn-yfg6t1ln","status":"answered","answered_in":"msg-a9e7sqlj"}
+{"type":"question_update","guid":"qstn-bwjiyn0d","status":"answered","answered_in":"msg-a9e7sqlj"}
+{"type":"question_update","guid":"qstn-dczwksn3","status":"closed"}
+{"type":"question_update","guid":"qstn-m0ccmkvh","status":"closed"}
+{"type":"question_update","guid":"qstn-d82om2zp","status":"closed"}
+{"type":"question_update","guid":"qstn-vccm2y1u","status":"closed"}
+{"type":"question_update","guid":"qstn-lh4k8e4n","status":"closed"}
+{"type":"question_update","guid":"qstn-9bm9rc0o","status":"closed"}
+{"type":"question_update","guid":"qstn-2fwh62bd","status":"closed"}
+{"type":"question_update","guid":"qstn-3cxf6wk2","status":"closed"}
+{"type":"question_update","guid":"qstn-eslwd0u2","status":"closed"}
+{"type":"question_update","guid":"qstn-akyivbyh","status":"closed"}
+{"type":"question_update","guid":"qstn-zcykyl26","status":"closed"}
+{"type":"question_update","guid":"qstn-npxbg8om","status":"closed"}
+{"type":"question_update","guid":"qstn-70bgrrfl","status":"closed"}
+{"type":"question_update","guid":"qstn-qk46k9q0","status":"closed"}
+{"type":"question_update","guid":"qstn-as55eju0","status":"closed"}
+{"type":"question_update","guid":"qstn-rndcq3rs","status":"closed"}
+{"type":"question_update","guid":"qstn-bwjiyn0d","status":"closed"}
+{"type":"question_update","guid":"qstn-pv6pw86k","status":"closed"}
+{"type":"question_update","guid":"qstn-f4xtx1yf","status":"closed"}
+{"type":"question_update","guid":"qstn-gcpivnoi","status":"closed"}
+{"type":"question_update","guid":"qstn-1u7wcikh","status":"closed"}
+{"type":"question_update","guid":"qstn-losrvkr0","status":"closed"}
+{"type":"question_update","guid":"qstn-qkvmixeh","status":"closed"}
+{"type":"question_update","guid":"qstn-ngk0ce3k","status":"closed"}
+{"type":"question_update","guid":"qstn-ine0su4o","status":"closed"}
+{"type":"question_update","guid":"qstn-82m1edtx","status":"closed"}
+{"type":"question_update","guid":"qstn-hlesj0nc","status":"closed"}
+{"type":"question_update","guid":"qstn-jvnolsme","status":"closed"}
+{"type":"question_update","guid":"qstn-yfg6t1ln","status":"closed"}
+{"type":"question_update","guid":"qstn-c06um20m","status":"closed"}

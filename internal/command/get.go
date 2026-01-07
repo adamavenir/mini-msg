@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
@@ -15,9 +16,21 @@ import (
 // NewGetCmd creates the get command.
 func NewGetCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "get [agent]",
-		Short: "Get messages",
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "get [path]",
+		Short: "Get messages from room, thread, or path",
+		Long: `Get messages from various sources.
+
+Paths:
+  fray get                    Room + notifications (default, requires --as)
+  fray get meta               Project meta thread
+  fray get opus/notes         Agent's notes thread
+  fray get design-thread      Specific thread by name
+  fray get notifs             Notifications only (@mentions + followed threads)
+  fray get msg-abc            Specific message (shorthand: fray msg-abc)
+
+Legacy (deprecated):
+  fray get <agent>            Still works for agent-based room + mentions`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := GetContext(cmd)
 			if err != nil {
@@ -37,11 +50,11 @@ func NewGetCmd() *cobra.Command {
 			archived, _ := cmd.Flags().GetBool("archived")
 			hideEvents, _ := cmd.Flags().GetBool("hide-events")
 			showEvents, _ := cmd.Flags().GetBool("show-events")
+			showAllMessages, _ := cmd.Flags().GetBool("show-all")
+			asRef, _ := cmd.Flags().GetString("as")
 			if showEvents {
 				hideEvents = false
 			}
-
-			isQueryMode := last != "" || since != "" || before != "" || from != "" || to != "" || all
 
 			projectName := GetProjectName(ctx.Project.Root)
 			var agentBases map[string]struct{}
@@ -51,9 +64,50 @@ func NewGetCmd() *cobra.Command {
 					return writeCommandError(cmd, err)
 				}
 			}
-			var resolvedAgentID string
+
+			// Determine what we're getting
+			var target string
 			if len(args) > 0 {
-				resolvedAgentID, err = resolveAgentRef(ctx, args[0])
+				target = args[0]
+			}
+
+			// Handle special path: "notifs"
+			if target == "notifs" {
+				return getNotifications(cmd, ctx, asRef, projectName, agentBases, showAllMessages)
+			}
+
+			// Try to resolve as thread path first
+			if target != "" && !strings.HasPrefix(target, "msg-") {
+				thread, err := resolveThreadRef(ctx.DB, target)
+				if err == nil && thread != nil {
+					pinnedOnly, _ := cmd.Flags().GetBool("pinned")
+					byAgent, _ := cmd.Flags().GetString("by")
+					withText, _ := cmd.Flags().GetString("with")
+					reactionsOnly, _ := cmd.Flags().GetBool("reactions")
+					return getThread(cmd, ctx, thread, last, since, showAllMessages, projectName, agentBases, hideEvents, pinnedOnly, byAgent, withText, reactionsOnly)
+				}
+			}
+
+			// Try to resolve as message ID
+			if target != "" && (strings.HasPrefix(target, "msg-") || len(target) <= 12) {
+				msg, err := resolveMessageRef(ctx.DB, target)
+				if err == nil && msg != nil {
+					return getMessage(cmd, ctx, msg, projectName, agentBases)
+				}
+			}
+
+			// Query mode when using explicit range/limit flags
+			isQueryMode := (last != "" && len(args) == 0) || since != "" || before != "" || from != "" || to != "" || all
+
+			// Legacy: try to resolve as agent ID for backward compatibility
+			var resolvedAgentID string
+			if target != "" {
+				resolvedAgentID, err = resolveAgentRef(ctx, target)
+				if err != nil {
+					return writeCommandError(cmd, fmt.Errorf("unknown path, thread, or agent: %s", target))
+				}
+			} else if asRef != "" {
+				resolvedAgentID, err = resolveAgentRef(ctx, asRef)
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
@@ -134,17 +188,65 @@ func NewGetCmd() *cobra.Command {
 					fmt.Fprintln(out, "No messages")
 					return nil
 				}
-				for _, msg := range messages {
-					fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+				lines := FormatMessageListAccordion(messages, AccordionOptions{
+					ShowAll:     showAllMessages,
+					ProjectName: projectName,
+					AgentBases:  agentBases,
+				})
+				for _, line := range lines {
+					fmt.Fprintln(out, line)
 				}
 				return nil
 			}
 
 			if resolvedAgentID != "" {
-				roomLimit := parseOptionalInt(room, 10)
 				mentionsLimit := parseOptionalInt(mentions, 3)
 
-				roomMessages, err := db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
+				agentBase := resolvedAgentID
+				if strings.Contains(resolvedAgentID, ".") {
+					idx := strings.LastIndex(resolvedAgentID, ".")
+					agentBase = resolvedAgentID[:idx]
+				}
+
+				// Get watermark for this agent
+				watermark, err := db.GetReadTo(ctx.DB, agentBase, "room")
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+
+				var roomMessages []types.Message
+				if last != "" {
+					// Explicit --last flag: use that limit
+					roomLimit, err := strconv.Atoi(last)
+					if err != nil {
+						return writeCommandError(cmd, fmt.Errorf("invalid --last value"))
+					}
+					roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
+				} else if watermark != nil {
+					// Has watermark: get only unread messages (since watermark)
+					roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{
+						Since:           &types.MessageCursor{GUID: watermark.MessageGUID, TS: watermark.MessageTS},
+						Filter:          filter,
+						IncludeArchived: archived,
+					})
+				} else {
+					// No watermark: check for ghost cursor, else use last N
+					ghostCursor, _ := db.GetGhostCursor(ctx.DB, agentBase, "room")
+					if ghostCursor != nil {
+						msg, msgErr := db.GetMessage(ctx.DB, ghostCursor.MessageGUID)
+						if msgErr == nil && msg != nil {
+							roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{
+								Since:           &types.MessageCursor{GUID: msg.ID, TS: msg.TS},
+								Filter:          filter,
+								IncludeArchived: archived,
+							})
+						}
+					}
+					if roomMessages == nil {
+						roomLimit := parseOptionalInt(room, 10)
+						roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
+					}
+				}
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
@@ -156,16 +258,38 @@ func NewGetCmd() *cobra.Command {
 					roomMessages = filterEventMessages(roomMessages)
 				}
 
-				agentBase := resolvedAgentID
-				if strings.Contains(resolvedAgentID, ".") {
-					idx := strings.LastIndex(resolvedAgentID, ".")
-					agentBase = resolvedAgentID[:idx]
+				// Check ghost cursor for session-aware unread logic
+				allHomes := ""
+				mentionOpts := &types.MessageQueryOptions{
+					Limit:                 mentionsLimit + len(roomMessages),
+					IncludeArchived:       archived,
+					IncludeRepliesToAgent: agentBase,
+					AgentPrefix:           agentBase,
+					Home:                  &allHomes,
 				}
 
-				mentionMessages, err := db.GetMessagesWithMention(ctx.DB, agentBase, &types.MessageQueryOptions{
-					Limit:           mentionsLimit + roomLimit,
-					IncludeArchived: archived,
-				})
+				useGhostCursorBoundary := false
+				var mentionGhostCursor *types.GhostCursor
+				mentionGhostCursor, _ = db.GetGhostCursor(ctx.DB, agentBase, "room")
+				if mentionGhostCursor != nil && mentionGhostCursor.SessionAckAt == nil {
+					// Ghost cursor exists and not yet acked this session
+					msg, msgErr := db.GetMessage(ctx.DB, mentionGhostCursor.MessageGUID)
+					if msgErr == nil && msg != nil {
+						mentionOpts.Since = &types.MessageCursor{GUID: msg.ID, TS: msg.TS}
+						useGhostCursorBoundary = true
+					}
+				}
+				// Fall back to watermark-based boundary if no ghost cursor
+				if !useGhostCursorBoundary {
+					mentionWatermark, _ := db.GetReadTo(ctx.DB, agentBase, "mentions")
+					if mentionWatermark != nil {
+						mentionOpts.Since = &types.MessageCursor{GUID: mentionWatermark.MessageGUID, TS: mentionWatermark.MessageTS}
+					} else {
+						mentionOpts.UnreadOnly = true
+					}
+				}
+
+				mentionMessages, err := db.GetMessagesWithMention(ctx.DB, agentBase, mentionOpts)
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
@@ -201,6 +325,15 @@ func NewGetCmd() *cobra.Command {
 					if err := db.MarkMessagesRead(ctx.DB, ids, agentBase); err != nil {
 						return writeCommandError(cmd, err)
 					}
+					// Also set mentions watermark for durable read state
+					lastMentionMsg := filtered[len(filtered)-1]
+					_ = db.SetReadTo(ctx.DB, agentBase, "mentions", lastMentionMsg.ID, lastMentionMsg.TS)
+				}
+
+				// Ack ghost cursor if we used it as boundary (first view this session)
+				if useGhostCursorBoundary && mentionGhostCursor != nil {
+					now := time.Now().Unix()
+					_ = db.AckGhostCursor(ctx.DB, agentBase, "room", now)
 				}
 
 				// Set watermark to the latest message viewed
@@ -213,11 +346,13 @@ func NewGetCmd() *cobra.Command {
 
 				if ctx.JSONMode {
 					readTo, _ := db.GetReadToForHome(ctx.DB, "room")
+					threadHints, _ := getThreadActivityHints(ctx, agentBase)
 					payload := map[string]any{
 						"project":       projectName,
 						"room_messages": roomMessages,
 						"mentions":      filtered,
 						"read_to":       readTo,
+						"threads":       threadHints,
 					}
 					return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 				}
@@ -227,8 +362,13 @@ func NewGetCmd() *cobra.Command {
 					fmt.Fprintln(out, "ROOM: (no messages yet)")
 				} else {
 					fmt.Fprintln(out, "ROOM:")
-					for _, msg := range roomMessages {
-						fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+					lines := FormatMessageListAccordion(roomMessages, AccordionOptions{
+						ShowAll:     showAllMessages,
+						ProjectName: projectName,
+						AgentBases:  agentBases,
+					})
+					for _, line := range lines {
+						fmt.Fprintln(out, line)
 					}
 				}
 
@@ -239,12 +379,64 @@ func NewGetCmd() *cobra.Command {
 				if len(filtered) == 0 {
 					fmt.Fprintf(out, "@%s: (no additional mentions)\n", agentBase)
 				} else {
-					fmt.Fprintf(out, "@%s:\n", agentBase)
+					// Categorize mentions: direct vs FYI vs stale
+					now := time.Now().Unix()
+					staleThreshold := now - 2*60*60 // 2 hours
+					var direct, fyi, stale []types.Message
 					for _, msg := range filtered {
-						fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
-						for _, reactionLine := range formatReactionEvents(msg) {
-							fmt.Fprintf(out, "  %s\n", reactionLine)
+						if msg.TS < staleThreshold {
+							stale = append(stale, msg)
+						} else if isDirectMention(msg.Body, agentBase) {
+							direct = append(direct, msg)
+						} else {
+							fyi = append(fyi, msg)
 						}
+					}
+
+					if len(direct) > 0 {
+						fmt.Fprintf(out, "Recent @%s:\n", agentBase)
+						for _, msg := range direct {
+							fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+							for _, reactionLine := range formatReactionEvents(msg) {
+								fmt.Fprintf(out, "  %s\n", reactionLine)
+							}
+						}
+					}
+
+					if len(fyi) > 0 {
+						if len(direct) > 0 {
+							fmt.Fprintln(out, "")
+						}
+						fmt.Fprintln(out, "You were FYI'd here:")
+						for _, msg := range fyi {
+							fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+						}
+					}
+
+					if len(stale) > 0 {
+						if len(direct) > 0 || len(fyi) > 0 {
+							fmt.Fprintln(out, "")
+						}
+						fmt.Fprintf(out, "%d likely stale (>2h):\n", len(stale))
+						for _, msg := range stale {
+							fmt.Fprintln(out, FormatMessagePreview(msg, projectName))
+						}
+					}
+
+					if len(direct) == 0 && len(fyi) == 0 && len(stale) == 0 {
+						fmt.Fprintf(out, "@%s: (no additional mentions)\n", agentBase)
+					}
+				}
+
+				// Show thread activity hints
+				threadHints, _ := getThreadActivityHints(ctx, agentBase)
+				if len(threadHints) > 0 {
+					fmt.Fprintln(out, "")
+					fmt.Fprintln(out, "---")
+					fmt.Fprintln(out, "")
+					fmt.Fprintln(out, "Threads:")
+					for _, hint := range threadHints {
+						fmt.Fprintln(out, formatThreadHint(hint))
 					}
 				}
 
@@ -273,13 +465,10 @@ func NewGetCmd() *cobra.Command {
 					fmt.Fprintf(out, "Active claims: %s\n", strings.Join(claimParts, ", "))
 				}
 
-				fmt.Fprintln(out, "")
-				fmt.Fprintln(out, "---")
-				fmt.Fprintf(out, "More: fray get --last 50 | fray @%s --all | fray get --since <guid>\n", agentBase)
 				return nil
 			}
 
-			return writeCommandError(cmd, fmt.Errorf("usage: fray get <agent>        Combined room + @mentions view\n       fray get --last <n>     Last N messages\n       fray get --since <guid> Messages after GUID\n       fray get --all          All messages"))
+			return writeCommandError(cmd, fmt.Errorf("usage: fray get <agent>           Unread room + @mentions (default)\n       fray get <agent> --last <n> Last N room messages\n       fray get --last <n>         Last N messages (no agent)\n       fray get --since <guid>     Messages after GUID\n       fray get --all              All messages"))
 		},
 	}
 
@@ -295,8 +484,333 @@ func NewGetCmd() *cobra.Command {
 	cmd.Flags().Bool("archived", false, "include archived messages")
 	cmd.Flags().Bool("hide-events", false, "hide event messages")
 	cmd.Flags().Bool("show-events", false, "show event messages")
+	cmd.Flags().Bool("show-all", false, "disable accordion, show all messages fully")
+	cmd.Flags().String("as", "", "agent identity (uses FRAY_AGENT_ID if not set)")
+	cmd.Flags().Bool("replies", false, "show message with reply chain")
+
+	// Within-thread filters
+	cmd.Flags().Bool("pinned", false, "show only pinned messages (threads only)")
+	cmd.Flags().String("by", "", "filter messages by agent")
+	cmd.Flags().String("with", "", "filter messages containing text")
+	cmd.Flags().Bool("reactions", false, "show only messages with reactions")
 
 	return cmd
+}
+
+// getThread displays messages from a thread.
+func getThread(cmd *cobra.Command, ctx *CommandContext, thread *types.Thread, last, since string, showAll bool, projectName string, agentBases map[string]struct{}, hideEvents bool, pinnedOnly bool, byAgent, withText string, reactionsOnly bool) error {
+	var messages []types.Message
+	var err error
+
+	// Handle --pinned: use dedicated query for pinned messages
+	if pinnedOnly {
+		messages, err = db.GetPinnedMessages(ctx.DB, thread.GUID)
+		if err != nil {
+			return writeCommandError(cmd, err)
+		}
+	} else {
+		messages, err = db.GetThreadMessages(ctx.DB, thread.GUID)
+		if err != nil {
+			return writeCommandError(cmd, err)
+		}
+	}
+	messages, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, messages)
+	if err != nil {
+		return writeCommandError(cmd, err)
+	}
+	messages = filterDeletedMessages(messages)
+
+	// Apply --since filter
+	if since != "" {
+		cursor, err := core.ParseTimeExpression(ctx.DB, since, "since")
+		if err != nil {
+			return writeCommandError(cmd, err)
+		}
+		var filtered []types.Message
+		for _, msg := range messages {
+			if cursor.GUID != "" && msg.ID > cursor.GUID {
+				filtered = append(filtered, msg)
+			} else if cursor.GUID == "" && msg.TS > cursor.TS {
+				filtered = append(filtered, msg)
+			}
+		}
+		messages = filtered
+	}
+
+	// Apply --by filter (filter by agent)
+	if byAgent != "" {
+		agentID := ResolveAgentRef(byAgent, ctx.ProjectConfig)
+		var filtered []types.Message
+		for _, msg := range messages {
+			if msg.FromAgent == agentID || strings.HasPrefix(msg.FromAgent, agentID+".") {
+				filtered = append(filtered, msg)
+			}
+		}
+		messages = filtered
+	}
+
+	// Apply --with filter (text search)
+	if withText != "" {
+		searchLower := strings.ToLower(withText)
+		var filtered []types.Message
+		for _, msg := range messages {
+			if strings.Contains(strings.ToLower(msg.Body), searchLower) {
+				filtered = append(filtered, msg)
+			}
+		}
+		messages = filtered
+	}
+
+	// Apply --reactions filter
+	if reactionsOnly {
+		var filtered []types.Message
+		for _, msg := range messages {
+			if len(msg.Reactions) > 0 {
+				filtered = append(filtered, msg)
+			}
+		}
+		messages = filtered
+	}
+
+	// Apply --last limit
+	if last != "" {
+		limit, err := strconv.Atoi(last)
+		if err != nil {
+			return writeCommandError(cmd, fmt.Errorf("invalid --last value: %s", last))
+		}
+		if limit > 0 && len(messages) > limit {
+			messages = messages[len(messages)-limit:]
+		}
+	}
+
+	if hideEvents {
+		messages = filterEventMessages(messages)
+	}
+
+	path, _ := buildThreadPath(ctx.DB, thread)
+
+	if ctx.JSONMode {
+		payload := map[string]any{
+			"thread":   thread,
+			"path":     path,
+			"messages": messages,
+		}
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
+	}
+
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Thread %s (%s)\n\n", path, thread.GUID)
+
+	if len(messages) == 0 {
+		fmt.Fprintln(out, "No messages in thread")
+		return nil
+	}
+
+	quotedMsgs := CollectQuotedMessages(ctx.DB, messages)
+	lines := FormatMessageListAccordion(messages, AccordionOptions{
+		ShowAll:     showAll,
+		ProjectName: projectName,
+		AgentBases:  agentBases,
+		QuotedMsgs:  quotedMsgs,
+	})
+	for _, line := range lines {
+		fmt.Fprintln(out, line)
+	}
+	return nil
+}
+
+// getMessage displays a single message.
+func getMessage(cmd *cobra.Command, ctx *CommandContext, msg *types.Message, projectName string, agentBases map[string]struct{}) error {
+	showReplies, _ := cmd.Flags().GetBool("replies")
+
+	if ctx.JSONMode {
+		if showReplies {
+			replies, _ := db.GetReplies(ctx.DB, msg.ID)
+			payload := map[string]any{
+				"message": msg,
+				"replies": replies,
+			}
+			return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
+		}
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(msg)
+	}
+
+	out := cmd.OutOrStdout()
+	fmt.Fprintln(out, FormatMessageFull(*msg, projectName, agentBases))
+
+	if showReplies {
+		replies, err := db.GetReplies(ctx.DB, msg.ID)
+		if err != nil {
+			return writeCommandError(cmd, err)
+		}
+		if len(replies) > 0 {
+			fmt.Fprintln(out, "\nReplies:")
+			for _, reply := range replies {
+				fmt.Fprintln(out, FormatMessage(reply, projectName, agentBases))
+			}
+		}
+	}
+	return nil
+}
+
+// getNotifications displays notifications for an agent.
+func getNotifications(cmd *cobra.Command, ctx *CommandContext, asRef, projectName string, agentBases map[string]struct{}, showAll bool) error {
+	agentID, err := resolveSubscriptionAgent(ctx, asRef)
+	if err != nil {
+		return writeCommandError(cmd, fmt.Errorf("--as is required for notifications"))
+	}
+
+	agentBase := agentID
+	if strings.Contains(agentID, ".") {
+		idx := strings.LastIndex(agentID, ".")
+		agentBase = agentID[:idx]
+	}
+
+	// Get @mentions
+	allHomes := ""
+	mentionOpts := &types.MessageQueryOptions{
+		Limit:                 20,
+		IncludeRepliesToAgent: agentBase,
+		AgentPrefix:           agentBase,
+		Home:                  &allHomes,
+	}
+
+	// Check ghost cursor for session-aware unread logic
+	useGhostCursorBoundary := false
+	mentionGhostCursor, _ := db.GetGhostCursor(ctx.DB, agentBase, "room")
+	if mentionGhostCursor != nil && mentionGhostCursor.SessionAckAt == nil {
+		msg, msgErr := db.GetMessage(ctx.DB, mentionGhostCursor.MessageGUID)
+		if msgErr == nil && msg != nil {
+			mentionOpts.Since = &types.MessageCursor{GUID: msg.ID, TS: msg.TS}
+			useGhostCursorBoundary = true
+		}
+	}
+	// Fall back to watermark-based boundary if no ghost cursor
+	// This handles users and agents without ghost cursors
+	if !useGhostCursorBoundary {
+		mentionWatermark, _ := db.GetReadTo(ctx.DB, agentBase, "mentions")
+		if mentionWatermark != nil {
+			mentionOpts.Since = &types.MessageCursor{GUID: mentionWatermark.MessageGUID, TS: mentionWatermark.MessageTS}
+		} else {
+			// No watermark either - use UnreadOnly as last resort
+			mentionOpts.UnreadOnly = true
+		}
+	}
+
+	mentionMessages, err := db.GetMessagesWithMention(ctx.DB, agentBase, mentionOpts)
+	if err != nil {
+		return writeCommandError(cmd, err)
+	}
+	mentionMessages, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, mentionMessages)
+	if err != nil {
+		return writeCommandError(cmd, err)
+	}
+
+	// Filter out self-mentions
+	filtered := make([]types.Message, 0, len(mentionMessages))
+	for _, msg := range mentionMessages {
+		parsed, err := core.ParseAgentID(msg.FromAgent)
+		if err != nil {
+			filtered = append(filtered, msg)
+			continue
+		}
+		if parsed.Base != agentBase {
+			filtered = append(filtered, msg)
+		}
+	}
+
+	// Get thread activity hints
+	threadHints, _ := getThreadActivityHints(ctx, agentBase)
+
+	if ctx.JSONMode {
+		payload := map[string]any{
+			"mentions": filtered,
+			"threads":  threadHints,
+		}
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
+	}
+
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Notifications for @%s\n\n", agentBase)
+
+	if len(filtered) == 0 {
+		fmt.Fprintln(out, "@mentions: (none)")
+	} else {
+		// Categorize mentions: direct vs FYI vs stale
+		now := time.Now().Unix()
+		staleThreshold := now - 2*60*60 // 2 hours
+		var direct, fyi, stale []types.Message
+		for _, msg := range filtered {
+			if msg.TS < staleThreshold {
+				stale = append(stale, msg)
+			} else if isDirectMention(msg.Body, agentBase) {
+				direct = append(direct, msg)
+			} else {
+				fyi = append(fyi, msg)
+			}
+		}
+
+		if len(direct) > 0 {
+			fmt.Fprintf(out, "Recent @%s:\n", agentBase)
+			for _, msg := range direct {
+				fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+			}
+		}
+
+		if len(fyi) > 0 {
+			if len(direct) > 0 {
+				fmt.Fprintln(out, "")
+			}
+			fmt.Fprintln(out, "You were FYI'd here:")
+			for _, msg := range fyi {
+				fmt.Fprintln(out, FormatMessage(msg, projectName, agentBases))
+			}
+		}
+
+		if len(stale) > 0 {
+			if len(direct) > 0 || len(fyi) > 0 {
+				fmt.Fprintln(out, "")
+			}
+			fmt.Fprintf(out, "%d likely stale (>2h):\n", len(stale))
+			for _, msg := range stale {
+				fmt.Fprintln(out, FormatMessagePreview(msg, projectName))
+			}
+		}
+
+		if len(direct) == 0 && len(fyi) == 0 && len(stale) == 0 {
+			fmt.Fprintln(out, "@mentions: (none)")
+		}
+	}
+
+	if len(threadHints) > 0 {
+		fmt.Fprintln(out, "\nThreads:")
+		for _, hint := range threadHints {
+			fmt.Fprintln(out, formatThreadHint(hint))
+		}
+	}
+
+	// Mark messages as read and update watermark
+	if len(filtered) > 0 {
+		ids := make([]string, 0, len(filtered))
+		for _, msg := range filtered {
+			ids = append(ids, msg.ID)
+		}
+		if err := db.MarkMessagesRead(ctx.DB, ids, agentBase); err != nil {
+			return writeCommandError(cmd, err)
+		}
+		// Also set watermark to the latest mention for durable read state
+		// This survives DB rebuilds unlike read receipts
+		lastMsg := filtered[len(filtered)-1]
+		_ = db.SetReadTo(ctx.DB, agentBase, "mentions", lastMsg.ID, lastMsg.TS)
+	}
+
+	// Ack ghost cursor if we used it as boundary
+	if useGhostCursorBoundary && mentionGhostCursor != nil {
+		now := time.Now().Unix()
+		_ = db.AckGhostCursor(ctx.DB, agentBase, "room", now)
+	}
+
+	return nil
 }
 
 func parseOptionalInt(value string, fallback int) int {
@@ -308,4 +822,129 @@ func parseOptionalInt(value string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+// ThreadActivityHint represents unread activity in a subscribed thread.
+type ThreadActivityHint struct {
+	ThreadGUID  string
+	ThreadName  string
+	NewCount    int
+	LastMessage *types.Message
+	MustRead    bool // from ghost cursor
+}
+
+// getThreadActivityHints returns activity hints for subscribed threads.
+func getThreadActivityHints(ctx *CommandContext, agentID string) ([]ThreadActivityHint, error) {
+	// Get subscribed threads (excluding muted)
+	threads, err := db.GetThreads(ctx.DB, &types.ThreadQueryOptions{
+		SubscribedAgent: &agentID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(threads) == 0 {
+		return nil, nil
+	}
+
+	// Get muted threads to filter
+	mutedGUIDs, err := db.GetMutedThreadGUIDs(ctx.DB, agentID)
+	if err != nil {
+		mutedGUIDs = map[string]bool{}
+	}
+
+	var hints []ThreadActivityHint
+	for _, thread := range threads {
+		if mutedGUIDs[thread.GUID] {
+			continue
+		}
+
+		// Determine read position - check ghost cursor first, then read_to
+		var sinceCursor *types.MessageCursor
+		mustRead := false
+
+		ghostCursor, _ := db.GetGhostCursor(ctx.DB, agentID, thread.GUID)
+		if ghostCursor != nil {
+			msg, err := db.GetMessage(ctx.DB, ghostCursor.MessageGUID)
+			if err == nil && msg != nil {
+				sinceCursor = &types.MessageCursor{GUID: msg.ID, TS: msg.TS}
+				mustRead = ghostCursor.MustRead
+			}
+		}
+
+		if sinceCursor == nil {
+			readTo, _ := db.GetReadTo(ctx.DB, agentID, thread.GUID)
+			if readTo != nil {
+				sinceCursor = &types.MessageCursor{GUID: readTo.MessageGUID, TS: readTo.MessageTS}
+			}
+		}
+
+		// Get messages since read position
+		home := thread.GUID
+		messages, err := db.GetMessages(ctx.DB, &types.MessageQueryOptions{
+			Home:  &home,
+			Since: sinceCursor,
+		})
+		if err != nil {
+			continue
+		}
+
+		if len(messages) == 0 {
+			continue
+		}
+
+		hint := ThreadActivityHint{
+			ThreadGUID:  thread.GUID,
+			ThreadName:  thread.Name,
+			NewCount:    len(messages),
+			LastMessage: &messages[len(messages)-1],
+			MustRead:    mustRead,
+		}
+		hints = append(hints, hint)
+	}
+
+	return hints, nil
+}
+
+// formatThreadHint formats a single thread activity hint.
+func formatThreadHint(hint ThreadActivityHint) string {
+	suffix := ""
+	if hint.MustRead {
+		suffix = " [must-read]"
+	}
+
+	// Extract first line, truncate to ~30 chars
+	context := ""
+	if hint.LastMessage != nil {
+		body := strings.TrimSpace(hint.LastMessage.Body)
+		// Get first line only
+		if idx := strings.Index(body, "\n"); idx > 0 {
+			body = body[:idx]
+		}
+		body = strings.TrimSpace(body)
+		if len(body) > 30 {
+			body = body[:27] + "..."
+		}
+		if body != "" {
+			context = fmt.Sprintf(" (last: @%s on %s)", hint.LastMessage.FromAgent, body)
+		}
+	}
+
+	return fmt.Sprintf("  %s: %d new%s%s", hint.ThreadName, hint.NewCount, context, suffix)
+}
+
+// isDirectMention checks if the message body starts with @agent (direct address).
+func isDirectMention(body, agentBase string) bool {
+	body = strings.TrimSpace(body)
+	// Check for @agent or @agent.* at start
+	if strings.HasPrefix(body, "@"+agentBase+" ") || strings.HasPrefix(body, "@"+agentBase+"\n") {
+		return true
+	}
+	if strings.HasPrefix(body, "@"+agentBase+".") {
+		// Could be @agent.1 or @agent.something
+		return true
+	}
+	if body == "@"+agentBase {
+		return true
+	}
+	return false
 }

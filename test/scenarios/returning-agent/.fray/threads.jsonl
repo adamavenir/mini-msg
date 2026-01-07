@@ -1,0 +1,5 @@
+{"type":"thread","guid":"thrd-meta0001","name":"meta","subscribed":["adam","neo","architect","reviewer","dev"],"status":"open","created_at":1767300000}
+{"type":"thread","guid":"thrd-neonotes","name":"neo-notes","owner":"neo","subscribed":["neo"],"status":"open","created_at":1767300100}
+{"type":"thread","guid":"thrd-design01","name":"design-discussion","owner":"architect","subscribed":["adam","neo","architect"],"status":"open","created_at":1767300200}
+{"type":"thread","guid":"thrd-review01","name":"code-review","owner":"reviewer","subscribed":["adam","reviewer","dev"],"status":"open","created_at":1767300300}
+{"type":"thread","guid":"thrd-deep0001","name":"deep-dive","owner":"adam","subscribed":["adam","neo","dev"],"status":"open","created_at":1767300400}

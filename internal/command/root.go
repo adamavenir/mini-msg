@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/adamavenir/fray/internal/command/hooks"
 	"github.com/spf13/cobra"
 )
 
@@ -38,6 +39,8 @@ func NewRootCmd(version string) *cobra.Command {
 		NewInitCmd(),
 		NewDestroyCmd(),
 		NewNewCmd(),
+		NewAgentCmd(),
+		NewDaemonCmd(),
 		NewBatchUpdateCmd(),
 		NewBackCmd(),
 		NewByeCmd(),
@@ -54,22 +57,33 @@ func NewRootCmd(version string) *cobra.Command {
 		NewClearCmd(),
 		NewStatusCmd(),
 		NewGetCmd(),
-		NewMentionsCmd(),
 		NewQuickstartCmd(),
-		NewHistoryCmd(),
-		NewBetweenCmd(),
 		NewReplyCmd(),
 		NewThreadCmd(),
 		NewThreadsCmd(),
+		NewPinCmd(),
+		NewUnpinCmd(),
+		NewMvCmd(),
+		NewFollowCmd(),
+		NewUnfollowCmd(),
+		NewMuteCmd(),
+		NewUnmuteCmd(),
+		NewAddCmd(),
+		NewRemoveCmd(),
+		NewArchiveCmd(),
+		NewRestoreCmd(),
+		NewAnchorCmd(),
 		NewWonderCmd(),
 		NewAskCmd(),
 		NewQuestionsCmd(),
 		NewQuestionCmd(),
+		NewAnswerCmd(),
 		NewSurfaceCmd(),
-		NewNoteCmd(),
-		NewNotesCmd(),
-		NewMetaCmd(),
-		NewUnreactCmd(),
+		NewReactCmd(),
+		NewFaveCmd(),
+		NewUnfaveCmd(),
+		NewFavesCmd(),
+		NewReactionsCmd(),
 		NewChatCmd(),
 		NewWatchCmd(),
 		NewPruneCmd(),
@@ -78,17 +92,23 @@ func NewRootCmd(version string) *cobra.Command {
 		NewInfoCmd(),
 		NewRenameCmd(),
 		NewMergeCmd(),
-		NewViewCmd(),
 		NewVersionsCmd(),
 		NewFilterCmd(),
 		NewLsCmd(),
 		NewMigrateCmd(),
-		NewHookInstallCmd(),
-		NewHookSessionCmd(),
-		NewHookPromptCmd(),
-		NewHookPrecommitCmd(),
-		NewHookPrecompactCmd(),
-		NewHookStatuslineCmd(),
+		NewRoleCmd(),
+		NewRolesCmd(),
+		NewRebuildCmd(),
+		NewHeartbeatCmd(),
+		NewClockCmd(),
+		NewCursorCmd(),
+		NewInstallNotifierCmd(),
+		hooks.NewHookInstallCmd(),
+		hooks.NewHookSessionCmd(),
+		hooks.NewHookPromptCmd(),
+		hooks.NewHookPrecommitCmd(),
+		hooks.NewHookPrecompactCmd(),
+		hooks.NewHookStatuslineCmd(),
 	)
 
 	return cmd
@@ -96,7 +116,33 @@ func NewRootCmd(version string) *cobra.Command {
 
 func Execute() error {
 	os.Args = rewriteMentionArgs(os.Args)
+	os.Args = rewriteMessageIDArgs(os.Args)
 	return NewRootCmd(Version).Execute()
+}
+
+// rewriteMessageIDArgs rewrites "fray msg-xxx" to "fray get msg-xxx".
+func rewriteMessageIDArgs(args []string) []string {
+	if len(args) < 2 {
+		return args
+	}
+	idx := findFirstNonFlagArg(args[1:])
+	if idx == -1 {
+		return args
+	}
+	fullIdx := idx + 1
+	if fullIdx >= len(args) {
+		return args
+	}
+	arg := args[fullIdx]
+	// Check if it looks like a message ID (msg-xxxx or short prefix)
+	if strings.HasPrefix(arg, "msg-") {
+		updated := make([]string, 0, len(args)+1)
+		updated = append(updated, args[:fullIdx]...)
+		updated = append(updated, "get")
+		updated = append(updated, args[fullIdx:]...)
+		return updated
+	}
+	return args
 }
 
 func rewriteMentionArgs(args []string) []string {
@@ -114,10 +160,12 @@ func rewriteMentionArgs(args []string) []string {
 	if !strings.HasPrefix(args[fullIdx], "@") {
 		return args
 	}
-	updated := make([]string, 0, len(args)+1)
+	// Rewrite "@agent" to "get notifs --as agent"
+	agent := strings.TrimPrefix(args[fullIdx], "@")
+	updated := make([]string, 0, len(args)+3)
 	updated = append(updated, args[:fullIdx]...)
-	updated = append(updated, "mentions")
-	updated = append(updated, args[fullIdx:]...)
+	updated = append(updated, "get", "notifs", "--as", agent)
+	updated = append(updated, args[fullIdx+1:]...)
 	return updated
 }
 

@@ -1,0 +1,5 @@
+{"type":"question","guid":"qstn-old0001","re":"Should we use symmetric or asymmetric keys for JWT?","from_agent":"adam","to":"neo","status":"closed","asked_in":"msg-trigger1","created_at":1767300100}
+{"type":"question_update","guid":"qstn-old0001","status":"closed","answered_by":"neo","answered_in":"msg-neo-read1"}
+{"type":"question","guid":"qstn-new0001","re":"Have we considered PASETO instead of JWT?","from_agent":"dev","to":"neo","status":"open","asked_in":"msg-unread05","created_at":1767400400}
+{"type":"question","guid":"qstn-new0002","re":"How should auth errors integrate with the new error handling pattern?","from_agent":"adam","to":"neo","status":"open","asked_in":"msg-unread14","created_at":1767401400}
+{"type":"question","guid":"qstn-wonder1","re":"Is the token expiry of 15 minutes too aggressive for mobile clients?","from_agent":"architect","status":"unasked","created_at":1767400150}

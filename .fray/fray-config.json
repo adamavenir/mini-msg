@@ -4,6 +4,48 @@
   "channel_name": "fray",
   "created_at": "2025-12-30T22:31:18Z",
   "known_agents": {
+    "usr-40vqblz3": {
+      "name": "reviewer",
+      "global_name": "fray-reviewer",
+      "home_channel": "ch-xkzte3i1",
+      "created_at": "2026-01-02T08:40:34Z",
+      "status": "active"
+    },
+    "usr-92xycnq2": {
+      "name": "testagent2",
+      "global_name": "fray-testagent2",
+      "home_channel": "ch-xkzte3i1",
+      "created_at": "2026-01-05T08:04:14Z",
+      "status": "active"
+    },
+    "usr-fp2pbez5": {
+      "name": "architect",
+      "global_name": "fray-architect",
+      "home_channel": "ch-xkzte3i1",
+      "created_at": "2026-01-01T07:48:55Z",
+      "status": "active"
+    },
+    "usr-gb0o3gox": {
+      "name": "testdmtwo",
+      "global_name": "fray-testdmtwo",
+      "home_channel": "ch-xkzte3i1",
+      "created_at": "2026-01-02T19:54:38Z",
+      "status": "active"
+    },
+    "usr-godl0o7p": {
+      "name": "testagent",
+      "global_name": "fray-testagent",
+      "home_channel": "ch-xkzte3i1",
+      "created_at": "2026-01-05T05:23:24Z",
+      "status": "active"
+    },
+    "usr-mptuvoqg": {
+      "name": "dev",
+      "global_name": "fray-dev",
+      "home_channel": "ch-xkzte3i1",
+      "created_at": "2026-01-02T08:02:13Z",
+      "status": "active"
+    },
     "usr-na579glt": {
       "name": "opus",
       "global_name": "fray-opus",
@@ -11,11 +53,32 @@
       "created_at": "2025-12-30T23:28:41Z",
       "status": "active"
     },
+    "usr-s31iqiyr": {
+      "name": "newhierarchy",
+      "global_name": "fray-newhierarchy",
+      "home_channel": "ch-xkzte3i1",
+      "created_at": "2026-01-05T07:57:38Z",
+      "status": "active"
+    },
     "usr-v9m0ml5h": {
       "name": "designer",
       "global_name": "fray-designer",
       "home_channel": "ch-xkzte3i1",
       "created_at": "2025-12-31T18:30:32Z",
+      "status": "active"
+    },
+    "usr-w9o2yg9y": {
+      "name": "test-dm-agent",
+      "global_name": "fray-test-dm-agent",
+      "home_channel": "ch-xkzte3i1",
+      "created_at": "2026-01-02T19:54:19Z",
+      "status": "active"
+    },
+    "usr-xz29xayc": {
+      "name": "gpt52",
+      "global_name": "fray-gpt52",
+      "home_channel": "ch-xkzte3i1",
+      "created_at": "2025-12-31T22:32:36Z",
       "status": "active"
     }
   }

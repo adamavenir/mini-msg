@@ -28,6 +28,56 @@ FRAY uses a GUID-based architecture inspired by beads, enabling:
   fray-config.json      # Global channel registry
 ```
 
+## Code Organization
+
+```
+cmd/
+  fray/               # CLI entry point
+  fray-mcp/           # MCP server entry point
+
+internal/
+  chat/               # Bubble Tea chat UI
+    model.go          # Core model and update loop
+    viewport.go       # Viewport management
+    input.go          # Input handling
+    messages.go       # Message rendering
+    panels.go         # Panel switching
+    questions.go      # Question handling
+    suggestions.go    # Autocomplete
+    layout.go         # Layout calculations
+    colors.go         # Theme and styling
+    highlighting.go   # Syntax highlighting
+
+  command/            # Cobra CLI commands
+    hooks/            # Claude Code hook infrastructure
+      hook_install.go
+      hook_session.go
+      hook_prompt.go
+      hook_precommit.go
+      hook_precompact.go
+      hook_statusline.go
+
+  core/               # Project discovery, GUIDs, mentions, time parsing
+
+  db/                 # Database layer
+    queries_agents.go     # Agent CRUD
+    queries_messages.go   # Message CRUD, reactions, replies
+    queries_threads.go    # Thread CRUD, subscriptions
+    queries_questions.go  # Question CRUD
+    queries_claims.go     # Claims and collision detection
+    queries_config.go     # Config, filters, read tracking
+    queries.go            # Shared query helpers
+    jsonl_append.go       # JSONL append operations
+    jsonl_read.go         # JSONL read and version history
+    jsonl_rebuild.go      # Database rebuild from JSONL
+    jsonl.go              # JSONL types and constants
+    schema.go             # SQLite schema
+    open.go               # Database opening and auto-rebuild
+
+  types/              # Shared Go types
+  mcp/                # MCP server implementation
+```
+
 ## ID System
 
 ### Internal GUIDs (Stable, Never Change)

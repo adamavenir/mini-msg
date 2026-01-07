@@ -43,15 +43,22 @@ func TestSplitCommaList(t *testing.T) {
 }
 
 func TestRewriteMentionArgs(t *testing.T) {
+	// @alice → get notifs --as alice
 	args := []string{"fray", "--project", "foo", "@alice", "--last", "5"}
 	updated := rewriteMentionArgs(args)
-	if len(updated) != len(args)+1 {
-		t.Fatalf("expected mention insert, got %v", updated)
+	// Original: fray --project foo @alice --last 5
+	// Expected: fray --project foo get notifs --as alice --last 5
+	expected := []string{"fray", "--project", "foo", "get", "notifs", "--as", "alice", "--last", "5"}
+	if len(updated) != len(expected) {
+		t.Fatalf("expected %v, got %v", expected, updated)
 	}
-	if updated[3] != "mentions" {
-		t.Fatalf("expected mentions inserted, got %v", updated)
+	for i, exp := range expected {
+		if updated[i] != exp {
+			t.Fatalf("at index %d: expected %q, got %q (full: %v)", i, exp, updated[i], updated)
+		}
 	}
 
+	// No @mention - no rewrite
 	args = []string{"fray", "get", "--last", "5"}
 	updated = rewriteMentionArgs(args)
 	if len(updated) != len(args) {

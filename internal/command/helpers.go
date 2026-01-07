@@ -207,3 +207,72 @@ func filterEventMessages(messages []types.Message) []types.Message {
 	}
 	return filtered
 }
+
+func filterDeletedMessages(messages []types.Message) []types.Message {
+	filtered := make([]types.Message, 0, len(messages))
+	for _, msg := range messages {
+		if msg.ArchivedAt != nil && msg.Body == "[deleted]" {
+			continue
+		}
+		filtered = append(filtered, msg)
+	}
+	return filtered
+}
+
+// subscribeAgentToThread subscribes an agent to a thread if not already subscribed.
+// Source indicates how the subscription was triggered (post, mention, reply).
+// For mentions, resolves to actual agents using prefix matching (e.g., "alice" -> "alice.1").
+func subscribeAgentToThread(ctx *CommandContext, threadGUID, agentID string, at int64, source string) error {
+	// Try exact match first
+	agent, err := db.GetAgent(ctx.DB, agentID)
+	if err != nil {
+		return err
+	}
+
+	// If no exact match and this is a mention, try prefix matching
+	if agent == nil && source == "mention" {
+		agents, err := db.GetAgentsByPrefix(ctx.DB, agentID)
+		if err != nil {
+			return err
+		}
+		// Subscribe all matching agents
+		for _, a := range agents {
+			if a.LeftAt != nil {
+				continue // Skip agents who have left
+			}
+			if err := subscribeAgentDirect(ctx, threadGUID, a.AgentID, at); err != nil {
+				continue // Non-fatal for batch operations
+			}
+		}
+		return nil
+	}
+
+	if agent == nil {
+		// Agent doesn't exist, skip subscription
+		return nil
+	}
+
+	if agent.LeftAt != nil {
+		// Agent has left, skip subscription
+		return nil
+	}
+
+	return subscribeAgentDirect(ctx, threadGUID, agentID, at)
+}
+
+// subscribeAgentDirect subscribes an agent without resolution.
+func subscribeAgentDirect(ctx *CommandContext, threadGUID, agentID string, at int64) error {
+	if err := db.SubscribeThread(ctx.DB, threadGUID, agentID, at); err != nil {
+		return err
+	}
+
+	if err := db.AppendThreadSubscribe(ctx.Project.DBPath, db.ThreadSubscribeJSONLRecord{
+		ThreadGUID:   threadGUID,
+		AgentID:      agentID,
+		SubscribedAt: at,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}

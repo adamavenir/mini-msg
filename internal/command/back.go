@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adamavenir/fray/internal/command/hooks"
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
@@ -42,6 +43,11 @@ func NewBackCmd() *cobra.Command {
 
 			// Check if there was a prior bye (left_at was set)
 			hadPriorBye := agent.LeftAt != nil
+
+			// Clear ghost cursor session acks so cursors become "unread" for new session
+			if err := db.ClearGhostCursorSessionAcks(ctx.DB, agentID); err != nil {
+				return writeCommandError(cmd, err)
+			}
 
 			now := time.Now().Unix()
 			updates := db.AgentUpdates{
@@ -100,7 +106,7 @@ func NewBackCmd() *cobra.Command {
 				}
 			}
 
-			wroteEnv := WriteClaudeEnv(agentID)
+			wroteEnv := hooks.WriteClaudeEnv(agentID)
 
 			if jsonMode {
 				payload := map[string]any{

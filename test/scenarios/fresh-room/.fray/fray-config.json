@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "channel_id": "ch-test-fresh",
+  "channel_name": "fresh-room-test",
+  "created_at": "2026-01-01T00:00:00Z",
+  "known_agents": {
+    "usr-human001": {
+      "name": "adam",
+      "global_name": "fray-adam",
+      "home_channel": "ch-test-fresh",
+      "created_at": "2026-01-01T00:00:00Z",
+      "status": "active"
+    }
+  }
+}

@@ -65,16 +65,24 @@ func resolveGUIDCursor(db *sql.DB, expr string) (*types.MessageCursor, error) {
 	if trimmed == "" {
 		return nil, nil
 	}
-	if !strings.HasPrefix(trimmed, "#") && !strings.HasPrefix(trimmed, "msg-") {
-		return nil, nil
-	}
 
+	// Determine the lookup ID - strip # prefix if present
 	raw := trimmed
-	if strings.HasPrefix(raw, "#") {
+	hasHashPrefix := strings.HasPrefix(raw, "#")
+	if hasHashPrefix {
 		raw = raw[1:]
 	}
 
-	if strings.HasPrefix(raw, "msg-") {
+	// Check if it looks like a message reference (has msg- prefix, or bare alphanumeric)
+	hasMsgPrefix := strings.HasPrefix(raw, "msg-")
+	looksLikeID := hasMsgPrefix || hasHashPrefix || isAlphanumeric(raw)
+
+	if !looksLikeID {
+		return nil, nil
+	}
+
+	// Full GUID: exact match
+	if hasMsgPrefix {
 		row := db.QueryRow("SELECT guid, ts FROM fray_messages WHERE guid = ?", raw)
 		var guid string
 		var ts int64
@@ -87,8 +95,9 @@ func resolveGUIDCursor(db *sql.DB, expr string) (*types.MessageCursor, error) {
 		return &types.MessageCursor{GUID: guid, TS: ts}, nil
 	}
 
+	// Short ID: prefix match
 	if len(raw) < 2 {
-		return nil, fmt.Errorf("GUID prefix too short: %s", raw)
+		return nil, fmt.Errorf("ID prefix too short: %s", raw)
 	}
 
 	like := fmt.Sprintf("msg-%s%%", raw)
@@ -120,7 +129,7 @@ func resolveGUIDCursor(db *sql.DB, expr string) (*types.MessageCursor, error) {
 	}
 
 	if len(results) == 0 {
-		return nil, fmt.Errorf("no message matches #%s", raw)
+		return nil, fmt.Errorf("no message matches %s", trimmed)
 	}
 	if len(results) > 1 {
 		refs := make([]string, 0, len(results))
@@ -131,10 +140,22 @@ func resolveGUIDCursor(db *sql.DB, expr string) (*types.MessageCursor, error) {
 			}
 			refs = append(refs, "#"+reference)
 		}
-		return nil, fmt.Errorf("ambiguous #%s. Matches: %s", raw, strings.Join(refs, ", "))
+		return nil, fmt.Errorf("ambiguous %s. Matches: %s", trimmed, strings.Join(refs, ", "))
 	}
 
 	return &types.MessageCursor{GUID: results[0].GUID, TS: results[0].TS}, nil
+}
+
+func isAlphanumeric(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for _, r := range s {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
 }
 
 func cursorForTime(ts time.Time, mode string) types.MessageCursor {

@@ -11,7 +11,7 @@ import (
 	"github.com/adamavenir/fray/internal/types"
 )
 
-func TestViewCommandShowsFullMessage(t *testing.T) {
+func TestGetMessageShowsFullMessage(t *testing.T) {
 	projectDir := t.TempDir()
 	project, err := core.InitProject(projectDir, false)
 	if err != nil {
@@ -79,13 +79,13 @@ func TestViewCommandShowsFullMessage(t *testing.T) {
 	})
 
 	cmd := NewRootCmd("test")
-	output, err := executeCommand(cmd, "view", posted.ID)
+	output, err := executeCommand(cmd, "get", posted.ID)
 	if err != nil {
-		t.Fatalf("view command: %v", err)
+		t.Fatalf("get message command: %v", err)
 	}
 
-	if !strings.Contains(output, "Message #"+posted.ID) {
-		t.Fatalf("expected header in output, got %q", output)
+	if !strings.Contains(output, posted.ID) {
+		t.Fatalf("expected message ID in output, got %q", output)
 	}
 	if !strings.Contains(output, body) {
 		t.Fatalf("expected full body in output, got %q", output)

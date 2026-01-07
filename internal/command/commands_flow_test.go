@@ -109,13 +109,22 @@ func TestEditRequiresReasonAndCreatesEvent(t *testing.T) {
 	msgID := findRoomMessageByBody(t, dbConn, "ping")
 	_ = dbConn.Close()
 
+	// Human case (--as flag, no env var): -m is optional
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "edit", msgID, "pong", "--as", "alice"); err == nil {
-		t.Fatalf("expected edit to require -m")
+	if _, err := executeCommand(cmd, "edit", msgID, "pong", "--as", "alice"); err != nil {
+		t.Fatalf("edit without -m should work for humans: %v", err)
 	}
 
+	// Agent case (FRAY_AGENT_ID set): -m is required
+	t.Setenv("FRAY_AGENT_ID", "alice")
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "edit", msgID, "pong", "--as", "alice", "-m", "fix typo"); err != nil {
+	if _, err := executeCommand(cmd, "edit", msgID, "pong2"); err == nil {
+		t.Fatalf("expected edit to require -m for agents")
+	}
+
+	// Agent case with -m: should work
+	cmd = NewRootCmd("test")
+	if _, err := executeCommand(cmd, "edit", msgID, "pong3", "-m", "fix typo"); err != nil {
 		t.Fatalf("edit command: %v", err)
 	}
 
@@ -126,23 +135,24 @@ func TestEditRequiresReasonAndCreatesEvent(t *testing.T) {
 		t.Fatalf("get messages: %v", err)
 	}
 
+	// Find the event with "fix typo" reason (from agent edit)
 	var event *types.Message
 	for _, msg := range messages {
 		if msg.Type != types.MessageTypeEvent {
 			continue
 		}
-		if msg.References != nil && *msg.References == msgID {
+		if msg.References != nil && *msg.References == msgID && strings.Contains(msg.Body, "fix typo") {
 			event = &msg
 			break
 		}
 	}
 	if event == nil {
-		t.Fatalf("expected edit event message")
+		t.Fatalf("expected edit event message with reason")
 	}
 	if event.FromAgent != "alice" {
 		t.Fatalf("expected event from alice, got %s", event.FromAgent)
 	}
-	if !strings.Contains(event.Body, "edited #") || !strings.Contains(event.Body, "fix typo") {
+	if !strings.Contains(event.Body, "edited #") {
 		t.Fatalf("unexpected event body: %q", event.Body)
 	}
 	if event.Home != "room" {
@@ -245,8 +255,8 @@ func TestThreadCommandFlow(t *testing.T) {
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "thread", "new", "analysis"); err != nil {
-		t.Fatalf("thread new: %v", err)
+	if _, err := executeCommand(cmd, "thread", "analysis"); err != nil {
+		t.Fatalf("thread create: %v", err)
 	}
 
 	cmd = NewRootCmd("test")
@@ -259,13 +269,13 @@ func TestThreadCommandFlow(t *testing.T) {
 	_ = dbConn.Close()
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "thread", "add", "analysis", roomMsgID, "--as", "alice"); err != nil {
-		t.Fatalf("thread add: %v", err)
+	if _, err := executeCommand(cmd, "add", "analysis", roomMsgID, "--as", "alice"); err != nil {
+		t.Fatalf("add: %v", err)
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "thread", "subscribe", "analysis", "--agent", "alice"); err != nil {
-		t.Fatalf("thread subscribe: %v", err)
+	if _, err := executeCommand(cmd, "follow", "analysis", "--as", "alice"); err != nil {
+		t.Fatalf("follow: %v", err)
 	}
 
 	dbConn = openProjectDB(t, projectDir)
@@ -283,7 +293,14 @@ func TestThreadCommandFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get subscribed threads: %v", err)
 	}
-	if len(threads) != 1 || threads[0].GUID != thread.GUID {
+	found := false
+	for _, t := range threads {
+		if t.GUID == thread.GUID {
+			found = true
+			break
+		}
+	}
+	if !found {
 		t.Fatalf("expected subscription to analysis thread")
 	}
 
@@ -323,8 +340,8 @@ func TestCrossThreadReplyAutoAdd(t *testing.T) {
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "thread", "new", "analysis"); err != nil {
-		t.Fatalf("thread new: %v", err)
+	if _, err := executeCommand(cmd, "thread", "analysis"); err != nil {
+		t.Fatalf("thread create: %v", err)
 	}
 
 	cmd = NewRootCmd("test")

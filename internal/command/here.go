@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/adamavenir/fray/internal/db"
@@ -56,9 +57,14 @@ func NewHereCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
+			allRoles, err := db.GetAllAgentRoles(ctx.DB)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+
 			if ctx.JSONMode {
 				payload := map[string]any{
-					"agents": buildHerePayload(agents, claimCounts, messageCounts),
+					"agents": buildHerePayload(agents, claimCounts, messageCounts, allRoles),
 					"total":  len(agents),
 				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
@@ -85,7 +91,11 @@ func NewHereCmd() *cobra.Command {
 				if agent.Status != nil && *agent.Status != "" {
 					status = " - " + *agent.Status
 				}
-				fmt.Fprintf(out, "  @%s%s%s\n", agent.AgentID, claimInfo, status)
+				roleInfo := ""
+				if roles := allRoles[agent.AgentID]; roles != nil {
+					roleInfo = formatRoleInfo(roles)
+				}
+				fmt.Fprintf(out, "  @%s%s%s%s\n", agent.AgentID, roleInfo, claimInfo, status)
 				fmt.Fprintf(out, "    last seen: %s\n", formatRelative(agent.LastSeen))
 			}
 
@@ -97,19 +107,35 @@ func NewHereCmd() *cobra.Command {
 	return cmd
 }
 
-func buildHerePayload(agents []types.Agent, claimCounts map[string]int64, messageCounts map[string]int64) []map[string]any {
+func buildHerePayload(agents []types.Agent, claimCounts map[string]int64, messageCounts map[string]int64, allRoles map[string]*types.AgentRoles) []map[string]any {
 	payload := make([]map[string]any, 0, len(agents))
 	for _, agent := range agents {
-		payload = append(payload, map[string]any{
+		entry := map[string]any{
 			"agent_id":      agent.GUID,
 			"display_name":  agent.AgentID,
 			"status":        agent.Status,
 			"last_active":   timeISO(agent.LastSeen),
 			"message_count": messageCounts[agent.AgentID],
 			"claim_count":   claimCounts[agent.AgentID],
-		})
+		}
+		if roles := allRoles[agent.AgentID]; roles != nil {
+			entry["roles_held"] = roles.Held
+			entry["roles_playing"] = roles.Playing
+		}
+		payload = append(payload, entry)
 	}
 	return payload
+}
+
+func formatRoleInfo(roles *types.AgentRoles) string {
+	if len(roles.Held) == 0 && len(roles.Playing) == 0 {
+		return ""
+	}
+	allRoles := append([]string{}, roles.Held...)
+	for _, r := range roles.Playing {
+		allRoles = append(allRoles, r+"*")
+	}
+	return " [" + strings.Join(allRoles, ", ") + "]"
 }
 
 func timeISO(ts int64) string {

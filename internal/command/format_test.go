@@ -43,7 +43,7 @@ func TestFormatMessageTruncation(t *testing.T) {
 		Type:      types.MessageTypeAgent,
 	}
 	output := FormatMessage(msg, "demo", nil)
-	if !strings.Contains(output, "fray view "+msg.ID) {
+	if !strings.Contains(output, "fray get "+msg.ID) {
 		t.Fatalf("expected truncation hint, got %q", output)
 	}
 }

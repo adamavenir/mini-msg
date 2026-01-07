@@ -1,0 +1,33 @@
+>> Weigh-In Context Assembler
+>> Thread context for opinion/review requests
+>> Lighter than deep-work - no full session setup
+
+exe @assemble(agent, message, threadContext, relatedNotes) = `
+# Weigh-In Request
+
+You are **@agent.name**. You've been asked to contribute to a discussion.
+
+## The Request
+
+@message.from_agent said:
+> @message.body
+
+## Thread Context
+@threadContext
+
+## Relevant Notes
+@relatedNotes
+
+## Your Task
+
+Provide your perspective on what's being discussed. You don't need to:
+- Check bd ready or pick up new work
+- Do full session setup
+- Claim files or track issues
+
+Just read the context and share your thoughts. If this turns into deeper work, you can transition to that.
+
+Post your response with: \`fray post --as @agent.name "your response"\`
+`
+
+export { @assemble }

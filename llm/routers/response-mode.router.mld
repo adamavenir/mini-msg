@@ -1,0 +1,67 @@
+>> Response Mode Router
+>> Determines what kind of response an agent should give
+>> Modes: deep-work, weigh-in, quick-answer, acknowledge
+
+import { @haiku } from "@lib/claude.mld"
+
+>> Deterministic signals for response mode
+>> Returns: { mode: string, confidence: 0-1 }
+exe @detectSignals(message) = [
+  let @body = @message.body.trim().toLowerCase()
+  let @len = @message.body.length
+
+  >> Task initiation signals
+  let @hasTaskVerb = @body.match("^(please |can you |could you |would you |help me |implement |create |build |fix |add |update |refactor )")
+  let @hasAssignment = @body.match("(your task|you should|you need to|please do)")
+
+  >> Weigh-in signals
+  let @hasOpinionAsk = @body.match("(what do you think|thoughts\\?|your take|weigh in|opinion|perspective|feedback)")
+  let @hasReviewAsk = @body.match("(review|look at|check |take a look)")
+
+  >> Quick answer signals
+  let @isShortQuestion = @len < 100 && @body.match("\\?$")
+  let @hasSimpleAsk = @body.match("^(what|where|how|why|when|is |are |do |does |can )")
+
+  >> FYI signals (should be filtered by vftl, but fallback)
+  let @isFyi = @body.match("^(fyi|cc |heads up|just so you know)")
+
+  => when first [
+    @isFyi => { mode: "acknowledge", confidence: 0.9 }
+    @hasTaskVerb || @hasAssignment => { mode: "deep-work", confidence: 0.7 }
+    @hasOpinionAsk || @hasReviewAsk => { mode: "weigh-in", confidence: 0.7 }
+    @isShortQuestion && @hasSimpleAsk => { mode: "quick-answer", confidence: 0.7 }
+    * => { mode: "unknown", confidence: 0 }
+  ]
+]
+
+>> Build Haiku prompt for ambiguous cases
+exe @buildPrompt(message, threadContext, agentNotes) = template "./response-mode.prompt.att"
+
+>> Refine with Haiku when deterministic signals are inconclusive
+exe @refineWithHaiku(message, threadContext, agentNotes) = [
+  let @prompt = @buildPrompt(@message, @threadContext, @agentNotes)
+  let @response = @haiku(@prompt)
+  let @result = @response | @json.llm
+  => @result
+]
+
+>> Main router entry point
+>> Input: { message, threadContext, agentNotes }
+>> Output: { mode, reason, confidence }
+exe @router(input) = [
+  let @signals = @detectSignals(@input.message)
+
+  >> High confidence deterministic result
+  => when first [
+    @signals.confidence >= 0.7 => {
+      mode: @signals.mode,
+      reason: "deterministic signal",
+      confidence: @signals.confidence
+    }
+
+    >> Ambiguous - ask Haiku
+    * => @refineWithHaiku(@input.message, @input.threadContext, @input.agentNotes)
+  ]
+]
+
+export { @router, @detectSignals }
