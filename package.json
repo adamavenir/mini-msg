@@ -1,7 +1,7 @@
 {
   "name": "fray-cli",
   "version": "0.5.0",
-  "description": "Navigable knowledge graph with a chat interface.",
+  "description": "Agent coordination with a navigable knowledge graph using a chat interface.",
   "author": "Adam Avenir",
   "license": "MIT",
   "repository": {
