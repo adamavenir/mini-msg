@@ -1,7 +1,7 @@
 {
   "name": "fray-cli",
-  "version": "0.4.0",
-  "description": "Lightweight agent-to-agent messaging CLI.",
+  "version": "0.5.0",
+  "description": "Navigable knowledge graph with a chat interface.",
   "author": "Adam Avenir",
   "license": "MIT",
   "repository": {
