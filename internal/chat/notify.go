@@ -89,6 +89,22 @@ func IsReplyToAgent(dbConn *sql.DB, msg types.Message, agentID string) bool {
 	return core.MatchesMention(agentID, parent.FromAgent)
 }
 
+// getFocusScriptPath returns the path to the focus-fray script in the app bundle.
+func getFocusScriptPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	scriptPath := filepath.Join(home, "Applications", notifierAppName, "Contents", "MacOS", "focus-fray")
+	if _, err := os.Stat(scriptPath); err != nil {
+		return ""
+	}
+	return scriptPath
+}
+
+// GotoFilePath is where the focus script writes the navigation target.
+const GotoFilePath = "/tmp/fray-goto"
+
 // SendNotification sends an OS notification for a message.
 func SendNotification(msg types.Message, projectName string) error {
 	title := "@" + msg.FromAgent
@@ -99,10 +115,20 @@ func SendNotification(msg types.Message, projectName string) error {
 
 	// On macOS with Fray-Notifier.app, use it directly for proper icon
 	if notifier := getNotifierPath(); notifier != "" {
-		cmd := exec.Command(notifier,
+		args := []string{
 			"-title", title,
 			"-message", body,
-		)
+		}
+		// Add click-to-focus if the focus script is available
+		if focusScript := getFocusScriptPath(); focusScript != "" {
+			// Pass thread/message info as argument to focus script
+			target := msg.ID
+			if msg.Home != "" {
+				target = msg.Home + "#" + msg.ID
+			}
+			args = append(args, "-execute", focusScript+" "+target)
+		}
+		cmd := exec.Command(notifier, args...)
 		return cmd.Run()
 	}
 

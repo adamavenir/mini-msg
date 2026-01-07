@@ -25,6 +25,64 @@ const (
 	notifierAppName     = "Fray-Notifier.app"
 )
 
+// focusFrayScript is a shell script that focuses the terminal window running fray.
+// Uses Window menu to find windows with "fray" in the title, which works reliably
+// across different terminal contexts (including when already in a terminal).
+// Accepts an optional target argument (thread#message) which gets written to /tmp/fray-goto
+// for fray chat to pick up and navigate to.
+const focusFrayScript = `#!/bin/bash
+TARGET="$1"
+
+osascript << 'APPLESCRIPT'
+-- Try each terminal app (check via System Events to avoid "where is app?" prompts)
+set terminals to {"Ghostty", "iTerm2", "Terminal"}
+tell application "System Events"
+    set runningApps to name of every process
+end tell
+
+repeat with termApp in terminals
+    if termApp is in runningApps then
+        try
+            -- Activate Finder briefly for context switch
+            tell application "Finder" to activate
+            delay 0.2
+
+            -- Activate terminal and wait for it to be frontmost
+            tell application termApp to activate
+            delay 0.3
+
+            tell application "System Events"
+                -- Wait for terminal to be frontmost
+                repeat 10 times
+                    if name of first process whose frontmost is true is termApp then
+                        exit repeat
+                    end if
+                    delay 0.1
+                end repeat
+
+                -- Click the fray window in terminal's menu
+                tell process termApp
+                    set windowMenu to menu "Window" of menu bar 1
+                    repeat with menuItem in menu items of windowMenu
+                        set itemName to name of menuItem
+                        if itemName starts with "fray" then
+                            click menuItem
+                            exit repeat
+                        end if
+                    end repeat
+                end tell
+            end tell
+        end try
+    end if
+end repeat
+APPLESCRIPT
+
+# Write navigation target for fray chat to pick up
+if [ -n "$TARGET" ]; then
+    echo "$TARGET" > /tmp/fray-goto
+fi
+`
+
 // NewInstallNotifierCmd creates the install-notifier command.
 func NewInstallNotifierCmd() *cobra.Command {
 	var force bool
@@ -146,6 +204,12 @@ Only needed on macOS. Other platforms use system notifications automatically.`,
 			plistData = []byte(strings.Replace(string(plistData), "fr.julienxx.oss.terminal-notifier", notifierBundleID, -1))
 			if err := os.WriteFile(plistPath, plistData, 0644); err != nil {
 				return fmt.Errorf("write plist: %w", err)
+			}
+
+			// Write focus script to MacOS directory
+			focusScriptPath := filepath.Join(extractedApp, "Contents", "MacOS", "focus-fray")
+			if err := os.WriteFile(focusScriptPath, []byte(focusFrayScript), 0755); err != nil {
+				return fmt.Errorf("write focus script: %w", err)
 			}
 
 			// Ensure ~/Applications exists

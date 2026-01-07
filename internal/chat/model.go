@@ -3,6 +3,7 @@ package chat
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 	"unicode"
@@ -49,8 +50,23 @@ func Run(opts Options) error {
 	if err != nil {
 		return err
 	}
+	// Set window title (ANSI OSC sequence)
+	title := "fray"
+	if opts.ProjectName != "" {
+		title = "fray · " + opts.ProjectName
+	}
+	fmt.Printf("\033]0;%s\007", title)
+
+	// Write TTY path to temp file for notification focus script
+	if ttyPath, err := os.Readlink("/dev/fd/0"); err == nil {
+		_ = os.WriteFile("/tmp/fray-tty", []byte(ttyPath), 0644)
+	}
+
 	program := tea.NewProgram(model, tea.WithMouseCellMotion())
 	_, err = program.Run()
+
+	// Clean up TTY file on exit
+	_ = os.Remove("/tmp/fray-tty")
 	model.Close()
 	return err
 }
@@ -456,6 +472,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if err := m.refreshReactions(); err != nil {
 			m.status = err.Error()
 		}
+
+		// Check for navigation request from notification click
+		m.checkGotoFile()
+
 		return m, m.pollCmd()
 	case errMsg:
 		m.status = msg.err.Error()
@@ -1121,4 +1141,46 @@ func (m *Model) maybeNotify(msg types.Message) {
 	}
 
 	_ = SendNotification(msg, m.projectName)
+}
+
+// checkGotoFile checks for a navigation request from notification click.
+// The file format is: thread_guid#message_id or just message_id
+func (m *Model) checkGotoFile() {
+	data, err := os.ReadFile(GotoFilePath)
+	if err != nil {
+		return // File doesn't exist, nothing to do
+	}
+
+	// Remove the file immediately to avoid re-processing
+	_ = os.Remove(GotoFilePath)
+
+	target := strings.TrimSpace(string(data))
+	if target == "" {
+		return
+	}
+
+	// Parse target: thread_guid#message_id or just message_id
+	var threadGUID, messageID string
+	if idx := strings.Index(target, "#"); idx != -1 {
+		threadGUID = target[:idx]
+		messageID = target[idx+1:]
+	} else {
+		messageID = target
+	}
+
+	// Navigate to thread if specified
+	if threadGUID != "" {
+		thread, err := db.GetThread(m.db, threadGUID)
+		if err == nil && thread != nil {
+			m.currentThread = thread
+			m.currentPseudo = ""
+			m.threadMessages, _ = db.GetThreadMessages(m.db, threadGUID)
+			m.markThreadAsRead(threadGUID)
+			m.refreshViewport(true)
+			m.status = "Navigated to thread from notification"
+		}
+	}
+
+	// TODO: scroll to specific message if messageID is provided
+	_ = messageID
 }
