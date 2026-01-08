@@ -1911,7 +1911,7 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 	if agent.Presence == types.PresenceIdle && status != "" {
 		statusLower := strings.ToLower(status)
 		if strings.HasPrefix(statusLower, "awaiting:") || strings.HasPrefix(statusLower, "waiting:") {
-			icon = "⏳"
+			icon = "⧗"
 		} else if strings.HasPrefix(statusLower, "done:") || strings.HasPrefix(statusLower, "complete:") {
 			icon = "✓"
 		} else if strings.HasPrefix(statusLower, "blocked:") || strings.HasPrefix(statusLower, "stuck:") {
