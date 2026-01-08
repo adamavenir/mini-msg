@@ -25,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fray daemon status`: shows agents in error state with session UUIDs for debugging
 
 ### Fixed
+- Chat: messages now marked as read when arriving while viewing (not just on navigation)
+- Chat: own messages no longer show as unread immediately after posting
+- Chat: `#msg-id /command` parsing no longer triggers when `/command` appears later in message
+- Chat/CLI: `/mv` by thread name now works for nested threads (not just root level)
+- CLI: `fray mv` now removes messages from thread playlists (was copying, not moving)
+- CLI: `--reply-to` now inherits thread from the message being replied to
+- Daemon: signal kills (exit -1) now set presence to idle, not error
+- Daemon: stale presence cleanup on startup (orphaned spawning/active states)
+- Daemon: orphaned presence detection (busy state but no tracked process)
+- Daemon: `fray daemon reset` command to clear stale presence states
 - Activity panel: idle agents no longer incorrectly shown as offline
 - Activity panel: token usage background now displays correctly (ccusage JSON parsing fix)
 - Activity panel: white text on red backgrounds for better readability
