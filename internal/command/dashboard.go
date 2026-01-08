@@ -392,6 +392,10 @@ func formatAgentStatus(agent types.Agent) string {
 		statusParts = append(statusParts, "active")
 	case types.PresenceSpawning:
 		statusParts = append(statusParts, "spawning")
+	case types.PresencePrompting:
+		statusParts = append(statusParts, "prompting")
+	case types.PresencePrompted:
+		statusParts = append(statusParts, "prompted")
 	case types.PresenceIdle:
 		statusParts = append(statusParts, "idle")
 	case types.PresenceError:

@@ -1806,9 +1806,11 @@ func (m *Model) renderActivitySection(width int) ([]string, int) {
 			offlineAgents = append(offlineAgents, agent)
 			continue
 		}
-		// Presence-based active check: spawning/active/idle/error are all "active" for display
+		// Presence-based active check: spawning/prompting/prompted/active/error are all "active" for display
 		// Show immediately based on presence, don't wait for lastSeen update
-		if agent.Presence == types.PresenceSpawning || agent.Presence == types.PresenceActive || agent.Presence == types.PresenceError {
+		if agent.Presence == types.PresenceSpawning || agent.Presence == types.PresencePrompting ||
+			agent.Presence == types.PresencePrompted || agent.Presence == types.PresenceActive ||
+			agent.Presence == types.PresenceError {
 			activeAgents = append(activeAgents, agent)
 			continue
 		}
@@ -1867,7 +1869,11 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 	case types.PresenceActive:
 		icon = "▶" // active
 	case types.PresenceSpawning:
-		icon = "◎" // spawning
+		icon = "◎" // spawning (process started, waiting for API)
+	case types.PresencePrompting:
+		icon = "◐" // prompting (sending context to API)
+	case types.PresencePrompted:
+		icon = "◉" // prompted (agent is generating response)
 	case types.PresenceIdle:
 		icon = "◇" // idle
 	case types.PresenceError:

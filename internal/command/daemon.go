@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/adamavenir/fray/internal/daemon"
+	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -121,9 +123,30 @@ func NewDaemonStatusCmd() *cobra.Command {
 			frayDir := cmdCtx.Project.Root + "/.fray"
 			isLocked := daemon.IsLocked(frayDir)
 
+			// Get agents in error state for debugging
+			managedAgents, _ := db.GetManagedAgents(cmdCtx.DB)
+			var errorAgents []types.Agent
+			for _, agent := range managedAgents {
+				if agent.Presence == types.PresenceError {
+					errorAgents = append(errorAgents, agent)
+				}
+			}
+
 			if cmdCtx.JSONMode {
+				errorInfo := make([]map[string]any, 0, len(errorAgents))
+				for _, agent := range errorAgents {
+					info := map[string]any{
+						"agent_id": agent.AgentID,
+						"presence": string(agent.Presence),
+					}
+					if agent.LastSessionID != nil {
+						info["session_id"] = *agent.LastSessionID
+					}
+					errorInfo = append(errorInfo, info)
+				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{
-					"running": isLocked,
+					"running":      isLocked,
+					"error_agents": errorInfo,
 				})
 			}
 
@@ -132,6 +155,22 @@ func NewDaemonStatusCmd() *cobra.Command {
 			} else {
 				fmt.Fprintln(cmd.OutOrStdout(), "Daemon is not running")
 			}
+
+			// Show agents in error state with session UUIDs for debugging
+			if len(errorAgents) > 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "")
+				fmt.Fprintln(cmd.OutOrStdout(), "Agents in error state:")
+				for _, agent := range errorAgents {
+					sessionID := "(no session)"
+					if agent.LastSessionID != nil && *agent.LastSessionID != "" {
+						sessionID = *agent.LastSessionID
+					}
+					fmt.Fprintf(cmd.OutOrStdout(), "  @%s: %s\n", agent.AgentID, sessionID)
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), "")
+				fmt.Fprintln(cmd.OutOrStdout(), "To recover: fray back <agent>")
+			}
+
 			return nil
 		},
 	}

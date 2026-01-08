@@ -11,13 +11,15 @@ import (
 
 // Process represents a spawned agent process.
 type Process struct {
-	Cmd       *exec.Cmd
-	Stdin     io.WriteCloser
-	Stdout    io.ReadCloser
-	Stderr    io.ReadCloser
-	StartedAt time.Time
-	SessionID string
-	TempFiles []string // Temp files to clean up after process exits
+	Cmd             *exec.Cmd
+	Stdin           io.WriteCloser
+	Stdout          io.ReadCloser
+	Stderr          io.ReadCloser
+	StartedAt       time.Time
+	SessionID       string
+	TempFiles       []string // Temp files to clean up after process exits
+	BaselineInput   int64    // Baseline input tokens at spawn (for resumed sessions)
+	BaselineOutput  int64    // Baseline output tokens at spawn (for resumed sessions)
 }
 
 // Driver defines the interface for CLI-specific agent spawning.

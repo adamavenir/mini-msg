@@ -264,6 +264,14 @@ Paths:
 				if err := db.UpdateAgent(ctx.DB, agentID, updates); err != nil {
 					return writeCommandError(cmd, err)
 				}
+				// Transition to active when agent posts (from spawning/prompting/prompted)
+				agent, _ := db.GetAgent(ctx.DB, agentID)
+				if agent != nil && agent.Managed {
+					switch agent.Presence {
+					case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted:
+						db.UpdateAgentPresence(ctx.DB, agentID, types.PresenceActive)
+					}
+				}
 			}
 
 			// Extract questions from markdown sections

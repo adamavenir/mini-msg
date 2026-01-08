@@ -249,8 +249,8 @@ func (d *MentionDebouncer) ShouldSpawn(agent types.Agent, msg types.Message) boo
 	switch agent.Presence {
 	case types.PresenceOffline, types.PresenceIdle, "":
 		return true
-	case types.PresenceSpawning, types.PresenceActive:
-		// Queue instead of spawning
+	case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted, types.PresenceActive:
+		// Queue instead of spawning - agent is already running
 		return false
 	case types.PresenceError:
 		// Could retry on error, but be conservative

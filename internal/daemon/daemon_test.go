@@ -843,7 +843,8 @@ func TestSpawnFlow_WatermarkAdvances(t *testing.T) {
 		t.Fatalf("start daemon: %v", err)
 	}
 
-	time.Sleep(200 * time.Millisecond)
+	// Wait for spawn to complete (includes ccusage timeout if not available)
+	time.Sleep(3 * time.Second)
 
 	// Watermark should advance past the processed message
 	wm = h.daemon.debouncer.GetWatermark(alice.AgentID)
@@ -874,7 +875,8 @@ func TestSessionLifecycle_FreshSpawnSetsSessionID(t *testing.T) {
 		t.Fatalf("start daemon: %v", err)
 	}
 
-	time.Sleep(200 * time.Millisecond)
+	// Wait for spawn to complete (includes ccusage timeout if not available)
+	time.Sleep(3 * time.Second)
 
 	// Session ID should be set after spawn
 	updated, _ := db.GetAgent(h.db, alice.AgentID)
@@ -1155,8 +1157,8 @@ func TestErrorRecovery_ProcessExitWithErrorSetsPresence(t *testing.T) {
 		t.Fatalf("start daemon: %v", err)
 	}
 
-	// Wait for process to exit and be detected
-	time.Sleep(400 * time.Millisecond)
+	// Wait for spawn + process to exit and be detected (includes ccusage timeout)
+	time.Sleep(3 * time.Second)
 
 	// Presence should be error (non-zero exit code)
 	updated, _ := db.GetAgent(h.db, "alice")

@@ -347,7 +347,8 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 		// If we already spawned this poll, or agent is busy, queue the mention
 		// Note: Don't advance watermark for queued messages - pending is in-memory,
 		// so on restart we need to re-query and re-queue them
-		if spawned || agent.Presence == types.PresenceSpawning || agent.Presence == types.PresenceActive {
+		if spawned || agent.Presence == types.PresenceSpawning || agent.Presence == types.PresencePrompting ||
+			agent.Presence == types.PresencePrompted || agent.Presence == types.PresenceActive {
 			d.debugf("    %s: queued (agent busy or already spawned)", msg.ID)
 			d.debouncer.QueueMention(agent.AgentID, msg.ID)
 			hasQueued = true
@@ -383,7 +384,10 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 
 	// Update watermark to last fully processed message
 	if lastProcessedID != "" {
-		d.debouncer.UpdateWatermark(agent.AgentID, lastProcessedID)
+		d.debugf("  @%s: updating watermark to %s", agent.AgentID, lastProcessedID)
+		if err := d.debouncer.UpdateWatermark(agent.AgentID, lastProcessedID); err != nil {
+			d.debugf("  @%s: watermark update failed: %v", agent.AgentID, err)
+		}
 	}
 }
 
@@ -436,6 +440,14 @@ func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID
 	}
 
 	d.debugf("  spawned pid %d, session %s", proc.Cmd.Process.Pid, proc.SessionID)
+
+	// Capture baseline token counts for resumed sessions
+	// This lets us detect prompting/prompted by checking for token INCREASE from baseline
+	if ccState := GetCCUsageState(proc.SessionID); ccState != nil {
+		proc.BaselineInput = ccState.TotalInput
+		proc.BaselineOutput = ccState.TotalOutput
+		d.debugf("  baseline tokens: input=%d, output=%d", proc.BaselineInput, proc.BaselineOutput)
+	}
 
 	// Store session ID for future resume - this ensures each agent keeps their own session
 	db.UpdateAgentSessionID(d.database, agent.AgentID, proc.SessionID)
@@ -589,6 +601,7 @@ Run: fray get %s`,
 }
 
 // updatePresence checks running processes and updates their presence.
+// Uses ccusage polling for spawning→prompting→prompted transitions.
 // Implements done-detection: idle presence + no fray posts for min_checkin = kill session.
 func (d *Daemon) updatePresence() {
 	d.mu.Lock()
@@ -601,52 +614,79 @@ func (d *Daemon) updatePresence() {
 			continue
 		}
 
-		pid := proc.Cmd.Process.Pid
-		if d.detector.IsActive(pid) {
-			db.UpdateAgentPresence(d.database, agentID, types.PresenceActive)
-		} else {
-			// Check timeouts
-			agent, _ := db.GetAgent(d.database, agentID)
-			if agent != nil && agent.Invoke != nil {
-				spawnTimeout, idleAfter, minCheckin, maxRuntime := GetTimeouts(agent.Invoke)
-				elapsed := time.Since(proc.StartedAt).Milliseconds()
+		agent, _ := db.GetAgent(d.database, agentID)
+		if agent == nil || agent.Invoke == nil {
+			continue
+		}
 
-				// Zombie safety net: kill after max_runtime regardless of state (0 = unlimited)
-				if maxRuntime > 0 && elapsed > maxRuntime {
-					d.killProcess(agentID, proc, "max_runtime exceeded")
-					continue
+		spawnTimeout, idleAfter, minCheckin, maxRuntime := GetTimeouts(agent.Invoke)
+		elapsed := time.Since(proc.StartedAt).Milliseconds()
+
+		// Zombie safety net: kill after max_runtime regardless of state (0 = unlimited)
+		if maxRuntime > 0 && elapsed > maxRuntime {
+			d.killProcess(agentID, proc, "max_runtime exceeded")
+			continue
+		}
+
+		// Handle presence state transitions based on current state
+		switch agent.Presence {
+		case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted:
+			// Poll ccusage for token-based state transitions
+			// Compare against baseline to detect NEW tokens (important for resumed sessions)
+			ccState := GetCCUsageState(proc.SessionID)
+			if ccState != nil {
+				newInput := ccState.TotalInput - proc.BaselineInput
+				newOutput := ccState.TotalOutput - proc.BaselineOutput
+
+				if newOutput > 0 {
+					// Agent is generating response (new output tokens)
+					if agent.Presence != types.PresencePrompted {
+						d.debugf("  @%s: prompting→prompted (new output tokens: %d)", agentID, newOutput)
+						db.UpdateAgentPresence(d.database, agentID, types.PresencePrompted)
+					}
+				} else if newInput > 0 {
+					// Context being sent to API (new input tokens)
+					if agent.Presence == types.PresenceSpawning {
+						d.debugf("  @%s: spawning→prompting (new input tokens: %d)", agentID, newInput)
+						db.UpdateAgentPresence(d.database, agentID, types.PresencePrompting)
+					}
+				}
+			}
+
+			// Check spawn timeout (applies to spawning state only)
+			if agent.Presence == types.PresenceSpawning && elapsed > spawnTimeout {
+				db.UpdateAgentPresence(d.database, agentID, types.PresenceError)
+			}
+
+		case types.PresenceActive:
+			// Check for idle transition based on fray activity
+			pid := proc.Cmd.Process.Pid
+			lastActivity := d.detector.LastActivityTime(pid)
+			if time.Since(lastActivity).Milliseconds() > idleAfter {
+				db.UpdateAgentPresence(d.database, agentID, types.PresenceIdle)
+			}
+
+		case types.PresenceIdle:
+			// Done-detection: if idle AND no fray activity for min_checkin, kill session
+			if minCheckin > 0 {
+				lastPostTs, _ := db.GetAgentLastPostTime(d.database, agentID)
+				lastHeartbeatTs := int64(0)
+				if agent.LastHeartbeat != nil {
+					lastHeartbeatTs = *agent.LastHeartbeat
 				}
 
-				if agent.Presence == types.PresenceSpawning && elapsed > spawnTimeout {
-					// Spawning timeout - mark as error
-					db.UpdateAgentPresence(d.database, agentID, types.PresenceError)
-				} else if agent.Presence == types.PresenceActive {
-					lastActivity := d.detector.LastActivityTime(pid)
-					if time.Since(lastActivity).Milliseconds() > idleAfter {
-						db.UpdateAgentPresence(d.database, agentID, types.PresenceIdle)
-					}
-				} else if agent.Presence == types.PresenceIdle && minCheckin > 0 {
-					// Done-detection: if idle AND no fray activity (posts or heartbeat) for min_checkin, kill session
-					// Only enabled if minCheckin > 0 (disabled by default)
-					lastPostTs, _ := db.GetAgentLastPostTime(d.database, agentID)
-					lastHeartbeatTs := int64(0)
-					if agent.LastHeartbeat != nil {
-						lastHeartbeatTs = *agent.LastHeartbeat
-					}
+				// Use the most recent of: last post, last heartbeat, or spawn time
+				lastFrayActivity := proc.StartedAt.UnixMilli()
+				if lastPostTs > lastFrayActivity {
+					lastFrayActivity = lastPostTs
+				}
+				if lastHeartbeatTs > lastFrayActivity {
+					lastFrayActivity = lastHeartbeatTs
+				}
 
-					// Use the most recent of: last post, last heartbeat, or spawn time
-					lastActivity := proc.StartedAt.UnixMilli()
-					if lastPostTs > lastActivity {
-						lastActivity = lastPostTs
-					}
-					if lastHeartbeatTs > lastActivity {
-						lastActivity = lastHeartbeatTs
-					}
-
-					msSinceActivity := time.Now().UnixMilli() - lastActivity
-					if msSinceActivity > minCheckin {
-						d.killProcess(agentID, proc, "done-detection: idle + no fray activity")
-					}
+				msSinceActivity := time.Now().UnixMilli() - lastFrayActivity
+				if msSinceActivity > minCheckin {
+					d.killProcess(agentID, proc, "done-detection: idle + no fray activity")
 				}
 			}
 		}
