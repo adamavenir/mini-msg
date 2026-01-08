@@ -427,6 +427,26 @@ Examples:
 					}
 
 					oldHome := m.Home
+
+					// Remove message from all thread playlists (it's being moved, not copied)
+					memberships, err := db.GetMessageThreadMemberships(ctx.DB, m.ID)
+					if err != nil {
+						return writeCommandError(cmd, err)
+					}
+					for _, threadGUID := range memberships {
+						if err := db.RemoveMessageFromThread(ctx.DB, threadGUID, m.ID); err != nil {
+							return writeCommandError(cmd, err)
+						}
+						if err := db.AppendThreadMessageRemove(ctx.Project.DBPath, db.ThreadMessageRemoveJSONLRecord{
+							ThreadGUID:  threadGUID,
+							MessageGUID: m.ID,
+							RemovedBy:   movedBy,
+							RemovedAt:   now,
+						}); err != nil {
+							return writeCommandError(cmd, err)
+						}
+					}
+
 					if err := db.MoveMessage(ctx.DB, m.ID, newHome); err != nil {
 						return writeCommandError(cmd, err)
 					}

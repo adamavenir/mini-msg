@@ -132,14 +132,6 @@ Paths:
 				}
 			}
 
-			var thread *types.Thread
-			if threadRef != "" {
-				thread, err = resolveThreadRef(ctx.DB, threadRef)
-				if err != nil {
-					return writeCommandError(cmd, err)
-				}
-			}
-
 			var replyID *string
 			var replyMsg *types.Message
 			if replyTo != "" {
@@ -149,6 +141,19 @@ Paths:
 				}
 				replyMsg = msg
 				replyID = &msg.ID
+
+				// Inherit thread from reply message if not explicitly specified
+				if threadRef == "" && msg.Home != "" && msg.Home != "room" {
+					threadRef = msg.Home
+				}
+			}
+
+			var thread *types.Thread
+			if threadRef != "" {
+				thread, err = resolveThreadRef(ctx.DB, threadRef)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
 			}
 
 			var quoteID *string

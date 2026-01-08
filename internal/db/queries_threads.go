@@ -269,6 +269,35 @@ func RemoveMessageFromThread(db *sql.DB, threadGUID, messageGUID string) error {
 	return err
 }
 
+// GetMessageThreadMemberships returns all thread GUIDs a message is a member of (via playlist).
+func GetMessageThreadMemberships(db *sql.DB, messageGUID string) ([]string, error) {
+	rows, err := db.Query(`
+		SELECT thread_guid FROM fray_thread_messages WHERE message_guid = ?
+	`, messageGUID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var threads []string
+	for rows.Next() {
+		var threadGUID string
+		if err := rows.Scan(&threadGUID); err != nil {
+			return nil, err
+		}
+		threads = append(threads, threadGUID)
+	}
+	return threads, rows.Err()
+}
+
+// RemoveMessageFromAllThreads removes a message from all thread playlists.
+func RemoveMessageFromAllThreads(db *sql.DB, messageGUID string) error {
+	_, err := db.Exec(`
+		DELETE FROM fray_thread_messages WHERE message_guid = ?
+	`, messageGUID)
+	return err
+}
+
 // GetThreadMessages returns messages in a thread (home or membership).
 func GetThreadMessages(db *sql.DB, threadGUID string) ([]types.Message, error) {
 	rows, err := db.Query(fmt.Sprintf(`
