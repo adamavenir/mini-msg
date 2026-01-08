@@ -744,3 +744,22 @@ func scanMessage(scanner interface{ Scan(dest ...any) error }) (types.Message, e
 	}
 	return row.toMessage()
 }
+
+// GetUnreadCountForAgent returns the count of messages mentioning an agent.
+func GetUnreadCountForAgent(db *sql.DB, agentID string) (int, error) {
+	row := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM fray_messages
+		WHERE EXISTS (
+			SELECT 1 FROM json_each(mentions)
+			WHERE value = ? OR value LIKE ?
+		)
+		AND archived_at IS NULL
+	`, agentID, agentID+".%")
+
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}

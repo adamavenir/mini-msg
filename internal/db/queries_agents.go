@@ -611,3 +611,30 @@ func (row agentRow) toAgent() types.Agent {
 	}
 	return agent
 }
+
+// GetManagedAgents returns all agents with managed = true.
+func GetManagedAgents(db *sql.DB) ([]types.Agent, error) {
+	rows, err := db.Query(`
+		SELECT guid, agent_id, status, purpose, avatar, registered_at, last_seen, left_at, managed, invoke, presence, mention_watermark, last_heartbeat, last_session_id
+		FROM fray_agents
+		WHERE managed = 1
+		ORDER BY agent_id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []types.Agent
+	for rows.Next() {
+		agent, err := scanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		agents = append(agents, agent)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return agents, nil
+}
