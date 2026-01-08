@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/types"
+	"github.com/google/uuid"
 )
 
 // FindClaudeSessionID finds the most recent Claude Code session ID for the project.
@@ -136,12 +136,22 @@ func (d *ClaudeDriver) Spawn(ctx context.Context, agent types.Agent, prompt stri
 	}
 
 	var cmd *exec.Cmd
-	sessionID, _ := core.GenerateGUID("sess")
 
-	// Build base args - add --resume if we have a prior session
-	var args []string
+	// Use existing session ID or generate new one for this agent
+	// This ensures each agent has their own session, preventing cross-contamination
+	var sessionID string
 	if agent.LastSessionID != nil && *agent.LastSessionID != "" {
-		args = append(args, "--resume", *agent.LastSessionID)
+		sessionID = *agent.LastSessionID
+	} else {
+		sessionID = uuid.New().String()
+	}
+
+	// Build base args - always pass --session-id to control which session is used
+	// If resuming, also add --resume to continue the conversation
+	var args []string
+	args = append(args, "--session-id", sessionID)
+	if agent.LastSessionID != nil && *agent.LastSessionID != "" {
+		args = append(args, "--resume")
 	}
 
 	switch delivery {

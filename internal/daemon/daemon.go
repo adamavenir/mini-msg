@@ -417,6 +417,9 @@ func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID
 
 	d.debugf("  spawned pid %d, session %s", proc.Cmd.Process.Pid, proc.SessionID)
 
+	// Store session ID for future resume - this ensures each agent keeps their own session
+	db.UpdateAgentSessionID(d.database, agent.AgentID, proc.SessionID)
+
 	// Track process
 	d.mu.Lock()
 	d.processes[agent.AgentID] = proc
@@ -660,10 +663,8 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 	}
 	db.AppendSessionEnd(d.project.DBPath, sessionEnd)
 
-	// Detect and store Claude Code session ID for next --resume
-	if claudeSessionID := FindClaudeSessionID(d.project.Root); claudeSessionID != "" {
-		db.UpdateAgentSessionID(d.database, agentID, claudeSessionID)
-	}
+	// Session ID is now stored at spawn time (we generate it ourselves with --session-id)
+	// No need to detect it from Claude's files anymore - see fix for fray-8ld6
 
 	// Cleanup process resources
 	driver := d.getDriver(agentID)
@@ -678,6 +679,12 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 		} else {
 			db.UpdateAgentPresence(d.database, agentID, types.PresenceError)
 		}
+
+		// Set left_at so fray back knows this was a proper session end (not orphaned)
+		now := time.Now().Unix()
+		db.UpdateAgent(d.database, agentID, db.AgentUpdates{
+			LeftAt: types.OptionalInt64{Set: true, Value: &now},
+		})
 
 		delete(d.processes, agentID)
 	}
