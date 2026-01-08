@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/adamavenir/fray/internal/core"
@@ -137,9 +138,8 @@ func (d *Daemon) acquireLock() error {
 	if data, err := os.ReadFile(d.lockPath); err == nil {
 		var info LockInfo
 		if json.Unmarshal(data, &info) == nil {
-			// Check if process is still running
-			proc, err := os.FindProcess(info.PID)
-			if err == nil && proc.Signal(nil) == nil {
+			// Check if process is still running using syscall.Kill with signal 0
+			if syscall.Kill(info.PID, 0) == nil {
 				return fmt.Errorf("daemon already running (pid %d)", info.PID)
 			}
 			// Stale lock, remove it
@@ -202,11 +202,9 @@ func IsLocked(frayDir string) bool {
 		return false
 	}
 
-	proc, err := os.FindProcess(info.PID)
-	if err != nil {
-		return false
-	}
-	return proc.Signal(nil) == nil
+	// Use syscall.Kill with signal 0 to check if process exists
+	// This is more reliable than proc.Signal(nil) on macOS
+	return syscall.Kill(info.PID, 0) == nil
 }
 
 // watchLoop is the main daemon loop.

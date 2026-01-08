@@ -1,8 +1,8 @@
 package daemon
 
 import (
-	"os"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -83,14 +83,9 @@ func (d *BaseActivityDetector) LastActivityTime(pid int) time.Time {
 
 // IsAlive returns true if the process exists.
 func (d *BaseActivityDetector) IsAlive(pid int) bool {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-
-	// On Unix, FindProcess always succeeds. Use Signal(0) to check if process exists.
-	err = proc.Signal(nil)
-	return err == nil
+	// Use syscall.Kill with signal 0 to check if process exists.
+	// This is more reliable than proc.Signal(nil) on macOS.
+	return syscall.Kill(pid, 0) == nil
 }
 
 // Cleanup removes tracking for a process.
