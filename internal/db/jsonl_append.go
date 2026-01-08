@@ -30,6 +30,11 @@ func appendJSONLine(filePath string, record any) error {
 		return err
 	}
 
+	// Sync to ensure data is flushed to disk before returning success
+	if err := f.Sync(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
