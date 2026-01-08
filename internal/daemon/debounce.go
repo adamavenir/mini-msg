@@ -185,6 +185,30 @@ func CanTriggerSpawn(msg types.Message, thread *types.Thread) bool {
 	return false
 }
 
+// IsReplyToAgent returns true if the message is a reply to a message from the given agent.
+// This requires database access to look up the parent message.
+func IsReplyToAgent(database *sql.DB, msg types.Message, agentID string) bool {
+	if msg.ReplyTo == nil || *msg.ReplyTo == "" {
+		return false
+	}
+
+	// Look up the parent message
+	parent, err := db.GetMessage(database, *msg.ReplyTo)
+	if err != nil || parent == nil {
+		return false
+	}
+
+	// Check if parent was from this agent (with prefix matching)
+	if parent.FromAgent == agentID {
+		return true
+	}
+	// Prefix match: agentID "alice" gets replies to "alice.1"
+	if strings.HasPrefix(parent.FromAgent, agentID+".") {
+		return true
+	}
+	return false
+}
+
 // ShouldSpawn determines if a mention should trigger a spawn.
 // Returns false if:
 // - Message is a self-mention

@@ -306,10 +306,14 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 			continue
 		}
 
-		// Skip non-direct mentions (mid-sentence, FYI, CC patterns)
-		// These will show up in agent's mentions but don't trigger spawn
-		if !IsDirectAddress(msg, agent.AgentID) {
-			d.debugf("    %s: skip (not direct address) - body: %q", msg.ID, truncate(msg.Body, 50))
+		// Check if this is a direct address OR a reply to the agent's message
+		// Direct address: @agent at start of message
+		// Reply to agent: threaded reply to something the agent wrote
+		isDirectAddress := IsDirectAddress(msg, agent.AgentID)
+		isReplyToAgent := IsReplyToAgent(d.database, msg, agent.AgentID)
+
+		if !isDirectAddress && !isReplyToAgent {
+			d.debugf("    %s: skip (not direct address or reply) - body: %q", msg.ID, truncate(msg.Body, 50))
 			if !hasQueued && !spawned {
 				lastProcessedID = msg.ID
 			}
@@ -364,9 +368,14 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 }
 
 // getMessagesAfter returns messages mentioning agent after the given watermark.
+// Includes mentions in all threads (not just room) and replies to agent's messages.
 func (d *Daemon) getMessagesAfter(watermark, agentID string) ([]types.Message, error) {
+	// Empty string means all threads (room + threads)
+	allHomes := ""
 	opts := &types.MessageQueryOptions{
-		Limit: 100,
+		Limit:                 100,
+		Home:                  &allHomes,
+		IncludeRepliesToAgent: agentID,
 	}
 	if watermark != "" {
 		opts.SinceID = watermark
@@ -504,16 +513,43 @@ func (d *Daemon) buildWakePrompt(agent types.Agent, triggerMsgID string) (string
 	_, _, minCheckin, _ := GetTimeouts(agent.Invoke)
 	minCheckinMins := minCheckin / 60000
 
+	// Group messages by home (thread) for better context
+	homeGroups := make(map[string][]string)
+	for _, msgID := range allMentions {
+		msg, err := db.GetMessage(d.database, msgID)
+		if err != nil || msg == nil {
+			homeGroups["room"] = append(homeGroups["room"], msgID)
+			continue
+		}
+		home := msg.Home
+		if home == "" {
+			home = "room"
+		}
+		homeGroups[home] = append(homeGroups[home], msgID)
+	}
+
+	// Build trigger info with thread context
+	var triggerLines []string
+	for home, msgIDs := range homeGroups {
+		if home == "room" {
+			triggerLines = append(triggerLines, fmt.Sprintf("Room: %v", msgIDs))
+		} else {
+			triggerLines = append(triggerLines, fmt.Sprintf("Thread %s: %v", home, msgIDs))
+		}
+	}
+	triggerInfo := strings.Join(triggerLines, "\n")
+
 	// Wake prompt with checkin explanation
 	prompt := fmt.Sprintf(`You've been @mentioned. Check fray for context.
 
-Trigger messages: %v
+Trigger messages:
+%s
 
 Run: fray get %s
 
 ---
 Checkin: Posting to fray resets a %dm timer. Silence = session recycled (resumable on @mention).`,
-		allMentions, agent.AgentID, minCheckinMins)
+		triggerInfo, agent.AgentID, minCheckinMins)
 
 	return prompt, allMentions
 }

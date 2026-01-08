@@ -106,3 +106,6 @@
 {"type":"question_update","guid":"qstn-jvnolsme","status":"closed"}
 {"type":"question_update","guid":"qstn-yfg6t1ln","status":"closed"}
 {"type":"question_update","guid":"qstn-c06um20m","status":"closed"}
+{"type":"question","guid":"qstn-m1qxtwp8","re":"Should routing be visible to agents? ('You were invoked in deep-work mode')","from_agent":"designer","status":"open","thread_guid":"thrd-sajl2wzz","asked_in":"msg-61atjtdu","created_at":1767766541}
+{"type":"question","guid":"qstn-i9v1wqoh","re":"Should routing decisions be logged to a fray thread?","from_agent":"designer","status":"open","thread_guid":"thrd-sajl2wzz","asked_in":"msg-61atjtdu","created_at":1767766541}
+{"type":"question","guid":"qstn-urc2ttcu","re":"What's the fallback if haiku routing fails?","from_agent":"designer","status":"open","thread_guid":"thrd-sajl2wzz","asked_in":"msg-61atjtdu","created_at":1767766541}
