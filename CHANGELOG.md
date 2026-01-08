@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Daemon: @mentions in threads now wake agents (was room-only)
 - Daemon: replies to agent messages wake the agent (even without explicit @mention)
+- Daemon: `fray daemon status` now correctly detects running daemon on macOS
+- Daemon: `fray back` sets presence=active, preventing duplicate sessions over manual sessions
+- Daemon: `fray bye` sets presence=offline, allowing daemon to spawn new sessions
 
 ## [0.5.0]
 
