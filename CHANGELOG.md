@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- JSONL append now calls fsync() to ensure data is flushed to disk before returning success
 - Daemon: @mentions in threads now wake agents (was room-only)
 - Daemon: replies to agent messages wake the agent (even without explicit @mention)
 - Daemon: `fray daemon status` now correctly detects running daemon on macOS
