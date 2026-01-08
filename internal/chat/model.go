@@ -470,6 +470,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				if m.currentThread == nil && m.currentPseudo == "" {
 					m.refreshViewport(true)
+					// Mark as read since user is viewing the room
+					m.markRoomAsRead()
 				}
 			}
 		}
@@ -496,6 +498,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			hasNewMessages := len(m.threadMessages) > prevCount
 			if m.currentPseudo == "" {
 				m.refreshViewport(hasNewMessages)
+			}
+			// Mark thread as read since user is viewing it
+			if hasNewMessages {
+				m.markThreadAsRead(msg.threadID)
 			}
 		}
 
