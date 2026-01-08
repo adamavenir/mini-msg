@@ -70,6 +70,7 @@ func getTokenUsage(sessionID string) *TokenUsage {
 }
 
 const pollInterval = time.Second
+const activityPollInterval = 250 * time.Millisecond
 
 type pollMsg struct {
 	roomMessages    []types.Message
@@ -195,6 +196,35 @@ func (m *Model) pollCmd() tea.Cmd {
 			questions:       questions,
 			threads:         threads,
 			mentionMessages: mentionMessages,
+			managedAgents:   managedAgents,
+			agentTokenUsage: agentTokenUsage,
+		}
+	})
+}
+
+// activityPollMsg is a faster-polling message for activity panel updates only.
+// This runs at 250ms to catch fast state transitions (spawning→prompting→prompted).
+type activityPollMsg struct {
+	managedAgents   []types.Agent
+	agentTokenUsage map[string]*TokenUsage
+}
+
+func (m *Model) activityPollCmd() tea.Cmd {
+	return tea.Tick(activityPollInterval, func(time.Time) tea.Msg {
+		// Fetch managed agents for activity panel
+		managedAgents, _ := db.GetManagedAgents(m.db)
+
+		// Fetch token usage for active agents
+		agentTokenUsage := make(map[string]*TokenUsage)
+		for _, agent := range managedAgents {
+			if agent.LastSessionID != nil && *agent.LastSessionID != "" {
+				if usage := getTokenUsage(*agent.LastSessionID); usage != nil {
+					agentTokenUsage[agent.AgentID] = usage
+				}
+			}
+		}
+
+		return activityPollMsg{
 			managedAgents:   managedAgents,
 			agentTokenUsage: agentTokenUsage,
 		}

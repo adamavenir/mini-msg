@@ -297,7 +297,7 @@ func NewModel(opts Options) (*Model, error) {
 }
 
 func (m *Model) Init() tea.Cmd {
-	return m.pollCmd()
+	return tea.Batch(m.pollCmd(), m.activityPollCmd())
 }
 
 func (m *Model) Close() {
@@ -553,6 +553,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.checkGotoFile()
 
 		return m, m.pollCmd()
+	case activityPollMsg:
+		// Fast poll for activity panel updates (250ms)
+		if msg.managedAgents != nil {
+			m.managedAgents = msg.managedAgents
+		}
+		if msg.agentTokenUsage != nil {
+			m.agentTokenUsage = msg.agentTokenUsage
+		}
+		return m, m.activityPollCmd()
 	case errMsg:
 		m.status = msg.err.Error()
 		return m, m.pollCmd()
