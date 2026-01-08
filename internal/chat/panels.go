@@ -1938,8 +1938,11 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 	const dangerThreshold = 0.80
 
 	tokenPercent := 0.0
-	if usage := m.agentTokenUsage[agent.AgentID]; usage != nil && usage.TotalTokens > 0 {
-		tokenPercent = float64(usage.TotalTokens) / float64(maxTokens)
+	if usage := m.agentTokenUsage[agent.AgentID]; usage != nil {
+		contextTokens := usage.ContextTokens()
+		if contextTokens > 0 {
+			tokenPercent = float64(contextTokens) / float64(maxTokens)
+		}
 	}
 
 	// Determine colors based on state

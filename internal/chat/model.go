@@ -151,9 +151,29 @@ type Model struct {
 
 // TokenUsage holds token usage data from ccusage (for activity panel).
 type TokenUsage struct {
-	SessionID   string  `json:"sessionId"`
-	TotalCost   float64 `json:"totalCost"`
-	TotalTokens int64   `json:"totalTokens"`
+	SessionID   string            `json:"sessionId"`
+	TotalCost   float64           `json:"totalCost"`
+	TotalTokens int64             `json:"totalTokens"`
+	Entries     []TokenUsageEntry `json:"entries"`
+}
+
+// TokenUsageEntry represents a single API call from ccusage.
+type TokenUsageEntry struct {
+	Timestamp       string `json:"timestamp"`
+	InputTokens     int64  `json:"inputTokens"`
+	OutputTokens    int64  `json:"outputTokens"`
+	CacheReadTokens int64  `json:"cacheReadTokens"`
+}
+
+// ContextTokens returns an estimate of current context window usage.
+// Uses cacheReadTokens from the most recent entry as proxy for context size.
+func (t *TokenUsage) ContextTokens() int64 {
+	if t == nil || len(t.Entries) == 0 {
+		return 0
+	}
+	// Most recent entry's cacheReadTokens approximates context size
+	lastEntry := t.Entries[len(t.Entries)-1]
+	return lastEntry.CacheReadTokens + lastEntry.InputTokens + lastEntry.OutputTokens
 }
 
 type errMsg struct {
