@@ -46,6 +46,15 @@ func resolveThreadRef(dbConn *sql.DB, ref string) (*types.Thread, error) {
 		return thread, nil
 	}
 
+	// Try name match (any level)
+	thread, err = db.GetThreadByNameAny(dbConn, value)
+	if err != nil {
+		return nil, err
+	}
+	if thread != nil {
+		return thread, nil
+	}
+
 	return nil, fmt.Errorf("thread not found: %s", ref)
 }
 

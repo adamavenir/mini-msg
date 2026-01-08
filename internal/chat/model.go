@@ -736,6 +736,13 @@ func (m *Model) handleSubmit(text string) tea.Cmd {
 	}
 	m.refreshViewport(true)
 
+	// Mark as read immediately so our own message doesn't show as unread
+	if m.currentThread != nil {
+		m.markThreadAsRead(m.currentThread.GUID)
+	} else {
+		m.markRoomAsRead()
+	}
+
 	return nil
 }
 

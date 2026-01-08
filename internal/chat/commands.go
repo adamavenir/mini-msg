@@ -737,8 +737,17 @@ func (m *Model) resolveThreadRef(ref string) (*types.Thread, error) {
 		return thread, nil
 	}
 
-	// Try name match
+	// Try name match (root-level first for backward compat)
 	thread, err = db.GetThreadByName(m.db, value, nil)
+	if err != nil {
+		return nil, err
+	}
+	if thread != nil {
+		return thread, nil
+	}
+
+	// Try name match (any level)
+	thread, err = db.GetThreadByNameAny(m.db, value)
 	if err != nil {
 		return nil, err
 	}
