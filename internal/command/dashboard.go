@@ -3,12 +3,78 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
+
+// TokenUsage holds token usage data from ccusage.
+type TokenUsage struct {
+	SessionID   string  `json:"sessionId"`
+	TotalCost   float64 `json:"totalCost"`
+	TotalTokens int64   `json:"totalTokens"`
+}
+
+// tokenCache caches ccusage results to avoid repeated shell calls.
+var tokenCache = struct {
+	sync.RWMutex
+	data map[string]tokenCacheEntry
+}{data: make(map[string]tokenCacheEntry)}
+
+type tokenCacheEntry struct {
+	usage     *TokenUsage
+	fetchedAt time.Time
+}
+
+const tokenCacheTTL = 30 * time.Second
+
+// getTokenUsage fetches token usage for a session ID via ccusage.
+// Returns nil if ccusage is not installed or session not found.
+func getTokenUsage(sessionID string) *TokenUsage {
+	if sessionID == "" {
+		return nil
+	}
+
+	// Check cache
+	tokenCache.RLock()
+	if entry, ok := tokenCache.data[sessionID]; ok {
+		if time.Since(entry.fetchedAt) < tokenCacheTTL {
+			tokenCache.RUnlock()
+			return entry.usage
+		}
+	}
+	tokenCache.RUnlock()
+
+	// Call ccusage
+	cmd := exec.Command("npx", "ccusage", "session", "--id", sessionID, "--json", "--offline")
+	output, err := cmd.Output()
+	if err != nil {
+		// Cache the miss to avoid repeated failed calls
+		tokenCache.Lock()
+		tokenCache.data[sessionID] = tokenCacheEntry{usage: nil, fetchedAt: time.Now()}
+		tokenCache.Unlock()
+		return nil
+	}
+
+	var usage TokenUsage
+	if err := json.Unmarshal(output, &usage); err != nil {
+		tokenCache.Lock()
+		tokenCache.data[sessionID] = tokenCacheEntry{usage: nil, fetchedAt: time.Now()}
+		tokenCache.Unlock()
+		return nil
+	}
+
+	// Cache the result
+	tokenCache.Lock()
+	tokenCache.data[sessionID] = tokenCacheEntry{usage: &usage, fetchedAt: time.Now()}
+	tokenCache.Unlock()
+
+	return &usage
+}
 
 // NewDashboardCmd creates the dashboard command.
 func NewDashboardCmd() *cobra.Command {
@@ -70,6 +136,14 @@ func NewDashboardCmd() *cobra.Command {
 				claimsByAgent[claim.AgentID] = append(claimsByAgent[claim.AgentID], claim)
 			}
 
+			// Get token usage for active agents (via ccusage)
+			tokenUsage := make(map[string]*TokenUsage)
+			for _, agent := range activeAgents {
+				if agent.LastSessionID != nil && *agent.LastSessionID != "" {
+					tokenUsage[agent.AgentID] = getTokenUsage(*agent.LastSessionID)
+				}
+			}
+
 			// Get recent events (last 30 minutes)
 			recentMessages, err := db.GetRecentMessages(ctx.DB, 30*60)
 			if err != nil {
@@ -80,10 +154,10 @@ func NewDashboardCmd() *cobra.Command {
 			events := filterRelevantEvents(recentMessages)
 
 			if ctx.JSONMode {
-				return renderDashboardJSON(cmd, activeAgents, offlineAgents, unreadCounts, claimsByAgent, events)
+				return renderDashboardJSON(cmd, activeAgents, offlineAgents, unreadCounts, claimsByAgent, tokenUsage, events)
 			}
 
-			return renderDashboardText(cmd, activeAgents, offlineAgents, unreadCounts, claimsByAgent, events)
+			return renderDashboardText(cmd, activeAgents, offlineAgents, unreadCounts, claimsByAgent, tokenUsage, events)
 		},
 	}
 
@@ -159,7 +233,7 @@ func containsPrefix(s, prefix string) bool {
 	return s[:len(prefix)] == prefix
 }
 
-func renderDashboardText(cmd *cobra.Command, activeAgents, offlineAgents []types.Agent, unreadCounts map[string]int, claimsByAgent map[string][]types.Claim, events []DashboardEvent) error {
+func renderDashboardText(cmd *cobra.Command, activeAgents, offlineAgents []types.Agent, unreadCounts map[string]int, claimsByAgent map[string][]types.Claim, tokenUsage map[string]*TokenUsage, events []DashboardEvent) error {
 	out := cmd.OutOrStdout()
 
 	fmt.Fprintln(out, "FRAY DASHBOARD")
@@ -181,8 +255,11 @@ func renderDashboardText(cmd *cobra.Command, activeAgents, offlineAgents []types
 			unread := unreadCounts[agent.AgentID]
 			unreadStr := fmt.Sprintf("%d unread", unread)
 
-			fmt.Fprintf(out, "  %-12s [%-20s]  %-40s  %s\n",
-				agent.AgentID, statusStr, workStr, unreadStr)
+			// Token usage
+			tokensStr := formatTokenUsage(tokenUsage[agent.AgentID])
+
+			fmt.Fprintf(out, "  %-12s [%-20s]  %-40s  %-12s  %s\n",
+				agent.AgentID, statusStr, workStr, tokensStr, unreadStr)
 		}
 	}
 	fmt.Fprintln(out)
@@ -218,26 +295,26 @@ func renderDashboardText(cmd *cobra.Command, activeAgents, offlineAgents []types
 	return nil
 }
 
-func renderDashboardJSON(cmd *cobra.Command, activeAgents, offlineAgents []types.Agent, unreadCounts map[string]int, claimsByAgent map[string][]types.Claim, events []DashboardEvent) error {
+func renderDashboardJSON(cmd *cobra.Command, activeAgents, offlineAgents []types.Agent, unreadCounts map[string]int, claimsByAgent map[string][]types.Claim, tokenUsage map[string]*TokenUsage, events []DashboardEvent) error {
 	now := time.Now()
 
 	payload := map[string]any{
-		"timestamp": now.Format(time.RFC3339),
-		"active_agents": buildActiveAgentsPayload(activeAgents, unreadCounts, claimsByAgent),
+		"timestamp":      now.Format(time.RFC3339),
+		"active_agents":  buildActiveAgentsPayload(activeAgents, unreadCounts, claimsByAgent, tokenUsage),
 		"offline_agents": buildOfflineAgentsPayload(offlineAgents, now.Unix()),
-		"recent_events": buildEventsPayload(events),
+		"recent_events":  buildEventsPayload(events),
 	}
 
 	return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 }
 
-func buildActiveAgentsPayload(agents []types.Agent, unreadCounts map[string]int, claimsByAgent map[string][]types.Claim) []map[string]any {
+func buildActiveAgentsPayload(agents []types.Agent, unreadCounts map[string]int, claimsByAgent map[string][]types.Claim, tokenUsage map[string]*TokenUsage) []map[string]any {
 	result := make([]map[string]any, 0, len(agents))
 	for _, agent := range agents {
 		entry := map[string]any{
-			"agent_id": agent.AgentID,
-			"status": string(agent.Presence),
-			"unread_count": unreadCounts[agent.AgentID],
+			"agent_id":      agent.AgentID,
+			"status":        string(agent.Presence),
+			"unread_count":  unreadCounts[agent.AgentID],
 			"last_activity": time.Unix(agent.LastSeen, 0).Format(time.RFC3339),
 		}
 
@@ -265,6 +342,15 @@ func buildActiveAgentsPayload(agents []types.Agent, unreadCounts map[string]int,
 				}
 			}
 			entry["claims"] = claimsList
+		}
+
+		// Token usage from ccusage
+		if usage := tokenUsage[agent.AgentID]; usage != nil {
+			entry["tokens"] = map[string]any{
+				"total_tokens": usage.TotalTokens,
+				"total_cost":   usage.TotalCost,
+				"session_id":   usage.SessionID,
+			}
 		}
 
 		result = append(result, entry)
@@ -375,6 +461,13 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh", int(d.Hours()))
 	}
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
+}
+
+func formatTokenUsage(usage *TokenUsage) string {
+	if usage == nil {
+		return "N/A"
+	}
+	return fmt.Sprintf("$%.2f", usage.TotalCost)
 }
 
 func truncate(s string, max int) string {
