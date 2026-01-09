@@ -2019,6 +2019,24 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 			icon = "⚠"
 		}
 	}
+
+	// Get StatusDisplay overrides from status.mld (if available)
+	var statusDisplay *StatusDisplay
+	if m.statusInvoker != nil && status != "" {
+		statusDisplay = m.statusInvoker.GetDisplay(status)
+	}
+
+	// Apply status.mld icon override if present
+	if statusDisplay != nil && statusDisplay.Icon != nil {
+		icon = *statusDisplay.Icon
+	}
+
+	// Apply status.mld message transform if present
+	displayStatus := status
+	if statusDisplay != nil && statusDisplay.Message != nil {
+		displayStatus = *statusDisplay.Message
+	}
+
 	unread := m.agentUnreadCounts[agent.AgentID]
 
 	// Build the visible text content in parts for styling
@@ -2028,8 +2046,8 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 	namePart := fmt.Sprintf(" %s", name)
 	// Italic part: " status (unread)" + padding
 	italicPart := ""
-	if status != "" {
-		italicPart += " " + status
+	if displayStatus != "" {
+		italicPart += " " + displayStatus
 	}
 	if unread > 0 {
 		italicPart += fmt.Sprintf(" (%d)", unread)
@@ -2123,6 +2141,30 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 		unusedBg = lipgloss.Color("")    // transparent
 		textColor = lipgloss.Color("231") // white text
 		statusColor = lipgloss.Color("231") // white status too
+	}
+
+	// Apply StatusDisplay color overrides
+	if statusDisplay != nil {
+		if statusDisplay.IconColor != nil {
+			iconColor = lipgloss.Color(*statusDisplay.IconColor)
+		}
+		if statusDisplay.UsrColor != nil {
+			textColor = lipgloss.Color(*statusDisplay.UsrColor)
+		}
+		if statusDisplay.MsgColor != nil {
+			statusColor = lipgloss.Color(*statusDisplay.MsgColor)
+		}
+		if statusDisplay.UsedTokColor != nil {
+			usedBg = lipgloss.Color(*statusDisplay.UsedTokColor)
+		}
+		if statusDisplay.UnusedTokColor != nil {
+			unusedBg = lipgloss.Color(*statusDisplay.UnusedTokColor)
+		}
+		if statusDisplay.BgColor != nil {
+			// bgcolor overrides both used and unused background
+			usedBg = lipgloss.Color(*statusDisplay.BgColor)
+			unusedBg = lipgloss.Color(*statusDisplay.BgColor)
+		}
 	}
 
 	// Calculate fill width (how many chars get "used" background)

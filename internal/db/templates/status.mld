@@ -1,0 +1,52 @@
+/import { @status } from @payload
+
+// Parse status message and return display overrides
+/exe @parse(text) = when first [
+  // Blocked/stuck states: red with warning indicator
+  text.toLowerCase().startsWith("blocked:") => {
+    icon: "⊘",
+    iconcolor: "#FF0000",
+    message: text.slice(8).trim(),
+    msgcolor: "#FF6666",
+    bgcolor: "#300000"
+  }
+  text.toLowerCase().startsWith("stuck:") => {
+    icon: "⊘",
+    iconcolor: "#FF0000",
+    message: text.slice(6).trim(),
+    msgcolor: "#FF6666",
+    bgcolor: "#300000"
+  }
+
+  // Awaiting/waiting states: yellow hourglass
+  text.toLowerCase().startsWith("awaiting:") => {
+    icon: "⧖",
+    message: text.slice(9).trim(),
+    msgcolor: "#FFFF00"
+  }
+  text.toLowerCase().startsWith("waiting:") => {
+    icon: "⧖",
+    message: text.slice(8).trim(),
+    msgcolor: "#FFFF00"
+  }
+
+  // Done/complete states: green checkmark
+  text.toLowerCase().startsWith("done:") => {
+    icon: "✓",
+    iconcolor: "#00FF00",
+    message: text.slice(5).trim(),
+    msgcolor: "#88FF88"
+  }
+  text.toLowerCase().startsWith("complete:") => {
+    icon: "✓",
+    iconcolor: "#00FF00",
+    message: text.slice(9).trim(),
+    msgcolor: "#88FF88"
+  }
+
+  // Default: no overrides
+  * => {}
+]
+
+/show @parse(@status)
+/export { @parse }

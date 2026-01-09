@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -155,10 +156,11 @@ type Model struct {
 	lastClickID         string
 	lastClickAt         time.Time
 	// Activity panel state
-	managedAgents       []types.Agent          // daemon-managed agents
-	agentUnreadCounts   map[string]int         // unread count per agent
-	agentTokenUsage     map[string]*TokenUsage // token usage per agent (by session ID)
-	activityDrillOffline bool                  // true when viewing offline agents only
+	managedAgents        []types.Agent          // daemon-managed agents
+	agentUnreadCounts    map[string]int         // unread count per agent
+	agentTokenUsage      map[string]*TokenUsage // token usage per agent (by session ID)
+	activityDrillOffline bool                   // true when viewing offline agents only
+	statusInvoker        *StatusInvoker         // mlld invoker for status display customization
 	// Peek mode state (view thread without changing posting context)
 	peekThread       *types.Thread // thread being peeked (nil if not peeking)
 	peekPseudo       pseudoThreadKind // pseudo-thread being peeked (empty if not peeking)
@@ -296,6 +298,7 @@ func NewModel(opts Options) (*Model, error) {
 		avatarMap:          make(map[string]string),
 		agentUnreadCounts:  make(map[string]int),
 		agentTokenUsage:    make(map[string]*TokenUsage),
+		statusInvoker:      NewStatusInvoker(filepath.Join(opts.ProjectRoot, ".fray")),
 		zoneManager:        zone.New(),
 		channels:        channels,
 		channelIndex:    channelIndex,
