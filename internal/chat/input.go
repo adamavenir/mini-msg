@@ -56,6 +56,14 @@ func (m *Model) inputCursorPos() int {
 
 func (m *Model) updateInputStyle() {
 	_, reactionMode := reactionInputText(m.input.Value())
+	// Edit mode takes precedence
+	if m.editingMessageID != "" {
+		if !m.reactionMode { // avoid redundant updates
+			m.reactionMode = false
+			applyInputStylesWithBg(&m.input, textColor, blurText, editBg)
+		}
+		return
+	}
 	if reactionMode == m.reactionMode {
 		return
 	}
@@ -119,12 +127,16 @@ func reactionInputText(value string) (string, bool) {
 }
 
 func applyInputStyles(input *textarea.Model, textColor, blurColor lipgloss.Color) {
-	input.FocusedStyle.Base = lipgloss.NewStyle().Foreground(textColor).Background(inputBg)
-	input.FocusedStyle.Text = lipgloss.NewStyle().Foreground(textColor).Background(inputBg)
-	input.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(caretColor).Background(inputBg)
-	input.FocusedStyle.CursorLine = lipgloss.NewStyle().Background(inputBg)
-	input.BlurredStyle.Base = lipgloss.NewStyle().Foreground(blurColor).Background(inputBg)
-	input.BlurredStyle.Text = lipgloss.NewStyle().Foreground(blurColor).Background(inputBg)
-	input.BlurredStyle.Prompt = lipgloss.NewStyle().Foreground(caretColor).Background(inputBg)
-	input.BlurredStyle.CursorLine = lipgloss.NewStyle().Background(inputBg)
+	applyInputStylesWithBg(input, textColor, blurColor, inputBg)
+}
+
+func applyInputStylesWithBg(input *textarea.Model, textColor, blurColor, bgColor lipgloss.Color) {
+	input.FocusedStyle.Base = lipgloss.NewStyle().Foreground(textColor).Background(bgColor)
+	input.FocusedStyle.Text = lipgloss.NewStyle().Foreground(textColor).Background(bgColor)
+	input.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(caretColor).Background(bgColor)
+	input.FocusedStyle.CursorLine = lipgloss.NewStyle().Background(bgColor)
+	input.BlurredStyle.Base = lipgloss.NewStyle().Foreground(blurColor).Background(bgColor)
+	input.BlurredStyle.Text = lipgloss.NewStyle().Foreground(blurColor).Background(bgColor)
+	input.BlurredStyle.Prompt = lipgloss.NewStyle().Foreground(caretColor).Background(bgColor)
+	input.BlurredStyle.CursorLine = lipgloss.NewStyle().Background(bgColor)
 }

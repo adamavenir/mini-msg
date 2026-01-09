@@ -81,9 +81,13 @@ Legacy (deprecated):
 				thread, err := resolveThreadRef(ctx.DB, target)
 				if err == nil && thread != nil {
 					pinnedOnly, _ := cmd.Flags().GetBool("pinned")
+					anchorsOnly, _ := cmd.Flags().GetBool("anchors")
 					byAgent, _ := cmd.Flags().GetString("by")
 					withText, _ := cmd.Flags().GetString("with")
 					reactionsOnly, _ := cmd.Flags().GetBool("reactions")
+					if anchorsOnly {
+						return getThreadAnchors(cmd, ctx, thread, projectName, agentBases)
+					}
 					return getThread(cmd, ctx, thread, last, since, showAllMessages, projectName, agentBases, hideEvents, pinnedOnly, byAgent, withText, reactionsOnly)
 				}
 			}
@@ -497,6 +501,7 @@ Legacy (deprecated):
 
 	// Within-thread filters
 	cmd.Flags().Bool("pinned", false, "show only pinned messages (threads only)")
+	cmd.Flags().Bool("anchors", false, "show only anchor messages from child threads")
 	cmd.Flags().String("by", "", "filter messages by agent")
 	cmd.Flags().String("with", "", "filter messages containing text")
 	cmd.Flags().Bool("reactions", false, "show only messages with reactions")
@@ -623,6 +628,77 @@ func getThread(cmd *cobra.Command, ctx *CommandContext, thread *types.Thread, la
 	for _, line := range lines {
 		fmt.Fprintln(out, line)
 	}
+	return nil
+}
+
+// getThreadAnchors displays anchor messages from child threads.
+func getThreadAnchors(cmd *cobra.Command, ctx *CommandContext, thread *types.Thread, projectName string, agentBases map[string]struct{}) error {
+	// Get child threads
+	childThreads, err := db.GetThreads(ctx.DB, &types.ThreadQueryOptions{
+		ParentThread: &thread.GUID,
+	})
+	if err != nil {
+		return writeCommandError(cmd, err)
+	}
+
+	type anchorEntry struct {
+		Thread  types.Thread
+		Path    string
+		Message *types.Message
+	}
+	var entries []anchorEntry
+
+	for _, child := range childThreads {
+		path, _ := buildThreadPath(ctx.DB, &child)
+		var msg *types.Message
+		if child.AnchorMessageGUID != nil {
+			msg, _ = db.GetMessage(ctx.DB, *child.AnchorMessageGUID)
+		}
+		entries = append(entries, anchorEntry{
+			Thread:  child,
+			Path:    path,
+			Message: msg,
+		})
+	}
+
+	parentPath, _ := buildThreadPath(ctx.DB, thread)
+
+	if ctx.JSONMode {
+		type jsonEntry struct {
+			Thread  types.Thread    `json:"thread"`
+			Path    string          `json:"path"`
+			Message *types.Message  `json:"anchor,omitempty"`
+		}
+		jsonEntries := make([]jsonEntry, len(entries))
+		for i, e := range entries {
+			jsonEntries[i] = jsonEntry{Thread: e.Thread, Path: e.Path, Message: e.Message}
+		}
+		payload := map[string]any{
+			"parent":  thread,
+			"path":    parentPath,
+			"anchors": jsonEntries,
+		}
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
+	}
+
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Anchors in %s (%s)\n\n", parentPath, thread.GUID)
+
+	if len(entries) == 0 {
+		fmt.Fprintln(out, "No child threads")
+		return nil
+	}
+
+	for _, entry := range entries {
+		if entry.Message != nil {
+			fmt.Fprintf(out, "## %s\n", entry.Path)
+			fmt.Fprintln(out, FormatMessageFull(*entry.Message, projectName, agentBases))
+			fmt.Fprintln(out)
+		} else {
+			fmt.Fprintf(out, "## %s (no anchor)\n\n", entry.Path)
+		}
+	}
+
 	return nil
 }
 

@@ -45,6 +45,8 @@ var allCommands = []commandDef{
 	{Name: "/rename", Desc: "Rename current thread"},
 	{Name: "/mv", Desc: "Move message or thread"},
 	{Name: "/n", Desc: "Set thread nickname"},
+	{Name: "/pin", Desc: "Pin a message"},
+	{Name: "/unpin", Desc: "Unpin a message"},
 	{Name: "/edit", Desc: "Edit a message"},
 	{Name: "/delete", Desc: "Delete a message"},
 	{Name: "/rm", Desc: "Delete a message"},

@@ -26,6 +26,7 @@ var (
 	statusColor   = lipgloss.Color("241")
 	metaColor     = lipgloss.Color("242")
 	inputBg       = lipgloss.Color("236")
+	editBg        = lipgloss.Color("18") // blue background for edit mode
 	caretColor    = lipgloss.Color("243")
 	reactionColor = lipgloss.Color("220")
 	textColor     = lipgloss.Color("255")
@@ -98,6 +99,7 @@ type Model struct {
 	suggestionStart     int
 	suggestionKind      suggestionKind
 	reactionMode        bool
+	editingMessageID    string // non-empty when in edit mode
 	lastInputValue      string
 	lastInputPos        int
 	threads                 []types.Thread
@@ -356,7 +358,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, tea.Quit
+		case tea.KeyEsc:
+			if m.editingMessageID != "" {
+				m.exitEditMode()
+				m.resize()
+				return m, nil
+			}
 		case tea.KeyEnter:
+			// Handle edit mode submission
+			if m.editingMessageID != "" {
+				value := strings.TrimSpace(m.input.Value())
+				if value == "" {
+					m.status = "Cannot save empty message"
+					return m, nil
+				}
+				msgID := m.editingMessageID
+				m.exitEditMode()
+				m.resize()
+				return m, m.submitEdit(msgID, value)
+			}
 			value := strings.TrimSpace(m.input.Value())
 			m.input.Reset()
 			m.clearSuggestions()
@@ -571,6 +591,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.status = msg.err.Error()
 		return m, m.pollCmd()
+	case editResultMsg:
+		if msg.err != nil {
+			m.status = fmt.Sprintf("Edit failed: %v", msg.err)
+			return m, nil
+		}
+		if msg.msg != nil {
+			reason := "edit"
+			if err := m.appendMessageEditUpdate(*msg.msg, reason); err != nil {
+				m.status = fmt.Sprintf("Edit failed: %v", err)
+				return m, nil
+			}
+			annotated, err := db.ApplyMessageEditCounts(m.projectDBPath, []types.Message{*msg.msg})
+			if err == nil && len(annotated) > 0 {
+				*msg.msg = annotated[0]
+			}
+			m.applyMessageUpdate(*msg.msg)
+			m.refreshViewport(false)
+			m.status = fmt.Sprintf("Edited #%s", msg.msg.ID)
+		}
+		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -612,7 +652,11 @@ func (m *Model) View() string {
 
 func (m *Model) renderInput() string {
 	content := m.input.View()
-	style := lipgloss.NewStyle().Background(inputBg).Padding(0, inputPadding, 0, 0)
+	bg := inputBg
+	if m.editingMessageID != "" {
+		bg = editBg
+	}
+	style := lipgloss.NewStyle().Background(bg).Padding(0, inputPadding, 0, 0)
 	if width := m.mainWidth(); width > 0 {
 		style = style.Width(width)
 	}

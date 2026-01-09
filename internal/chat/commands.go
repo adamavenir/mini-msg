@@ -131,6 +131,10 @@ func (m *Model) runSlashCommand(input string) (tea.Cmd, error) {
 		return nil, m.runEditCommand(input)
 	case "/delete", "/rm":
 		return nil, m.runDeleteCommand(input)
+	case "/pin":
+		return nil, m.runPinCommand(fields[1:])
+	case "/unpin":
+		return nil, m.runUnpinCommand(fields[1:])
 	case "/prune":
 		return nil, fmt.Errorf("/prune is disabled (see fray-jqxf)")
 	}
@@ -154,7 +158,7 @@ func (m *Model) setThreadNickname(args []string) (tea.Cmd, error) {
 		}
 		m.pendingNicknameGUID = "" // Clear after use
 	} else if m.threadPanelFocus {
-		// Fall back to focused thread
+		// Fall back to focused thread in sidebar
 		entries := m.threadEntries()
 		if m.threadIndex < 0 || m.threadIndex >= len(entries) {
 			return nil, fmt.Errorf("no thread selected")
@@ -165,8 +169,12 @@ func (m *Model) setThreadNickname(args []string) (tea.Cmd, error) {
 		}
 		guid = entry.Thread.GUID
 		threadName = entry.Thread.Name
+	} else if m.currentThread != nil {
+		// Fall back to currently viewed thread
+		guid = m.currentThread.GUID
+		threadName = m.currentThread.Name
 	} else {
-		return nil, fmt.Errorf("/n only works when thread panel is focused (press Tab) or via Ctrl-N")
+		return nil, fmt.Errorf("no thread selected (navigate to a thread or use Tab to focus sidebar)")
 	}
 
 	nickname := strings.Join(args, " ")
@@ -287,15 +295,60 @@ func (m *Model) prefillEditCommand() bool {
 		return true
 	}
 
-	body := strings.ReplaceAll(msg.Body, "\n", " ")
-	value := fmt.Sprintf("/edit #%s %s -m edit", msg.ID, body)
-	m.input.SetValue(value)
+	m.enterEditMode(msg.ID, msg.Body)
+	return true
+}
+
+func (m *Model) enterEditMode(msgID, body string) {
+	m.editingMessageID = msgID
+	m.input.SetValue(body)
 	m.input.CursorEnd()
 	m.clearSuggestions()
 	m.lastInputValue = m.input.Value()
 	m.lastInputPos = m.inputCursorPos()
+	m.updateInputStyle()
+	m.status = fmt.Sprintf("editing #%s | Enter to save, Esc to cancel", msgID)
+}
+
+func (m *Model) exitEditMode() {
+	m.editingMessageID = ""
+	m.input.Reset()
+	m.clearSuggestions()
+	m.lastInputValue = m.input.Value()
+	m.lastInputPos = m.inputCursorPos()
+	m.updateInputStyle()
 	m.status = ""
-	return true
+}
+
+func (m *Model) submitEdit(msgID, newBody string) tea.Cmd {
+	return func() tea.Msg {
+		msg, err := db.GetMessage(m.db, msgID)
+		if err != nil {
+			return editResultMsg{err: err}
+		}
+		if msg == nil {
+			return editResultMsg{err: fmt.Errorf("message %s not found", msgID)}
+		}
+
+		if err := db.EditMessage(m.db, msg.ID, newBody, m.username); err != nil {
+			return editResultMsg{err: err}
+		}
+
+		updated, err := db.GetMessage(m.db, msg.ID)
+		if err != nil {
+			return editResultMsg{err: err}
+		}
+		if updated == nil {
+			return editResultMsg{err: fmt.Errorf("message %s not found after edit", msg.ID)}
+		}
+
+		return editResultMsg{msg: updated}
+	}
+}
+
+type editResultMsg struct {
+	msg *types.Message
+	err error
 }
 
 func (m *Model) lastUserMessage() *types.Message {
@@ -316,6 +369,19 @@ func (m *Model) lastUserMessage() *types.Message {
 }
 
 func (m *Model) runEditCommand(input string) error {
+	// Check if this is just "/edit <msg-id>" (enter edit mode)
+	fields := strings.Fields(input)
+	if len(fields) == 2 && fields[0] == "/edit" {
+		msgID := strings.TrimPrefix(fields[1], "#")
+		msg, err := m.resolveMessageInput(msgID)
+		if err != nil {
+			return err
+		}
+		m.enterEditMode(msg.ID, msg.Body)
+		return nil
+	}
+
+	// Otherwise, parse as full edit command
 	msgID, body, reason, err := parseEditCommand(input)
 	if err != nil {
 		return err
@@ -449,6 +515,84 @@ func (m *Model) runPruneCommand(args []string) error {
 	}
 
 	m.status = fmt.Sprintf("Pruned to last %d messages. Archived to history.jsonl", result.Kept)
+	return nil
+}
+
+func (m *Model) runPinCommand(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: /pin <message-id>")
+	}
+
+	msg, err := m.resolveMessageInput(args[0])
+	if err != nil {
+		return err
+	}
+
+	// Determine thread - use message's home if it's a thread, otherwise current thread
+	var threadGUID string
+	if msg.Home != "" && msg.Home != "room" {
+		threadGUID = msg.Home
+	} else if m.currentThread != nil {
+		threadGUID = m.currentThread.GUID
+	} else {
+		return fmt.Errorf("message is in room; navigate to a thread first")
+	}
+
+	now := time.Now().Unix()
+	if err := db.PinMessage(m.db, msg.ID, threadGUID, m.username, now); err != nil {
+		return fmt.Errorf("failed to pin: %w", err)
+	}
+
+	if err := db.AppendMessagePin(m.projectDBPath, db.MessagePinJSONLRecord{
+		MessageGUID: msg.ID,
+		ThreadGUID:  threadGUID,
+		PinnedBy:    m.username,
+		PinnedAt:    now,
+	}); err != nil {
+		return fmt.Errorf("failed to persist pin: %w", err)
+	}
+
+	m.input.SetValue("")
+	m.status = fmt.Sprintf("Pinned %s", msg.ID)
+	return nil
+}
+
+func (m *Model) runUnpinCommand(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: /unpin <message-id>")
+	}
+
+	msg, err := m.resolveMessageInput(args[0])
+	if err != nil {
+		return err
+	}
+
+	// Determine thread - use message's home if it's a thread, otherwise current thread
+	var threadGUID string
+	if msg.Home != "" && msg.Home != "room" {
+		threadGUID = msg.Home
+	} else if m.currentThread != nil {
+		threadGUID = m.currentThread.GUID
+	} else {
+		return fmt.Errorf("message is in room; navigate to a thread first")
+	}
+
+	if err := db.UnpinMessage(m.db, msg.ID, threadGUID); err != nil {
+		return fmt.Errorf("failed to unpin: %w", err)
+	}
+
+	now := time.Now().Unix()
+	if err := db.AppendMessageUnpin(m.projectDBPath, db.MessageUnpinJSONLRecord{
+		MessageGUID: msg.ID,
+		ThreadGUID:  threadGUID,
+		UnpinnedBy:  m.username,
+		UnpinnedAt:  now,
+	}); err != nil {
+		return fmt.Errorf("failed to persist unpin: %w", err)
+	}
+
+	m.input.SetValue("")
+	m.status = fmt.Sprintf("Unpinned %s", msg.ID)
 	return nil
 }
 
