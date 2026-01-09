@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Chat: edit mode redesigned - up arrow shows message body only with blue background, Esc cancels, Enter saves
+- Chat: peek mode redesigned - single-click on content commits peek, sidebar stays open
+- Chat: click-to-reply changed - double-click on message ID inserts reply prefix, single-click copies ID
 
 ### Fixed
 - Chat: `/n` command works from message input when viewing a thread (no longer requires sidebar focus)
@@ -47,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity panel: token percentage now shows context window usage (~54%) instead of cumulative billing tokens (was showing 100%+ for all agents)
 - Activity panel: two-tone background now uses proper dimmed agent color instead of generic grey
 - JSONL append now calls fsync() to ensure data is flushed to disk before returning success
+- Chat: edit mode background now resets properly after saving/canceling
+- Chat: peek Y-coordinate offset fixed when peek statusline is displayed
+- CLI: `fray rebuild` now preserves fray_config (username, stale_hours) across rebuilds
 - Daemon: @mentions in threads now wake agents (was room-only)
 - Daemon: replies to agent messages wake the agent (even without explicit @mention)
 - Daemon: `fray daemon status` now correctly detects running daemon on macOS
