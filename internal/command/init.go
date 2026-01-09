@@ -66,6 +66,11 @@ func NewInitCmd() *cobra.Command {
 				return writeInitError(errOut, jsonMode, err)
 			}
 
+			// Create llm/ directory and router.mld template
+			if err := ensureLLMRouter(project.Root); err != nil {
+				return writeInitError(errOut, jsonMode, err)
+			}
+
 			existingConfig, err := db.ReadProjectConfig(project.DBPath)
 			if err != nil {
 				return writeInitError(errOut, jsonMode, err)
@@ -204,4 +209,28 @@ func isTTY(file *os.File) bool {
 		return false
 	}
 	return info.Mode()&os.ModeCharDevice != 0
+}
+
+// ensureLLMRouter creates the .fray/llm/ directory and stock router.mld template.
+// Only creates if the file doesn't exist (preserves user customizations).
+func ensureLLMRouter(projectRoot string) error {
+	llmDir := filepath.Join(projectRoot, ".fray", "llm")
+	routerPath := filepath.Join(llmDir, "router.mld")
+
+	// Skip if router already exists (user may have customized it)
+	if _, err := os.Stat(routerPath); err == nil {
+		return nil
+	}
+
+	// Create llm/ directory
+	if err := os.MkdirAll(llmDir, 0o755); err != nil {
+		return fmt.Errorf("create llm directory: %w", err)
+	}
+
+	// Write stock router template
+	if err := os.WriteFile(routerPath, db.RouterTemplate, 0o644); err != nil {
+		return fmt.Errorf("write router template: %w", err)
+	}
+
+	return nil
 }

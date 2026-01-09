@@ -1497,3 +1497,201 @@
 {"type":"session_start","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","triggered_by":"msg-fie622ph","started_at":1767928100}
 {"type":"agent_update","agent_id":"designer","mention_watermark":"msg-fie622ph"}
 {"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767928118,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-fie622ph"}
+{"type":"session_start","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","triggered_by":"msg-eeer5cqo","started_at":1767928227}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-eeer5cqo"}
+{"type":"session_end","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","exit_code":0,"duration_ms":169492,"ended_at":1767928268}
+{"type":"session_end","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","exit_code":0,"duration_ms":60714,"ended_at":1767928286}
+{"type":"session_start","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","triggered_by":"msg-tbfq0ar7","started_at":1767928513}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-tbfq0ar7"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767928523,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-tbfq0ar7"}
+{"type":"session_end","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","exit_code":0,"duration_ms":68450,"ended_at":1767928580}
+{"type":"session_start","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","triggered_by":"msg-l514efs0","started_at":1767928720}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-l514efs0"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767928729,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-l514efs0"}
+{"type":"session_end","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","exit_code":0,"duration_ms":36720,"ended_at":1767928755}
+{"type":"session_start","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","triggered_by":"msg-6f81gfhq","started_at":1767928771}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-6f81gfhq"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767928785,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-6f81gfhq"}
+{"type":"session_end","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","exit_code":0,"duration_ms":35292,"ended_at":1767928805}
+{"type":"session_start","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","triggered_by":"msg-b4ovkcpo","started_at":1767928914}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-b4ovkcpo"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767928924,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-b4ovkcpo"}
+{"type":"session_start","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","triggered_by":"msg-60hojy52","started_at":1767928935}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-60hojy52"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"inactive","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767928944,"left_at":1767928944,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"offline","mention_watermark":"msg-b4ovkcpo"}
+{"type":"session_end","agent_id":"designer","session_id":"7dba056b-4a0d-4668-a225-e1528a670016","exit_code":0,"duration_ms":36233,"ended_at":1767928949}
+{"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1767928950,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-60hojy52"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-grvyhdww"}
+{"type":"session_start","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","triggered_by":"msg-o224r4o0","started_at":1767929041}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-o224r4o0"}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-5dvhblqf"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767929053,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-5dvhblqf"}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-9bgk4nrg"}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-fktdxqm3"}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-fktdxqm3"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-fktdxqm3"}
+{"type":"session_end","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","exit_code":0,"duration_ms":162503,"ended_at":1767929096}
+{"type":"session_end","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","exit_code":0,"duration_ms":72720,"ended_at":1767929112}
+{"type":"session_start","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","triggered_by":"msg-oitywzwh","started_at":1767929114}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-oitywzwh"}
+{"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1767929130,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-oitywzwh"}
+{"type":"session_start","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","triggered_by":"msg-k2k8zau2","started_at":1767929134}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-k2k8zau2"}
+{"type":"session_start","agent_id":"dev","session_id":"6280dba1-a579-444b-8846-2604ea9b8bb3","triggered_by":"msg-bg1vdvay","started_at":1767929160}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-bg1vdvay"}
+{"type":"session_start","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","triggered_by":"msg-nbm1agz3","started_at":1767929173}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-nbm1agz3"}
+{"type":"agent","id":"usr-mptuvoqg","name":"dev","global_name":"fray-dev","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T08:02:13Z","active_status":"active","agent_id":"dev","status":"Fixed thread notifications for #fray-pnm9","avatar":"🆅","registered_at":1767340933,"last_seen":1767929175,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-bg1vdvay"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-4cddmanm"}
+{"type":"session_start","agent_id":"architect","session_id":"6eb16c48-4eba-428f-bc7a-065bb96ccd42","triggered_by":"msg-h2xlf77g","started_at":1767929187}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-h2xlf77g"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767929187,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-nbm1agz3"}
+{"type":"session_start","agent_id":"dev","session_id":"6280dba1-a579-444b-8846-2604ea9b8bb3","triggered_by":"msg-367xqzyw","started_at":1767929191}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-367xqzyw"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-9bs19xz7"}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-703ut2cn"}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-703ut2cn"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-703ut2cn"}
+{"type":"session_end","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","exit_code":0,"duration_ms":66820,"ended_at":1767929199}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-sh7g148b"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-7qldoqfn"}
+{"type":"session_end","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","exit_code":0,"duration_ms":90318,"ended_at":1767929203}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-t7nlcpn6"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-hr0sm8ni"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-adjfskje"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-763fd4fq"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-ugq29hpv"}
+{"type":"session_end","agent_id":"architect","session_id":"6eb16c48-4eba-428f-bc7a-065bb96ccd42","exit_code":0,"duration_ms":211475,"ended_at":1767929397}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-6iyrybi0"}
+{"type":"session_end","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","exit_code":0,"duration_ms":298579,"ended_at":1767929470}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-7isql1xp"}
+{"type":"session_end","agent_id":"dev","session_id":"6280dba1-a579-444b-8846-2604ea9b8bb3","exit_code":-1,"duration_ms":465007,"ended_at":1767929655}
+{"type":"session_end","agent_id":"dev","session_id":"6280dba1-a579-444b-8846-2604ea9b8bb3","exit_code":-1,"duration_ms":495971,"ended_at":1767929655}
+{"type":"session_start","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","triggered_by":"msg-6z17xget","started_at":1767929844}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-6z17xget"}
+{"type":"session_start","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","triggered_by":"msg-r07fqqaf","started_at":1767929861}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-r07fqqaf"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767929865,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-6z17xget"}
+{"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1767929875,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-r07fqqaf"}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-v1klmf9b"}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-v1klmf9b"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-v1klmf9b"}
+{"type":"session_end","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","exit_code":0,"duration_ms":58212,"ended_at":1767929918}
+{"type":"session_start","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","triggered_by":"msg-931dnbmr","started_at":1767929995}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-931dnbmr"}
+{"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1767930011,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-931dnbmr"}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-e54bgcg8"}
+{"type":"session_start","agent_id":"dev","session_id":"6280dba1-a579-444b-8846-2604ea9b8bb3","triggered_by":"msg-e54bgcg8","started_at":1767930028}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-e54bgcg8"}
+{"type":"session_end","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","exit_code":0,"duration_ms":189609,"ended_at":1767930032}
+{"type":"session_start","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","triggered_by":"msg-s5e2g6ah","started_at":1767930033}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-s5e2g6ah"}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-9wdu03r0"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-9wdu03r0"}
+{"type":"session_end","agent_id":"pm","session_id":"ff5198f4-9b18-4bc5-9ebd-4b37daec34ec","exit_code":0,"duration_ms":48218,"ended_at":1767930042}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767930050,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-9wdu03r0"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-zql39lt7"}
+{"type":"agent","id":"usr-mptuvoqg","name":"dev","global_name":"fray-dev","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T08:02:13Z","active_status":"active","agent_id":"dev","status":"Fixed thread notifications for #fray-pnm9","avatar":"🆅","registered_at":1767340933,"last_seen":1767930051,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-9wdu03r0"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-7h8w99py"}
+{"type":"session_start","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","triggered_by":"msg-zehvfr1v","started_at":1767930162}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-zehvfr1v"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767930177,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-zehvfr1v"}
+{"type":"session_end","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","exit_code":0,"duration_ms":252762,"ended_at":1767930285}
+{"type":"session_end","agent_id":"designer","session_id":"3cd0bd66-baa7-47e2-91da-2822d94d9209","exit_code":0,"duration_ms":203229,"ended_at":1767930364}
+{"type":"session_end","agent_id":"dev","session_id":"6280dba1-a579-444b-8846-2604ea9b8bb3","exit_code":0,"duration_ms":367956,"ended_at":1767930395}
+{"type":"session_start","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","triggered_by":"msg-dsc43q13","started_at":1767931564}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-dsc43q13"}
+{"type":"session_start","agent_id":"dev","session_id":"6b5a943e-87f2-4da4-863f-07e544ed1f25","triggered_by":"msg-dsc43q13","started_at":1767931566}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-dsc43q13"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-1k61hf74"}
+{"type":"session_start","agent_id":"dev","session_id":"6b5a943e-87f2-4da4-863f-07e544ed1f25","triggered_by":"msg-n9fw0f3y","started_at":1767931665}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-n9fw0f3y"}
+{"type":"session_end","agent_id":"dev","session_id":"6b5a943e-87f2-4da4-863f-07e544ed1f25","exit_code":0,"duration_ms":157841,"ended_at":1767931722}
+{"type":"session_end","agent_id":"dev","session_id":"6b5a943e-87f2-4da4-863f-07e544ed1f25","exit_code":0,"duration_ms":72197,"ended_at":1767931736}
+{"type":"session_end","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","exit_code":0,"duration_ms":194199,"ended_at":1767931757}
+{"type":"session_start","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","triggered_by":"msg-ymptkblc","started_at":1767931909}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-ymptkblc"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767931926,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-ymptkblc"}
+{"type":"session_start","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","triggered_by":"msg-kvh83c26","started_at":1767932168}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-kvh83c26"}
+{"type":"session_start","agent_id":"dev","session_id":"6b5a943e-87f2-4da4-863f-07e544ed1f25","triggered_by":"msg-6bg1hjh7","started_at":1767932229}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-6bg1hjh7"}
+{"type":"agent","id":"usr-mptuvoqg","name":"dev","global_name":"fray-dev","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T08:02:13Z","active_status":"active","agent_id":"dev","status":"Fixed thread notifications for #fray-pnm9","avatar":"🆅","registered_at":1767340933,"last_seen":1767932240,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-6bg1hjh7"}
+{"type":"session_end","agent_id":"dev","session_id":"6b5a943e-87f2-4da4-863f-07e544ed1f25","exit_code":0,"duration_ms":117569,"ended_at":1767932345}
+{"type":"session_start","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","triggered_by":"msg-xe2u2bc2","started_at":1767932361}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-xe2u2bc2"}
+{"type":"session_end","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","exit_code":0,"duration_ms":69209,"ended_at":1767932429}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767932447,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-xe2u2bc2"}
+{"type":"session_end","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","exit_code":0,"duration_ms":288473,"ended_at":1767932455}
+{"type":"session_end","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","exit_code":0,"duration_ms":589108,"ended_at":1767932497}
+{"type":"session_start","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","triggered_by":"msg-dqj9y83s","started_at":1767932863}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-dqj9y83s"}
+{"type":"session_end","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","exit_code":0,"duration_ms":434396,"ended_at":1767933296}
+{"type":"session_start","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","triggered_by":"msg-s0habvn9","started_at":1767934152}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-s0habvn9"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767934171,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-s0habvn9"}
+{"type":"session_end","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","exit_code":0,"duration_ms":375865,"ended_at":1767934527}
+{"type":"session_start","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","triggered_by":"msg-a4282m2r","started_at":1767934910}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-a4282m2r"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767934931,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-a4282m2r"}
+{"type":"session_end","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","exit_code":0,"duration_ms":228717,"ended_at":1767935137}
+{"type":"session_start","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","triggered_by":"msg-pkojq44r","started_at":1767935160}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-pkojq44r"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767935182,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-pkojq44r"}
+{"type":"session_end","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","exit_code":0,"duration_ms":159480,"ended_at":1767935318}
+{"type":"session_start","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","triggered_by":"msg-wzixj3q9","started_at":1767935584}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-wzixj3q9"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767935605,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-wzixj3q9"}
+{"type":"session_start","agent_id":"dev","session_id":"6b5a943e-87f2-4da4-863f-07e544ed1f25","triggered_by":"msg-151daqsb","started_at":1767935822}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-151daqsb"}
+{"type":"agent","id":"usr-mptuvoqg","name":"dev","global_name":"fray-dev","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T08:02:13Z","active_status":"active","agent_id":"dev","status":"Fixed thread notifications for #fray-pnm9","avatar":"🆅","registered_at":1767340933,"last_seen":1767935835,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-151daqsb"}
+{"type":"session_end","agent_id":"dev","session_id":"6b5a943e-87f2-4da4-863f-07e544ed1f25","exit_code":0,"duration_ms":54865,"ended_at":1767935876}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"inactive","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767935888,"left_at":1767935888,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"offline","mention_watermark":"msg-wzixj3q9"}
+{"type":"session_end","agent_id":"designer","session_id":"3a6f7f5b-d472-47fe-b1ab-5579d392dc2d","exit_code":0,"duration_ms":319198,"ended_at":1767935902}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-ukx96b2o"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-3yz09pwr"}
+{"type":"session_start","agent_id":"pm","session_id":"06d3e1fd-ca86-48ce-801d-d43b002203c8","triggered_by":"msg-ckpe6530","started_at":1767936059}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-ckpe6530"}
+{"type":"session_end","agent_id":"pm","session_id":"06d3e1fd-ca86-48ce-801d-d43b002203c8","exit_code":0,"duration_ms":40708,"ended_at":1767936098}
+{"type":"session_start","agent_id":"pm","session_id":"06d3e1fd-ca86-48ce-801d-d43b002203c8","triggered_by":"msg-vkkf52at","started_at":1767936107}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-vkkf52at"}
+{"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1767936119,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-vkkf52at"}
+{"type":"session_end","agent_id":"pm","session_id":"06d3e1fd-ca86-48ce-801d-d43b002203c8","exit_code":0,"duration_ms":49816,"ended_at":1767936155}
+{"type":"session_start","agent_id":"pm","session_id":"06d3e1fd-ca86-48ce-801d-d43b002203c8","triggered_by":"msg-ns4m0310","started_at":1767936312}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-ns4m0310"}
+{"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1767936323,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-ns4m0310"}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-7bmo0412"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-7bmo0412"}
+{"type":"session_end","agent_id":"pm","session_id":"06d3e1fd-ca86-48ce-801d-d43b002203c8","exit_code":0,"duration_ms":55104,"ended_at":1767936366}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-y35aewkt"}
+{"type":"session_start","agent_id":"designer","session_id":"feb9027c-ca7e-4a51-b840-684e8fc8410d","triggered_by":"msg-t5i4ugtt","started_at":1767936640}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-t5i4ugtt"}
+{"type":"session_start","agent_id":"tok","session_id":"388d5c43-0bf4-4ffd-bafa-60f970ec19c6","triggered_by":"msg-t5i4ugtt","started_at":1767936642}
+{"type":"agent_update","agent_id":"tok","mention_watermark":"msg-t5i4ugtt"}
+{"type":"agent","id":"usr-y5wlrdv4","name":"tok","global_name":"fray-tok","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T22:31:28Z","active_status":"active","agent_id":"tok","status":"done: initial prune feedback posted, ready for next session","registered_at":1767911488,"last_seen":1767936660,"left_at":null,"managed":true,"invoke":{"driver":"claude","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-t5i4ugtt"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767936661,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-t5i4ugtt"}
+{"type":"session_end","agent_id":"tok","session_id":"388d5c43-0bf4-4ffd-bafa-60f970ec19c6","exit_code":0,"duration_ms":62696,"ended_at":1767936703}
+{"type":"session_end","agent_id":"designer","session_id":"feb9027c-ca7e-4a51-b840-684e8fc8410d","exit_code":0,"duration_ms":75411,"ended_at":1767936714}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-c3cbna4b"}
+{"type":"session_start","agent_id":"tok","session_id":"388d5c43-0bf4-4ffd-bafa-60f970ec19c6","triggered_by":"msg-c3cbna4b","started_at":1767937791}
+{"type":"agent_update","agent_id":"tok","mention_watermark":"msg-c3cbna4b"}
+{"type":"agent","id":"usr-y5wlrdv4","name":"tok","global_name":"fray-tok","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T22:31:28Z","active_status":"active","agent_id":"tok","status":"done: initial prune feedback posted, ready for next session","registered_at":1767911488,"last_seen":1767937809,"left_at":null,"managed":true,"invoke":{"driver":"claude","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-c3cbna4b"}
+{"type":"agent_update","agent_id":"tok","mention_watermark":"msg-7jvru1g2"}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-vpw8jox4"}
+{"type":"session_end","agent_id":"tok","session_id":"388d5c43-0bf4-4ffd-bafa-60f970ec19c6","exit_code":0,"duration_ms":33784,"ended_at":1767937823}
+{"type":"session_start","agent_id":"tok","session_id":"388d5c43-0bf4-4ffd-bafa-60f970ec19c6","triggered_by":"msg-tgez2338","started_at":1767937891}
+{"type":"agent_update","agent_id":"tok","mention_watermark":"msg-7jvru1g2"}
+{"type":"agent","id":"usr-y5wlrdv4","name":"tok","global_name":"fray-tok","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T22:31:28Z","active_status":"active","agent_id":"tok","status":"done: initial prune feedback posted, ready for next session","registered_at":1767911488,"last_seen":1767937901,"left_at":null,"managed":true,"invoke":{"driver":"claude","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-7jvru1g2"}
+{"type":"session_end","agent_id":"tok","session_id":"388d5c43-0bf4-4ffd-bafa-60f970ec19c6","exit_code":0,"duration_ms":15581,"ended_at":1767937905}
+{"type":"session_start","agent_id":"tok","session_id":"388d5c43-0bf4-4ffd-bafa-60f970ec19c6","triggered_by":"msg-tgez2338","started_at":1767937907}
+{"type":"agent_update","agent_id":"tok","mention_watermark":"msg-tgez2338"}
+{"type":"session_end","agent_id":"tok","session_id":"388d5c43-0bf4-4ffd-bafa-60f970ec19c6","exit_code":0,"duration_ms":10059,"ended_at":1767937916}
+{"type":"session_start","agent_id":"designer","session_id":"feb9027c-ca7e-4a51-b840-684e8fc8410d","triggered_by":"msg-md9ohlr3","started_at":1767937956}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-md9ohlr3"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767937968,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-md9ohlr3"}
+{"type":"session_end","agent_id":"designer","session_id":"feb9027c-ca7e-4a51-b840-684e8fc8410d","exit_code":0,"duration_ms":41718,"ended_at":1767937996}
+{"type":"session_start","agent_id":"designer","session_id":"feb9027c-ca7e-4a51-b840-684e8fc8410d","triggered_by":"msg-p8bpylgm","started_at":1767938057}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-p8bpylgm"}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","status":"awaiting: adam's review of uncommitted code","avatar":"🅳","registered_at":1767205832,"last_seen":1767938064,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-p8bpylgm"}
+{"type":"agent_update","agent_id":"tok","mention_watermark":"msg-4flnx7gs"}
+{"type":"session_end","agent_id":"designer","session_id":"feb9027c-ca7e-4a51-b840-684e8fc8410d","exit_code":0,"duration_ms":48729,"ended_at":1767938104}

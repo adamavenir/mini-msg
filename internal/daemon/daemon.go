@@ -14,6 +14,7 @@ import (
 
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/router"
 	"github.com/adamavenir/fray/internal/types"
 )
 
@@ -24,6 +25,7 @@ type Daemon struct {
 	database     *sql.DB
 	debouncer    *MentionDebouncer
 	detector     ActivityDetector
+	router       *router.Router     // mlld-based routing for mention interpretation
 	processes    map[string]*Process // agent_id -> process
 	handled      map[string]bool     // agent_id -> true if exit already handled
 	drivers      map[string]Driver   // driver name -> driver
@@ -60,16 +62,18 @@ func New(project core.Project, database *sql.DB, cfg Config) *Daemon {
 		cfg.PollInterval = DefaultConfig().PollInterval
 	}
 
+	frayDir := filepath.Dir(project.DBPath)
 	d := &Daemon{
 		project:      project,
 		database:     database,
 		debouncer:    NewMentionDebouncer(database, project.DBPath),
 		detector:     NewActivityDetector(),
+		router:       router.New(frayDir),
 		processes:    make(map[string]*Process),
 		handled:      make(map[string]bool),
 		drivers:      make(map[string]Driver),
 		stopCh:       make(chan struct{}),
-		lockPath:     filepath.Join(filepath.Dir(project.DBPath), "daemon.lock"),
+		lockPath:     filepath.Join(frayDir, "daemon.lock"),
 		pollInterval: cfg.PollInterval,
 		debug:        cfg.Debug,
 	}
@@ -434,7 +438,30 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 			continue
 		}
 
-		d.debugf("    %s: triggering spawn", msg.ID)
+		// Route the mention to determine response mode
+		var threadHome *string
+		if msg.Home != "" && msg.Home != "room" {
+			threadHome = &msg.Home
+		}
+		routerResult := d.router.Route(router.RouterPayload{
+			Message: msg.Body,
+			From:    msg.FromAgent,
+			Agent:   agent.AgentID,
+			Thread:  threadHome,
+		})
+		d.debugf("    %s: router result: mode=%s, shouldSpawn=%v, confidence=%.2f",
+			msg.ID, routerResult.Mode, routerResult.ShouldSpawn, routerResult.Confidence)
+
+		// Skip spawn if router says acknowledge (FYI messages)
+		if !routerResult.ShouldSpawn {
+			d.debugf("    %s: skip (router: acknowledge mode)", msg.ID)
+			if !hasQueued {
+				lastProcessedID = msg.ID
+			}
+			continue
+		}
+
+		d.debugf("    %s: triggering spawn (mode=%s)", msg.ID, routerResult.Mode)
 
 		// Try to spawn - spawnAgent returns the last msgID included in wake prompt
 		lastIncluded, err := d.spawnAgent(ctx, agent, msg.ID)

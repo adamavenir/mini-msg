@@ -134,3 +134,9 @@
 {"type":"question_update","guid":"qstn-m1qxtwp8","status":"answered","answered_in":"msg-3nrewbij"}
 {"type":"question_update","guid":"qstn-i9v1wqoh","status":"answered","answered_in":"msg-3nrewbij"}
 {"type":"question_update","guid":"qstn-urc2ttcu","status":"answered","answered_in":"msg-3nrewbij"}
+{"type":"question","guid":"qstn-f35ycx2k","re":"**`fray init` placement**: Should mlld scripts live at `.fray/llm/` (per-project customizable) or stay at repo root `llm/` (shared)?","from_agent":"architect","status":"open","asked_in":"msg-hr0sm8ni","created_at":1767929297}
+{"type":"question","guid":"qstn-204cgphw","re":"**Thread context assembly**: The mlld router expects `threadContext` but daemon currently doesn't assemble recent thread messages. Do we build that in Go or let the mlld script call `fray get` via `cmd{}`?","from_agent":"architect","status":"open","asked_in":"msg-hr0sm8ni","created_at":1767929297}
+{"type":"question","guid":"qstn-9y5rjwmv","re":"**Error handling**: If mlld fails (Node not installed, script error), should daemon fall back to hardcoded deep-work prompt or error out?","from_agent":"architect","status":"open","asked_in":"msg-hr0sm8ni","created_at":1767929297}
+{"type":"question_update","guid":"qstn-f35ycx2k","status":"answered","answered_in":"msg-7isql1xp"}
+{"type":"question_update","guid":"qstn-204cgphw","status":"answered","answered_in":"msg-7isql1xp"}
+{"type":"question_update","guid":"qstn-9y5rjwmv","status":"answered","answered_in":"msg-7isql1xp"}
