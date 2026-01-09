@@ -1788,3 +1788,5 @@
 {"type":"thread_subscribe","thread_guid":"thrd-9wa6kst9","agent_id":"tok","subscribed_at":1767961730}
 {"type":"thread_subscribe","thread_guid":"thrd-fpp17qsn","agent_id":"dev","subscribed_at":1767963104}
 {"type":"thread_update","guid":"thrd-81gulr3u","status":"archived"}
+{"type":"thread","guid":"thrd-og1ie6b2","name":"party-starter","subscribed":["adam"],"status":"open","thread_type":"standard","created_at":1767964875}
+{"type":"thread","guid":"thrd-tlpct4p6","name":"jrnl","parent_thread":"thrd-tlt46m3p","subscribed":["opus"],"status":"open","thread_type":"system","created_at":1767979525}

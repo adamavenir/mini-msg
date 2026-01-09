@@ -23,10 +23,11 @@ const (
 	suggestionCommand
 )
 
-// commandDef defines a slash command with its name and description.
+// commandDef defines a slash command with its name, description, and optional usage.
 type commandDef struct {
-	Name string
-	Desc string
+	Name  string
+	Desc  string
+	Usage string // Shown after command is completed (with space)
 }
 
 // allCommands is the list of available slash commands.
@@ -34,22 +35,27 @@ var allCommands = []commandDef{
 	{Name: "/quit", Desc: "Exit chat"},
 	{Name: "/exit", Desc: "Exit chat"},
 	{Name: "/help", Desc: "Show help"},
-	{Name: "/fave", Desc: "Fave current thread"},
-	{Name: "/unfave", Desc: "Unfave current thread"},
-	{Name: "/follow", Desc: "Follow current thread"},
-	{Name: "/unfollow", Desc: "Unfollow current thread"},
-	{Name: "/mute", Desc: "Mute current thread"},
-	{Name: "/unmute", Desc: "Unmute current thread"},
-	{Name: "/archive", Desc: "Archive current thread"},
-	{Name: "/restore", Desc: "Restore archived thread"},
-	{Name: "/rename", Desc: "Rename current thread"},
-	{Name: "/mv", Desc: "Move message or thread"},
-	{Name: "/n", Desc: "Set thread nickname"},
-	{Name: "/pin", Desc: "Pin a message"},
-	{Name: "/unpin", Desc: "Unpin a message"},
-	{Name: "/edit", Desc: "Edit a message"},
-	{Name: "/delete", Desc: "Delete a message"},
-	{Name: "/rm", Desc: "Delete a message"},
+	{Name: "/fave", Desc: "Fave current thread", Usage: "[thread]"},
+	{Name: "/unfave", Desc: "Unfave current thread", Usage: "[thread]"},
+	{Name: "/follow", Desc: "Follow current thread", Usage: "[thread]"},
+	{Name: "/unfollow", Desc: "Unfollow current thread", Usage: "[thread]"},
+	{Name: "/mute", Desc: "Mute current thread", Usage: "[thread]"},
+	{Name: "/unmute", Desc: "Unmute current thread", Usage: "[thread]"},
+	{Name: "/archive", Desc: "Archive current thread", Usage: "[thread]"},
+	{Name: "/restore", Desc: "Restore archived thread", Usage: "<thread>"},
+	{Name: "/rename", Desc: "Rename current thread", Usage: "<new-name>"},
+	{Name: "/mv", Desc: "Move message or thread", Usage: "[#msg-id] <destination>"},
+	{Name: "/n", Desc: "Set thread nickname", Usage: "<nickname>"},
+	{Name: "/pin", Desc: "Pin a message", Usage: "<#msg-id>"},
+	{Name: "/unpin", Desc: "Unpin a message", Usage: "<#msg-id>"},
+	{Name: "/edit", Desc: "Edit a message", Usage: "<#msg-id> [text] [-m reason]"},
+	{Name: "/delete", Desc: "Delete a message", Usage: "<#msg-id>"},
+	{Name: "/rm", Desc: "Delete a message", Usage: "<#msg-id>"},
+	{Name: "/prune", Desc: "Archive old messages (current thread)", Usage: "[target] [--keep N] [--with-react emoji]"},
+	{Name: "/thread", Desc: "Create a new thread", Usage: "<name> [\"anchor\"]"},
+	{Name: "/t", Desc: "Create a new thread", Usage: "<name> [\"anchor\"]"},
+	{Name: "/subthread", Desc: "Create subthread of current", Usage: "<name> [\"anchor\"]"},
+	{Name: "/st", Desc: "Create subthread of current", Usage: "<name> [\"anchor\"]"},
 }
 
 type suggestionItem struct {
@@ -111,10 +117,9 @@ func (m *Model) refreshSuggestions() {
 
 	// Check for slash command completion
 	if strings.HasPrefix(value, "/") {
-		// Only show suggestions if we're still typing the command (no space yet)
 		spaceIdx := strings.Index(value, " ")
 		if spaceIdx == -1 || pos <= spaceIdx {
-			// Extract command prefix (without the slash)
+			// Still typing the command name - show command suggestions
 			prefix := value[1:pos]
 			if spaceIdx != -1 && pos > spaceIdx {
 				prefix = value[1:spaceIdx]
@@ -124,6 +129,20 @@ func (m *Model) refreshSuggestions() {
 				m.suggestions = suggestions
 				m.suggestionIndex = 0
 				m.suggestionStart = 0
+				m.suggestionKind = suggestionCommand
+				m.resize()
+				return
+			}
+		} else {
+			// Command is complete (has space) - show usage help if available
+			cmdName := value[:spaceIdx]
+			usageHelp := getCommandUsage(cmdName)
+			if usageHelp != "" {
+				m.suggestions = []suggestionItem{{
+					Display: usageHelp,
+					Insert:  "", // Not insertable
+				}}
+				m.suggestionIndex = -1 // No selection
 				m.suggestionKind = suggestionCommand
 				m.resize()
 				return
@@ -461,6 +480,17 @@ func (m *Model) buildReplySuggestions(prefix string) ([]suggestionItem, error) {
 		return nil, err
 	}
 	return suggestions, nil
+}
+
+// getCommandUsage returns the usage string for a completed command.
+func getCommandUsage(cmdName string) string {
+	cmdName = strings.ToLower(cmdName)
+	for _, cmd := range allCommands {
+		if strings.ToLower(cmd.Name) == cmdName && cmd.Usage != "" {
+			return fmt.Sprintf("%s %s", cmd.Name, cmd.Usage)
+		}
+	}
+	return ""
 }
 
 // buildCommandSuggestions returns command suggestions that match the prefix.

@@ -939,8 +939,8 @@ func ReadReactions(projectPath string) ([]ReactionJSONLRecord, error) {
 	return reactions, nil
 }
 
-// faveEvent represents a fave or unfave event for rebuilding.
-type faveEvent struct {
+// FaveEvent represents a fave or unfave event for rebuilding.
+type FaveEvent struct {
 	Type      string
 	AgentID   string
 	ItemType  string
@@ -950,14 +950,14 @@ type faveEvent struct {
 }
 
 // ReadFaves reads fave events from agents.jsonl for rebuilding the database.
-func ReadFaves(projectPath string) ([]faveEvent, error) {
+func ReadFaves(projectPath string) ([]FaveEvent, error) {
 	frayDir := resolveFrayDir(projectPath)
 	lines, err := readJSONLLines(filepath.Join(frayDir, agentsFile))
 	if err != nil {
 		return nil, err
 	}
 
-	var events []faveEvent
+	var events []FaveEvent
 	for _, line := range lines {
 		var envelope struct {
 			Type string `json:"type"`
@@ -972,7 +972,7 @@ func ReadFaves(projectPath string) ([]faveEvent, error) {
 			if err := json.Unmarshal([]byte(line), &record); err != nil {
 				continue
 			}
-			events = append(events, faveEvent{
+			events = append(events, FaveEvent{
 				Type:     record.Type,
 				AgentID:  record.AgentID,
 				ItemType: record.ItemType,
@@ -984,7 +984,7 @@ func ReadFaves(projectPath string) ([]faveEvent, error) {
 			if err := json.Unmarshal([]byte(line), &record); err != nil {
 				continue
 			}
-			events = append(events, faveEvent{
+			events = append(events, FaveEvent{
 				Type:      record.Type,
 				AgentID:   record.AgentID,
 				ItemType:  record.ItemType,

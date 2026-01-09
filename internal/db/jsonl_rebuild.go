@@ -630,7 +630,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 			itemType string
 			itemGUID string
 		}
-		faves := make(map[faveKey]faveEvent)
+		faves := make(map[faveKey]FaveEvent)
 
 		for _, event := range faveEvents {
 			key := faveKey{agentID: event.AgentID, itemType: event.ItemType, itemGUID: event.ItemGUID}

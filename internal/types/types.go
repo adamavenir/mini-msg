@@ -4,10 +4,11 @@ package types
 type MessageType string
 
 const (
-	MessageTypeAgent   MessageType = "agent"
-	MessageTypeUser    MessageType = "user"
-	MessageTypeEvent   MessageType = "event"
-	MessageTypeSurface MessageType = "surface"
+	MessageTypeAgent     MessageType = "agent"
+	MessageTypeUser      MessageType = "user"
+	MessageTypeEvent     MessageType = "event"
+	MessageTypeSurface   MessageType = "surface"
+	MessageTypeTombstone MessageType = "tombstone"
 )
 
 // PresenceState represents the agent's daemon-managed presence.

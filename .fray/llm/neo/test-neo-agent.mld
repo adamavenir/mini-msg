@@ -1,0 +1,20 @@
+/import { @agent } from @payload
+
+/exe @fray(args) = args | cmd { fray @args --json 2>/dev/null }
+
+/exe @notes = @fray(`get meta/@agent/notes --last 5`)
+/exe @meta = @fray(`get meta --last 10`)
+/exe @mentions = @fray(`@$@agent --last 10`)
+/exe @claims = @fray(`claims @$@agent`)
+
+/exe @context = {
+  agent: @agent,
+  notes: @notes.messages ?? [],
+  meta: @meta.messages ?? [],
+  mentions: @mentions.messages ?? [],
+  claims: @claims.claims ?? []
+}
+
+/show @context
+
+/export { @context }

@@ -2,6 +2,7 @@ package command
 
 import (
 	"bufio"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,16 +10,31 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
 
 // NewPruneCmd creates the prune command.
 func NewPruneCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "prune",
+		Use:   "prune <target>",
 		Short: "Archive old messages with cold storage guardrails",
+		Long: `Archive old messages from a specific thread or the main room.
+
+Target can be:
+  main, room     - prune the main room
+  <thread-name>  - prune a specific thread by name
+  <thread-id>    - prune a specific thread by ID (thrd-*)
+
+Examples:
+  fray prune main              # Prune main room
+  fray prune main --keep 50    # Keep last 50 messages in room
+  fray prune design-thread     # Prune specific thread`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := GetContext(cmd)
 			if err != nil {
@@ -28,16 +44,48 @@ func NewPruneCmd() *cobra.Command {
 
 			keep, _ := cmd.Flags().GetInt("keep")
 			pruneAll, _ := cmd.Flags().GetBool("all")
+			withReact, _ := cmd.Flags().GetString("with-react")
 
 			if keep < 0 {
 				return writeCommandError(cmd, fmt.Errorf("invalid --keep value: %d", keep))
+			}
+
+			// Resolve target to home value
+			target := "main"
+			if len(args) > 0 {
+				target = args[0]
+			}
+
+			home, threadName, err := resolvePruneTarget(ctx.DB, target)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+
+			// Check for subthreads if pruning a thread
+			if home != "room" {
+				subthreads, err := db.GetThreads(ctx.DB, &types.ThreadQueryOptions{
+					ParentThread: &home,
+				})
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if len(subthreads) > 0 {
+					return writeCommandError(cmd, fmt.Errorf("thread has %d subthreads. Use --include subthreads to prune them too (not yet implemented)", len(subthreads)))
+				}
 			}
 
 			if err := checkPruneGuardrails(ctx.Project.Root); err != nil {
 				return writeCommandError(cmd, err)
 			}
 
-			result, err := pruneMessages(ctx.Project.DBPath, keep, pruneAll)
+			var result pruneResult
+			if withReact != "" {
+				// Reaction-based pruning: prune messages with specific reaction
+				result, err = pruneMessagesWithReaction(ctx.Project.DBPath, home, withReact)
+			} else {
+				// Standard pruning: keep N most recent messages
+				result, err = pruneMessages(ctx.Project.DBPath, keep, pruneAll, home)
+			}
 			if err != nil {
 				return writeCommandError(cmd, err)
 			}
@@ -50,6 +98,7 @@ func NewPruneCmd() *cobra.Command {
 				payload := map[string]any{
 					"kept":     result.Kept,
 					"archived": result.Archived,
+					"target":   home,
 				}
 				if result.ClearedHistory {
 					payload["history"] = nil
@@ -60,18 +109,42 @@ func NewPruneCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
+			targetDesc := "room"
+			if threadName != "" {
+				targetDesc = threadName
+			}
 			if result.ClearedHistory {
-				fmt.Fprintf(out, "Pruned to last %d messages. history.jsonl cleared.\n", result.Kept)
+				fmt.Fprintf(out, "Pruned %s to last %d messages. history.jsonl cleared.\n", targetDesc, result.Kept)
 				return nil
 			}
-			fmt.Fprintf(out, "Pruned to last %d messages. Archived to history.jsonl\n", result.Kept)
+			fmt.Fprintf(out, "Pruned %s to last %d messages. Archived to history.jsonl\n", targetDesc, result.Kept)
 			return nil
 		},
 	}
 
 	cmd.Flags().Int("keep", 20, "number of recent messages to keep")
 	cmd.Flags().Bool("all", false, "delete history.jsonl before pruning")
+	cmd.Flags().String("with-react", "", "prune messages with this reaction (e.g., :filed: or 📁)")
 	return cmd
+}
+
+// resolvePruneTarget resolves a prune target to a home value and optional thread name.
+// Returns (home, threadName, error).
+func resolvePruneTarget(dbConn *sql.DB, target string) (string, string, error) {
+	target = strings.TrimSpace(strings.ToLower(target))
+
+	// Main room aliases
+	if target == "" || target == "main" || target == "room" {
+		return "room", "", nil
+	}
+
+	// Try to resolve as thread
+	thread, err := resolveThreadRef(dbConn, target)
+	if err != nil {
+		return "", "", err
+	}
+
+	return thread.GUID, thread.Name, nil
 }
 
 type pruneResult struct {
@@ -81,7 +154,7 @@ type pruneResult struct {
 	ClearedHistory bool
 }
 
-func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, error) {
+func pruneMessages(projectPath string, keep int, pruneAll bool, home string) (pruneResult, error) {
 	frayDir := resolveFrayDir(projectPath)
 	messagesPath := filepath.Join(frayDir, "messages.jsonl")
 	historyPath := filepath.Join(frayDir, "history.jsonl")
@@ -106,9 +179,24 @@ func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, er
 	}
 
 	// Read all messages
-	messages, err := db.ReadMessages(projectPath)
+	allMessages, err := db.ReadMessages(projectPath)
 	if err != nil {
 		return pruneResult{}, err
+	}
+
+	// Filter messages by home (thread-scoped pruning)
+	var messages []db.MessageJSONLRecord
+	var otherMessages []db.MessageJSONLRecord
+	for _, msg := range allMessages {
+		msgHome := msg.Home
+		if msgHome == "" {
+			msgHome = "room"
+		}
+		if msgHome == home {
+			messages = append(messages, msg)
+		} else {
+			otherMessages = append(otherMessages, msg)
+		}
 	}
 
 	// Collect IDs that must be preserved for integrity
@@ -199,14 +287,45 @@ func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, er
 		}
 	}
 
-	// Build set of kept message IDs for event filtering
+	// Identify pruned messages (messages in target home that are not being kept)
 	keptIDSet := make(map[string]struct{}, len(kept))
 	for _, msg := range kept {
 		keptIDSet[msg.ID] = struct{}{}
 	}
 
+	var prunedMessages []db.MessageJSONLRecord
+	for _, msg := range messages {
+		if _, ok := keptIDSet[msg.ID]; !ok {
+			prunedMessages = append(prunedMessages, msg)
+		}
+	}
+
+	// Generate tombstone if messages were pruned
+	var tombstone *db.MessageJSONLRecord
+	if len(prunedMessages) > 0 {
+		tombstone = createTombstone(prunedMessages, home)
+	}
+
+	// Combine kept messages from target home with all messages from other homes
+	// (thread-scoped pruning only affects the target home)
+	allKept := make([]db.MessageJSONLRecord, 0, len(kept)+len(otherMessages))
+	allKept = append(allKept, otherMessages...)
+	allKept = append(allKept, kept...)
+
+	// Add tombstone to kept messages if one was created
+	if tombstone != nil {
+		allKept = append(allKept, *tombstone)
+		keptIDSet[tombstone.ID] = struct{}{}
+	}
+
+	// Build full set of kept message IDs for event filtering
+	allKeptIDSet := make(map[string]struct{}, len(allKept))
+	for _, msg := range allKept {
+		allKeptIDSet[msg.ID] = struct{}{}
+	}
+
 	// Write messages with their associated events
-	if err := writeMessagesWithEvents(messagesPath, kept, keptIDSet); err != nil {
+	if err := writeMessagesWithEvents(messagesPath, allKept, allKeptIDSet); err != nil {
 		return pruneResult{}, err
 	}
 
@@ -216,6 +335,149 @@ func pruneMessages(projectPath string, keep int, pruneAll bool) (pruneResult, er
 	}
 
 	return pruneResult{Kept: len(kept), Archived: archived, HistoryPath: historyPath, ClearedHistory: pruneAll}, nil
+}
+
+// pruneMessagesWithReaction prunes messages that have a specific reaction.
+// This inverts the normal reaction protection - instead of protecting, it selects for pruning.
+func pruneMessagesWithReaction(projectPath, home, reaction string) (pruneResult, error) {
+	frayDir := resolveFrayDir(projectPath)
+	messagesPath := filepath.Join(frayDir, "messages.jsonl")
+	historyPath := filepath.Join(frayDir, "history.jsonl")
+
+	// Read all messages
+	allMessages, err := db.ReadMessages(projectPath)
+	if err != nil {
+		return pruneResult{}, err
+	}
+
+	// Read reactions to find messages with the target reaction
+	reactions, err := db.ReadReactions(projectPath)
+	if err != nil {
+		return pruneResult{}, err
+	}
+
+	// Build set of message IDs that have the target reaction
+	messagesWithReaction := make(map[string]struct{})
+	for _, r := range reactions {
+		if r.Emoji == reaction {
+			messagesWithReaction[r.MessageGUID] = struct{}{}
+		}
+	}
+
+	// Separate messages by home and reaction status
+	var keptMessages []db.MessageJSONLRecord
+	var prunedMessages []db.MessageJSONLRecord
+	var otherMessages []db.MessageJSONLRecord
+
+	for _, msg := range allMessages {
+		msgHome := msg.Home
+		if msgHome == "" {
+			msgHome = "room"
+		}
+
+		if msgHome != home {
+			// Message in different home - keep it
+			otherMessages = append(otherMessages, msg)
+		} else if _, hasReaction := messagesWithReaction[msg.ID]; hasReaction {
+			// Message has target reaction - prune it
+			prunedMessages = append(prunedMessages, msg)
+		} else {
+			// Message doesn't have target reaction - keep it
+			keptMessages = append(keptMessages, msg)
+		}
+	}
+
+	// Archive pruned messages to history.jsonl
+	if len(prunedMessages) > 0 {
+		if data, err := os.ReadFile(messagesPath); err == nil {
+			if strings.TrimSpace(string(data)) != "" {
+				if err := appendFile(historyPath, data); err != nil {
+					return pruneResult{}, err
+				}
+			}
+		} else if !os.IsNotExist(err) {
+			return pruneResult{}, err
+		}
+	}
+
+	// Generate tombstone if messages were pruned
+	var tombstone *db.MessageJSONLRecord
+	if len(prunedMessages) > 0 {
+		tombstone = createTombstone(prunedMessages, home)
+	}
+
+	// Combine kept messages
+	allKept := make([]db.MessageJSONLRecord, 0, len(keptMessages)+len(otherMessages)+1)
+	allKept = append(allKept, otherMessages...)
+	allKept = append(allKept, keptMessages...)
+
+	if tombstone != nil {
+		allKept = append(allKept, *tombstone)
+	}
+
+	// Build set of kept message IDs for event filtering
+	keptIDSet := make(map[string]struct{}, len(allKept))
+	for _, msg := range allKept {
+		keptIDSet[msg.ID] = struct{}{}
+	}
+
+	// Write messages with their associated events
+	if err := writeMessagesWithEvents(messagesPath, allKept, keptIDSet); err != nil {
+		return pruneResult{}, err
+	}
+
+	return pruneResult{
+		Kept:        len(keptMessages),
+		Archived:    len(prunedMessages),
+		HistoryPath: historyPath,
+	}, nil
+}
+
+// createTombstone generates a tombstone message for pruned messages.
+func createTombstone(prunedMessages []db.MessageJSONLRecord, home string) *db.MessageJSONLRecord {
+	if len(prunedMessages) == 0 {
+		return nil
+	}
+
+	// Collect unique participants
+	participants := make(map[string]struct{})
+	for _, msg := range prunedMessages {
+		if msg.FromAgent != "" && msg.FromAgent != "system" {
+			participants[msg.FromAgent] = struct{}{}
+		}
+	}
+	var participantList []string
+	for p := range participants {
+		participantList = append(participantList, "@"+p)
+	}
+
+	// Find first and last message IDs (messages are already in chronological order)
+	firstID := prunedMessages[0].ID
+	lastID := prunedMessages[len(prunedMessages)-1].ID
+
+	// Format: "pruned: N messages between @agent1, @agent2 from #msg-xxx to #msg-yyy"
+	body := fmt.Sprintf("pruned: %d messages between %s from #%s to #%s",
+		len(prunedMessages),
+		strings.Join(participantList, ", "),
+		firstID,
+		lastID,
+	)
+
+	now := time.Now().Unix()
+	msgID, err := core.GenerateGUID("msg")
+	if err != nil {
+		// Fallback to timestamp-based ID if GUID generation fails
+		msgID = fmt.Sprintf("msg-%d", now)
+	}
+	return &db.MessageJSONLRecord{
+		Type:      "message",
+		ID:        msgID,
+		Home:      home,
+		FromAgent: "system",
+		Body:      body,
+		MsgType:   types.MessageTypeTombstone,
+		TS:        now,
+	}
 }
 
 // collectRequiredMessageIDs gathers message IDs that must be preserved for data integrity.
@@ -232,6 +494,35 @@ func collectRequiredMessageIDs(projectPath string) (map[string]struct{}, error) 
 		if thread.AnchorMessageGUID != nil && *thread.AnchorMessageGUID != "" {
 			required[*thread.AnchorMessageGUID] = struct{}{}
 		}
+	}
+
+	// Read fave events and track currently faved messages
+	faveEvents, err := db.ReadFaves(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	favedMessages := make(map[string]struct{})
+	for _, event := range faveEvents {
+		if event.ItemType != "message" {
+			continue
+		}
+		if event.Type == "agent_fave" {
+			favedMessages[event.ItemGUID] = struct{}{}
+		} else if event.Type == "agent_unfave" {
+			delete(favedMessages, event.ItemGUID)
+		}
+	}
+	for id := range favedMessages {
+		required[id] = struct{}{}
+	}
+
+	// Read reactions - any message with reactions is protected
+	reactions, err := db.ReadReactions(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range reactions {
+		required[r.MessageGUID] = struct{}{}
 	}
 
 	// Read message pins

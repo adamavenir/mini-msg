@@ -136,7 +136,7 @@ func (m *Model) runSlashCommand(input string) (tea.Cmd, error) {
 	case "/unpin":
 		return nil, m.runUnpinCommand(fields[1:])
 	case "/prune":
-		return nil, fmt.Errorf("/prune is disabled (see fray-jqxf)")
+		return nil, m.runPruneCommand(fields[1:])
 	}
 
 	return nil, fmt.Errorf("unknown command: %s", fields[0])
@@ -486,9 +486,51 @@ func (m *Model) runDeleteCommand(input string) error {
 }
 
 func (m *Model) runPruneCommand(args []string) error {
-	keep, pruneAll, err := parsePruneArgs(args)
+	keep, pruneAll, target, withReact, err := parsePruneArgs(args)
 	if err != nil {
 		return err
+	}
+
+	// Resolve target to home
+	var home string
+	var targetDesc string
+
+	if target == "" {
+		// Default: current thread if in thread, otherwise main room
+		if m.currentThread != nil {
+			home = m.currentThread.GUID
+			targetDesc = m.currentThread.Name
+		} else {
+			home = "room"
+			targetDesc = "room"
+		}
+	} else {
+		targetLower := strings.ToLower(target)
+		if targetLower == "main" || targetLower == "room" {
+			home = "room"
+			targetDesc = "room"
+		} else {
+			// Try to resolve as thread
+			thread, err := m.resolveThreadRef(target)
+			if err != nil {
+				return err
+			}
+			home = thread.GUID
+			targetDesc = thread.Name
+		}
+	}
+
+	// Check for subthreads if pruning a thread
+	if home != "room" {
+		subthreads, err := db.GetThreads(m.db, &types.ThreadQueryOptions{
+			ParentThread: &home,
+		})
+		if err != nil {
+			return err
+		}
+		if len(subthreads) > 0 {
+			return fmt.Errorf("thread has %d subthreads - cannot prune (use CLI with --include subthreads)", len(subthreads))
+		}
 	}
 
 	root := projectRootFromPath(m.projectDBPath)
@@ -496,7 +538,12 @@ func (m *Model) runPruneCommand(args []string) error {
 		return err
 	}
 
-	result, err := pruneMessages(m.projectDBPath, keep, pruneAll)
+	var result pruneResult
+	if withReact != "" {
+		result, err = pruneMessagesWithReaction(m.projectDBPath, home, withReact)
+	} else {
+		result, err = pruneMessages(m.projectDBPath, keep, pruneAll, home)
+	}
 	if err != nil {
 		return err
 	}
@@ -509,12 +556,17 @@ func (m *Model) runPruneCommand(args []string) error {
 		return err
 	}
 
+	m.input.SetValue("")
 	if result.ClearedHistory {
-		m.status = fmt.Sprintf("Pruned to last %d messages. history.jsonl cleared.", result.Kept)
+		m.status = fmt.Sprintf("Pruned %s to last %d messages. history.jsonl cleared.", targetDesc, result.Kept)
 		return nil
 	}
 
-	m.status = fmt.Sprintf("Pruned to last %d messages. Archived to history.jsonl", result.Kept)
+	if withReact != "" {
+		m.status = fmt.Sprintf("Pruned %d messages with %s from %s", result.Archived, withReact, targetDesc)
+	} else {
+		m.status = fmt.Sprintf("Pruned %s to last %d messages. Archived to history.jsonl", targetDesc, result.Kept)
+	}
 	return nil
 }
 
@@ -791,9 +843,11 @@ func parseDeleteCommand(input string) (string, error) {
 	return id, nil
 }
 
-func parsePruneArgs(args []string) (int, bool, error) {
+func parsePruneArgs(args []string) (int, bool, string, string, error) {
 	keep := 20
 	pruneAll := false
+	target := ""
+	withReact := ""
 
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -802,30 +856,46 @@ func parsePruneArgs(args []string) (int, bool, error) {
 			pruneAll = true
 		case arg == "--keep":
 			if i+1 >= len(args) {
-				return 0, false, fmt.Errorf("usage: /prune [--keep N] [--all]")
+				return 0, false, "", "", fmt.Errorf("usage: /prune [target] [--keep N] [--all] [--with-react emoji]")
 			}
 			i++
 			value, err := parseNonNegativeInt(args[i])
 			if err != nil {
-				return 0, false, err
+				return 0, false, "", "", err
 			}
 			keep = value
 		case strings.HasPrefix(arg, "--keep="):
 			value, err := parseNonNegativeInt(strings.TrimPrefix(arg, "--keep="))
 			if err != nil {
-				return 0, false, err
+				return 0, false, "", "", err
 			}
 			keep = value
+		case arg == "--with-react":
+			if i+1 >= len(args) {
+				return 0, false, "", "", fmt.Errorf("usage: /prune [target] [--with-react emoji]")
+			}
+			i++
+			withReact = args[i]
+		case strings.HasPrefix(arg, "--with-react="):
+			withReact = strings.TrimPrefix(arg, "--with-react=")
+		case strings.HasPrefix(arg, "--"):
+			return 0, false, "", "", fmt.Errorf("unknown flag: %s", arg)
 		default:
-			value, err := parseNonNegativeInt(arg)
-			if err != nil {
-				return 0, false, fmt.Errorf("usage: /prune [--keep N] [--all]")
+			// First non-flag arg is target, or could be a number for keep
+			if target == "" {
+				// Check if it's a number (legacy keep syntax)
+				if value, err := parseNonNegativeInt(arg); err == nil {
+					keep = value
+				} else {
+					target = arg
+				}
+			} else {
+				return 0, false, "", "", fmt.Errorf("usage: /prune [target] [--keep N] [--all] [--with-react emoji]")
 			}
-			keep = value
 		}
 	}
 
-	return keep, pruneAll, nil
+	return keep, pruneAll, target, withReact, nil
 }
 
 func parseNonNegativeInt(value string) (int, error) {
