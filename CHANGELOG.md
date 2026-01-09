@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Daemon: driver-aware token tracking for presence detection (claude, codex, opencode)
+- Daemon: codex session resume support via internal session ID capture
 - Chat: `/pin <msg-id>` and `/unpin <msg-id>` commands
 - CLI: `fray get <thread> --anchors` shows anchor messages from child threads
 - `fray dashboard`: agent status dashboard showing active/offline agents, token usage, recent events
