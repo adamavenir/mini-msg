@@ -20,6 +20,12 @@ type readToRecord struct {
 	SetAt       int64
 }
 
+// configRecord holds config to preserve across rebuild.
+type configRecord struct {
+	Key   string
+	Value string
+}
+
 // NewRebuildCmd creates the rebuild command.
 func NewRebuildCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -42,8 +48,9 @@ Use this command when:
 
 			dbPath := project.DBPath
 
-			// Shelve read state before deleting DB (local state we want to preserve)
+			// Shelve local state before deleting DB
 			readState := shelveReadState(dbPath)
+			configState := shelveConfig(dbPath)
 
 			// Delete existing db files
 			os.Remove(dbPath)
@@ -57,8 +64,9 @@ Use this command when:
 			}
 			defer newDB.Close()
 
-			// Restore read state
+			// Restore local state
 			restoreReadState(newDB, readState)
+			restoreConfig(newDB, configState)
 
 			jsonMode, _ := cmd.Flags().GetBool("json")
 			if jsonMode {
@@ -105,5 +113,40 @@ func restoreReadState(newDB *sql.DB, records []readToRecord) {
 			INSERT OR REPLACE INTO fray_read_to (agent_id, home, message_guid, message_ts, set_at)
 			VALUES (?, ?, ?, ?, ?)
 		`, r.AgentID, r.Home, r.MessageGUID, r.MessageTS, r.SetAt)
+	}
+}
+
+// shelveConfig extracts config from the old database before deletion.
+func shelveConfig(dbPath string) []configRecord {
+	oldDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil
+	}
+	defer oldDB.Close()
+
+	rows, err := oldDB.Query(`SELECT key, value FROM fray_config`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var records []configRecord
+	for rows.Next() {
+		var r configRecord
+		if err := rows.Scan(&r.Key, &r.Value); err != nil {
+			continue
+		}
+		records = append(records, r)
+	}
+	return records
+}
+
+// restoreConfig inserts preserved config into the new database.
+func restoreConfig(newDB *sql.DB, records []configRecord) {
+	for _, r := range records {
+		_, _ = newDB.Exec(`
+			INSERT OR REPLACE INTO fray_config (key, value)
+			VALUES (?, ?)
+		`, r.Key, r.Value)
 	}
 }

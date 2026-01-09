@@ -300,13 +300,26 @@ func (m *Model) loadOlderMessages() {
 }
 
 func (m *Model) currentMessages() []types.Message {
+	// Use display thread/pseudo (which considers peek mode)
+	displayThread := m.displayThread()
+	displayPseudo := m.displayPseudo()
+
 	// For pseudo-threads (open-qs, etc), return source messages from questions
-	if m.currentPseudo != "" {
+	if displayPseudo != "" {
 		return m.questionSourceMessages()
 	}
 	var messages []types.Message
-	if m.currentThread != nil {
-		messages = m.threadMessages
+	if displayThread != nil {
+		// When peeking a different thread, fetch its messages directly
+		if m.isPeeking() && (m.currentThread == nil || displayThread.GUID != m.currentThread.GUID) {
+			peekMessages, err := db.GetThreadMessages(m.db, displayThread.GUID)
+			if err == nil {
+				peekMessages, _ = db.ApplyMessageEditCounts(m.projectDBPath, peekMessages)
+				messages = filterUpdates(peekMessages, m.showUpdates)
+			}
+		} else {
+			messages = m.threadMessages
+		}
 	} else {
 		messages = m.messages
 	}
@@ -358,4 +371,56 @@ func (m *Model) refreshThreadMessages() {
 		return
 	}
 	m.threadMessages = filterUpdates(messages, m.showUpdates)
+}
+
+// isPeeking returns true if we're in peek mode (viewing content without changing posting context)
+func (m *Model) isPeeking() bool {
+	return m.peekSource != peekSourceNone
+}
+
+// clearPeek exits peek mode
+func (m *Model) clearPeek() {
+	m.peekThread = nil
+	m.peekPseudo = ""
+	m.peekSource = peekSourceNone
+}
+
+// commitPeek switches the posting context to match what's being peeked, then exits peek mode
+func (m *Model) commitPeek() {
+	// Switch to the peeked thread/pseudo
+	m.currentThread = m.peekThread
+	m.currentPseudo = m.peekPseudo
+
+	// Load thread messages if switching to a thread
+	if m.currentThread != nil {
+		m.threadMessages, _ = db.GetThreadMessages(m.db, m.currentThread.GUID)
+		m.addRecentThread(*m.currentThread)
+	} else {
+		m.threadMessages = nil
+	}
+
+	// Clear peek state
+	m.clearPeek()
+
+	// Refresh view and recalculate layout
+	m.resize()
+	m.refreshViewport(true)
+}
+
+// displayThread returns the thread whose content should be displayed
+// (either the peeked thread or the current thread)
+func (m *Model) displayThread() *types.Thread {
+	if m.isPeeking() {
+		return m.peekThread // nil means peeking main room
+	}
+	return m.currentThread
+}
+
+// displayPseudo returns the pseudo-thread whose content should be displayed
+// (either the peeked pseudo or the current pseudo)
+func (m *Model) displayPseudo() pseudoThreadKind {
+	if m.isPeeking() {
+		return m.peekPseudo // "" means not viewing a pseudo-thread
+	}
+	return m.currentPseudo
 }

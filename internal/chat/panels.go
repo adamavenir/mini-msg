@@ -844,14 +844,34 @@ func (m *Model) renderThreadPanel() string {
 		return ""
 	}
 
-	// Color scheme for threads
+	// Color scheme depends on focus state
 	depthColor := m.depthColor()
-	headerStyle := lipgloss.NewStyle().Foreground(depthColor).Bold(true)
-	itemStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("67"))                  // dim blue
-	mainStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true)      // bright white bold for main
-	activeStyle := lipgloss.NewStyle().Foreground(depthColor).Bold(true)
-	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("24")).Bold(true)
-	collapsedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))            // dim grey for non-subscribed
+	isFocused := m.threadPanelFocus
+	isPeeking := m.isPeeking()
+
+	// When focused OR peeking: colored text, yellow selection bar
+	// When unfocused and not peeking: grey text, blue bar only on current item
+	var headerStyle, itemStyle, mainStyle, activeStyle, selectedStyle, collapsedStyle, currentStyle lipgloss.Style
+
+	if isFocused || isPeeking {
+		// Focused or peeking: vibrant colors, yellow selection
+		headerStyle = lipgloss.NewStyle().Foreground(depthColor).Bold(true)
+		itemStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("67"))             // dim blue
+		mainStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true) // bright white bold
+		activeStyle = lipgloss.NewStyle().Foreground(depthColor).Bold(true)
+		selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("16")).Background(lipgloss.Color("220")).Bold(true) // yellow bg, black text
+		collapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))                                             // dim grey
+		currentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("24")).Bold(true)  // blue bg for current
+	} else {
+		// Unfocused and not peeking: muted grey tones, blue bar only on current item
+		headerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))           // grey
+		itemStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))             // dim grey
+		mainStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))             // bright grey
+		activeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))           // grey
+		selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))         // just brighter, no bg
+		collapsedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))        // very dim grey
+		currentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("24")).Bold(true) // blue bg for current
+	}
 
 	// Only show header when filtering or drilled in
 	filterHintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // dim grey
@@ -998,28 +1018,45 @@ func (m *Model) renderThreadPanel() string {
 			style = collapsedStyle
 		}
 
-		// Active highlighting (overrides collapsed styling)
+		// Check if this is the current item (what's displayed in message panel)
+		isCurrent := false
 		if entry.Kind == threadEntryThread && m.currentThread != nil && entry.Thread != nil && entry.Thread.GUID == m.currentThread.GUID {
-			style = activeStyle
+			isCurrent = true
 		}
 		if entry.Kind == threadEntryMain && m.currentThread == nil && m.currentPseudo == "" {
-			style = activeStyle
+			isCurrent = true
 		}
 		if entry.Kind == threadEntryMessageCollection && entry.MessageCollection == messageCollectionView(m.currentPseudo) {
-			style = activeStyle
+			isCurrent = true
 		}
 
-		// Selection highlighting (overrides all other styles)
-		isSelected := index == m.threadIndex && m.threadPanelFocus
-		if isSelected {
+		// Apply styling based on state
+		// Priority: selection > current > active > base
+		isSelected := index == m.threadIndex && (isFocused || isPeeking)
+		needsFullWidthBg := false
+
+		if isSelected && isCurrent {
+			// Both selected and current: use selected style (yellow when focused)
 			style = selectedStyle
+			needsFullWidthBg = true
+		} else if isSelected {
+			// Just selected (j/k cursor): yellow bar when focused
+			style = selectedStyle
+			needsFullWidthBg = true
+		} else if isCurrent {
+			// Current item (what's in message panel): blue bar always
+			style = currentStyle
+			needsFullWidthBg = true
+		} else if !isCollapsedNonSubscribed {
+			// Active styling for subscribed items
+			style = activeStyle
 		}
 
 		// Append all wrapped lines
 		for i, wrappedLine := range wrappedLines {
 			line := wrappedLine
-			if isSelected {
-				// Pad to full width for selection background
+			if needsFullWidthBg {
+				// Pad to full width for background color
 				line = lipgloss.NewStyle().Width(width).Render(line)
 			}
 			if i == 0 {
@@ -1114,9 +1151,11 @@ func (m *Model) handleThreadPanelKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	switch msg.String() {
 	case "j":
 		m.moveThreadSelection(1)
+		m.peekThreadEntry(peekSourceKeyboard)
 		return true, nil
 	case "k":
 		m.moveThreadSelection(-1)
+		m.peekThreadEntry(peekSourceKeyboard)
 		return true, nil
 	case "h":
 		m.drillOutAction()
@@ -1135,9 +1174,11 @@ func (m *Model) handleThreadPanelKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyUp:
 		m.moveThreadSelection(-1)
+		m.peekThreadEntry(peekSourceKeyboard)
 		return true, nil
 	case tea.KeyDown:
 		m.moveThreadSelection(1)
+		m.peekThreadEntry(peekSourceKeyboard)
 		return true, nil
 	case tea.KeyLeft:
 		m.drillOutAction()
@@ -1343,6 +1384,9 @@ func (m *Model) moveThreadSelection(delta int) {
 }
 
 func (m *Model) selectThreadEntry() {
+	// Clear any peek state since we're actually selecting
+	m.clearPeek()
+
 	entries := m.threadEntries()
 	if len(entries) == 0 {
 		return
@@ -1424,7 +1468,64 @@ func (m *Model) selectThreadEntry() {
 	m.refreshPseudoQuestions()
 	m.refreshQuestionCounts()
 	m.refreshUnreadCounts()
+	m.resize() // Recalculate layout after clearing peek
 	m.refreshViewport(true)
+}
+
+// peekThreadEntry sets peek mode to view the selected thread without changing posting context.
+// This is triggered by j/k navigation and single-click.
+func (m *Model) peekThreadEntry(source peekSourceKind) {
+	entries := m.threadEntries()
+	if len(entries) == 0 {
+		return
+	}
+	if m.threadIndex < 0 || m.threadIndex >= len(entries) {
+		return
+	}
+	entry := entries[m.threadIndex]
+
+	// Check if peeking the same thing we're currently in (no peek needed)
+	switch entry.Kind {
+	case threadEntryMain:
+		if m.currentThread == nil && m.currentPseudo == "" {
+			m.clearPeek()
+			m.resize() // Recalculate layout after clearing peek
+			return
+		}
+		m.peekThread = nil
+		m.peekPseudo = ""
+		m.peekSource = source
+	case threadEntryThread:
+		if entry.Thread == nil {
+			return
+		}
+		// Check if this is the current thread (no peek needed)
+		if m.currentThread != nil && m.currentThread.GUID == entry.Thread.GUID {
+			m.clearPeek()
+			m.resize() // Recalculate layout after clearing peek
+			return
+		}
+		m.peekThread = entry.Thread
+		m.peekPseudo = ""
+		m.peekSource = source
+	case threadEntryMessageCollection:
+		pseudo := pseudoThreadKind(entry.MessageCollection)
+		if m.currentPseudo == pseudo {
+			m.clearPeek()
+			m.resize() // Recalculate layout after clearing peek
+			return
+		}
+		m.peekThread = nil
+		m.peekPseudo = pseudo
+		m.peekSource = source
+	case threadEntryThreadCollection:
+		// Thread collections don't support peek - just navigate
+		return
+	default:
+		return
+	}
+	m.resize()               // Recalculate viewport height for peek statuslines
+	m.refreshViewport(true)  // Scroll to bottom when peeking new content
 }
 
 func (m *Model) addRecentThread(thread types.Thread) {
@@ -2190,24 +2291,8 @@ func truncateStyled(s string, maxLen int) string {
 	return result
 }
 
-// colorForAgent returns the color for an agent (reuse from colorMap or generate).
+// colorForAgent returns the color for an agent using the same logic as chat messages.
 func (m *Model) colorForAgent(agentID string) lipgloss.Color {
-	if color, ok := m.colorMap[agentID]; ok {
-		return color
-	}
-	// Generate a color based on agent ID hash
-	hash := 0
-	for _, c := range agentID {
-		hash = hash*31 + int(c)
-	}
-	colors := []lipgloss.Color{
-		lipgloss.Color("36"),  // cyan
-		lipgloss.Color("35"),  // magenta
-		lipgloss.Color("33"),  // blue
-		lipgloss.Color("32"),  // green
-		lipgloss.Color("214"), // orange
-		lipgloss.Color("226"), // yellow
-	}
-	return colors[hash%len(colors)]
+	return colorForAgent(agentID, m.colorMap)
 }
 

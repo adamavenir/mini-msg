@@ -21,12 +21,22 @@ import (
 
 const doubleClickInterval = 400 * time.Millisecond
 
+// peekSourceKind indicates how a peek was triggered (for displaying action hints)
+type peekSourceKind int
+
+const (
+	peekSourceNone peekSourceKind = iota
+	peekSourceKeyboard // j/k or arrow keys
+	peekSourceClick    // mouse click
+)
+
 var (
 	userColor     = lipgloss.Color("249")
 	statusColor   = lipgloss.Color("241")
 	metaColor     = lipgloss.Color("242")
 	inputBg       = lipgloss.Color("236")
-	editBg        = lipgloss.Color("18") // blue background for edit mode
+	editBg        = lipgloss.Color("235") // subtle dark background for edit mode
+	peekBg        = lipgloss.Color("24") // blue background for peek mode statusline
 	caretColor    = lipgloss.Color("243")
 	reactionColor = lipgloss.Color("220")
 	textColor     = lipgloss.Color("255")
@@ -149,6 +159,10 @@ type Model struct {
 	agentUnreadCounts   map[string]int         // unread count per agent
 	agentTokenUsage     map[string]*TokenUsage // token usage per agent (by session ID)
 	activityDrillOffline bool                  // true when viewing offline agents only
+	// Peek mode state (view thread without changing posting context)
+	peekThread       *types.Thread // thread being peeked (nil if not peeking)
+	peekPseudo       pseudoThreadKind // pseudo-thread being peeked (empty if not peeking)
+	peekSource       peekSourceKind // how peek was triggered (for hint display)
 }
 
 // TokenUsage holds token usage data from ccusage (for activity panel).
@@ -364,6 +378,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.resize()
 				return m, nil
 			}
+			// Clear peek mode if active
+			if m.isPeeking() {
+				m.clearPeek()
+				m.refreshViewport(false)
+				return m, nil
+			}
 		case tea.KeyEnter:
 			// Handle edit mode submission
 			if m.editingMessageID != "" {
@@ -415,7 +435,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		var cmd tea.Cmd
-		if !m.sidebarFocus && !m.threadPanelFocus {
+		// Allow input when: no panel focus OR peeking (and not in filter mode)
+		// This lets you type while peeking without losing the peek context
+		canType := !m.sidebarFocus && !m.threadPanelFocus
+		canType = canType || (m.isPeeking() && !m.threadFilterActive)
+		if canType {
 			m.input, cmd = m.input.Update(msg)
 			m.refreshSuggestions()
 			m.resize()
@@ -622,11 +646,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) View() string {
 	statusLine := lipgloss.NewStyle().Foreground(statusColor).Render(m.statusLine())
 
-	lines := []string{m.viewport.View()}
+	var lines []string
+	// Add peek statusline at top if peeking
+	if peekTop := m.renderPeekStatusline(); peekTop != "" {
+		lines = append(lines, peekTop)
+	}
+	lines = append(lines, m.viewport.View())
 	if suggestions := m.renderSuggestions(); suggestions != "" {
 		lines = append(lines, suggestions)
 	}
-	lines = append(lines, "", m.renderInput(), statusLine)
+	// Add peek statusline above input if peeking, otherwise add margin
+	if peekBottom := m.renderPeekStatusline(); peekBottom != "" {
+		lines = append(lines, peekBottom)
+	} else {
+		lines = append(lines, "") // margin line when not peeking
+	}
+	lines = append(lines, m.renderInput(), statusLine)
 
 	main := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	panels := make([]string, 0, 2)
@@ -662,6 +697,51 @@ func (m *Model) renderInput() string {
 	}
 	blank := style.Render("")
 	return strings.Join([]string{blank, style.Render(content), blank}, "\n")
+}
+
+// renderPeekStatusline renders a blue statusline for peek mode.
+// Shows: "peeking <thread-name> · <action-hint>"
+func (m *Model) renderPeekStatusline() string {
+	if !m.isPeeking() {
+		return ""
+	}
+
+	// Build thread name
+	var name string
+	if m.peekThread != nil {
+		name = m.peekThread.Name
+	} else if m.peekPseudo != "" {
+		name = string(m.peekPseudo)
+	} else {
+		name = m.projectName // peeking main room
+	}
+
+	// Build action hint based on peek source
+	hint := ""
+	switch m.peekSource {
+	case peekSourceKeyboard:
+		hint = "enter to open"
+	case peekSourceClick:
+		hint = "click to open"
+	}
+
+	// Build content
+	content := "peeking " + name
+	if hint != "" {
+		content += " · " + hint
+	}
+
+	// Style with blue background
+	style := lipgloss.NewStyle().
+		Background(peekBg).
+		Foreground(lipgloss.Color("231")).
+		Padding(0, 1)
+
+	if width := m.mainWidth(); width > 0 {
+		style = style.Width(width)
+	}
+
+	return style.Render(content)
 }
 
 func (m *Model) statusLine() string {
@@ -833,10 +913,6 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 	if m.threadPanelOpen {
 		threadWidth = m.threadPanelWidth()
 		if msg.X < threadWidth {
-			// Clicked in thread panel - give it focus
-			m.threadPanelFocus = true
-			m.sidebarFocus = false
-
 			// Check for agent zone clicks (activity panel at bottom)
 			for _, agent := range m.managedAgents {
 				zoneID := "agent-" + agent.AgentID
@@ -849,12 +925,26 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 
 			if msg.Y < lipgloss.Height(m.renderThreadPanel()) {
 				if index := m.threadIndexAtLine(msg.Y); index >= 0 {
-					// If clicking already-selected thread, drill in (if it has children)
 					if index == m.threadIndex {
-						m.drillInAction()
+						// Clicking same index
+						if m.isPeeking() {
+							// If peeking, click confirms selection (gives panel focus)
+							m.threadPanelFocus = true
+							m.sidebarFocus = false
+							m.updateInputFocus()
+							m.selectThreadEntry()
+						} else {
+							// If not peeking (already in this thread), drill in
+							m.threadPanelFocus = true
+							m.sidebarFocus = false
+							m.updateInputFocus()
+							m.drillInAction()
+						}
 					} else {
+						// Clicking different index - peek it without grabbing focus
+						// This allows the user to keep typing while previewing content
 						m.threadIndex = index
-						m.selectThreadEntry()
+						m.peekThreadEntry(peekSourceClick)
 					}
 					return true, nil
 				}
@@ -863,8 +953,16 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 					m.drillOutAction()
 					return true, nil
 				}
+				// Clicked elsewhere in thread panel - give it focus for navigation
+				m.threadPanelFocus = true
+				m.sidebarFocus = false
+				m.updateInputFocus()
 				return true, nil
 			}
+			// Clicked below content area in thread panel
+			m.threadPanelFocus = true
+			m.sidebarFocus = false
+			m.updateInputFocus()
 			return true, nil
 		}
 	}
@@ -875,6 +973,7 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 			// Clicked in sidebar - give it focus
 			m.sidebarFocus = true
 			m.threadPanelFocus = false
+			m.updateInputFocus()
 			if msg.Y < lipgloss.Height(m.renderSidebar()) {
 				if index := m.sidebarIndexAtLine(msg.Y); index >= 0 {
 					m.channelIndex = index
@@ -889,28 +988,69 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 	// Clicked in main area - focus textarea
 	m.threadPanelFocus = false
 	m.sidebarFocus = false
+	m.updateInputFocus()
 
-	if msg.Y >= m.viewport.Height {
+	// Account for peek statusline at top when calculating viewport Y
+	peekOffset := 0
+	if m.isPeeking() {
+		peekOffset = 1 // peek statusline takes 1 row
+	}
+	viewportY := msg.Y - peekOffset
+
+	if viewportY < 0 || viewportY >= m.viewport.Height {
+		// Clicking outside viewport (peek statusline or textarea area) - just focus input, keep peek state
 		return false, nil
 	}
 
-	line := m.viewport.YOffset + msg.Y
+	line := m.viewport.YOffset + viewportY
 	message, ok := m.messageAtLine(line)
 	if !ok || message == nil {
 		return ok, nil
 	}
 
 	now := time.Now()
-	if m.lastClickID == message.ID && now.Sub(m.lastClickAt) <= doubleClickInterval {
+	isDoubleClick := m.lastClickID == message.ID && now.Sub(m.lastClickAt) <= doubleClickInterval
+
+	// Check if clicked on the GUID zone (footer message ID)
+	guidZone := fmt.Sprintf("guid-%s", message.ID)
+	clickedOnGUID := m.zoneManager.Get(guidZone).InBounds(msg)
+
+	if isDoubleClick {
 		m.lastClickID = ""
 		m.lastClickAt = time.Time{}
-		m.copyFromZone(msg, *message)
+		// Commit peek on double-click action
+		if m.isPeeking() {
+			m.commitPeek()
+		}
+		if clickedOnGUID {
+			// Double-click on footer ID: insert reply
+			m.prefillReply(*message)
+		} else {
+			// Double-click elsewhere: copy from zone (text sections)
+			m.copyFromZone(msg, *message)
+		}
 		return true, nil
 	}
 
+	// Single-click
 	m.lastClickID = message.ID
 	m.lastClickAt = now
-	m.prefillReply(*message)
+	if clickedOnGUID {
+		// Single-click on ID: copy full message ID
+		// Also commit peek since user is interacting with content
+		if m.isPeeking() {
+			m.commitPeek()
+		}
+		if err := copyToClipboard(message.ID); err != nil {
+			m.status = err.Error()
+		} else {
+			m.status = "Copied message ID to clipboard."
+		}
+	} else if m.isPeeking() {
+		// Single-click on message content while peeking: commit peek (switch to this view)
+		m.commitPeek()
+	}
+	// Single-click elsewhere when not peeking: do nothing (wait for possible double-click)
 	return true, nil
 }
 
@@ -956,8 +1096,7 @@ func (m *Model) navigateToAgentThread(agentID string) {
 }
 
 func (m *Model) copyFromZone(mouseMsg tea.MouseMsg, msg types.Message) {
-	// Check which zone was clicked
-	guidZone := fmt.Sprintf("guid-%s", msg.ID)
+	// Check which zone was clicked (GUID zone is handled separately for reply insertion)
 	bylineZone := fmt.Sprintf("byline-%s", msg.ID)
 	footerZone := fmt.Sprintf("footer-%s", msg.ID)
 
@@ -965,12 +1104,7 @@ func (m *Model) copyFromZone(mouseMsg tea.MouseMsg, msg types.Message) {
 	var description string
 
 	// Check each zone type in priority order
-	if m.zoneManager.Get(guidZone).InBounds(mouseMsg) {
-		// Double-clicked on GUID - copy just the ID
-		prefixLength := core.GetDisplayPrefixLength(m.messageCount)
-		textToCopy = core.GetGUIDPrefix(msg.ID, prefixLength)
-		description = "message ID"
-	} else if m.zoneManager.Get(bylineZone).InBounds(mouseMsg) || m.zoneManager.Get(footerZone).InBounds(mouseMsg) {
+	if m.zoneManager.Get(bylineZone).InBounds(mouseMsg) || m.zoneManager.Get(footerZone).InBounds(mouseMsg) {
 		// Double-clicked on byline or footer - copy whole message
 		textToCopy = msg.Body
 		if msg.Type != types.MessageTypeEvent {

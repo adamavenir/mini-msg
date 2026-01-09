@@ -84,6 +84,7 @@ func (m *Model) closePanels() {
 	m.resetThreadFilter()
 	m.resetSidebarFilter()
 	m.clearSuggestions()
+	m.clearPeek()
 	m.resize()
 }
 
@@ -122,6 +123,9 @@ func (m *Model) resize() {
 		return
 	}
 
+	// Update input focus state based on panel focus
+	m.updateInputFocus()
+
 	width := m.mainWidth()
 	inputWidth := width - inputPadding
 	if inputWidth < 1 {
@@ -141,8 +145,15 @@ func (m *Model) resize() {
 	statusHeight := 1
 	suggestionHeight := m.suggestionHeight()
 	marginHeight := 1
+
+	// Account for peek statusline at top (bottom peek replaces the margin line)
+	peekTopHeight := 0
+	if m.isPeeking() {
+		peekTopHeight = 1 // only the top statusline is extra; bottom replaces margin
+	}
+
 	m.viewport.Width = width
-	m.viewport.Height = m.height - inputHeight - statusHeight - suggestionHeight - marginHeight
+	m.viewport.Height = m.height - inputHeight - statusHeight - suggestionHeight - marginHeight - peekTopHeight
 	if m.viewport.Height < 1 {
 		m.viewport.Height = 1
 	}

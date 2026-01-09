@@ -58,13 +58,14 @@ func (m *Model) updateInputStyle() {
 	_, reactionMode := reactionInputText(m.input.Value())
 	// Edit mode takes precedence
 	if m.editingMessageID != "" {
-		if !m.reactionMode { // avoid redundant updates
-			m.reactionMode = false
-			applyInputStylesWithBg(&m.input, textColor, blurText, editBg)
-		}
+		m.reactionMode = false
+		applyInputStylesWithBg(&m.input, textColor, blurText, editBg)
 		return
 	}
+	// Always apply styles if we were in edit mode (to reset the background)
 	if reactionMode == m.reactionMode {
+		// Still need to reset background if it might be set
+		applyInputStyles(&m.input, textColor, blurText)
 		return
 	}
 	m.reactionMode = reactionMode
@@ -139,4 +140,17 @@ func applyInputStylesWithBg(input *textarea.Model, textColor, blurColor, bgColor
 	input.BlurredStyle.Text = lipgloss.NewStyle().Foreground(blurColor).Background(bgColor)
 	input.BlurredStyle.Prompt = lipgloss.NewStyle().Foreground(caretColor).Background(bgColor)
 	input.BlurredStyle.CursorLine = lipgloss.NewStyle().Background(bgColor)
+}
+
+// updateInputFocus blurs/focuses the input based on panel focus state.
+// When a panel has focus, the input is blurred (dimmer, no cursor blink).
+// Exception: when peeking, keep input focused so you can type while browsing.
+func (m *Model) updateInputFocus() {
+	panelHasFocus := m.threadPanelFocus || m.sidebarFocus
+	// When peeking, keep input focused to allow typing while browsing
+	if panelHasFocus && !m.isPeeking() {
+		m.input.Blur()
+	} else {
+		m.input.Focus()
+	}
 }
