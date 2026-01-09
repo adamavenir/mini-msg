@@ -544,18 +544,37 @@ func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID
 		return "", err
 	}
 
-	d.debugf("  spawned pid %d, session %s", proc.Cmd.Process.Pid, proc.SessionID)
+	d.debugf("  spawned pid %d", proc.Cmd.Process.Pid)
+
+	// Wait for session ID if driver captures it asynchronously (e.g., codex)
+	// Give up to 5 seconds for the session ID to be captured from stdout
+	if proc.SessionIDReady != nil {
+		select {
+		case <-proc.SessionIDReady:
+			d.debugf("  session ID captured: %s", proc.SessionID)
+		case <-time.After(5 * time.Second):
+			d.debugf("  warning: session ID capture timed out")
+		}
+	}
+
+	if proc.SessionID != "" {
+		d.debugf("  session %s", proc.SessionID)
+	}
 
 	// Capture baseline token counts for resumed sessions
 	// This lets us detect prompting/prompted by checking for token INCREASE from baseline
-	if ccState := GetCCUsageState(proc.SessionID); ccState != nil {
-		proc.BaselineInput = ccState.TotalInput
-		proc.BaselineOutput = ccState.TotalOutput
-		d.debugf("  baseline tokens: input=%d, output=%d", proc.BaselineInput, proc.BaselineOutput)
+	if proc.SessionID != "" {
+		if ccState := GetCCUsageStateForDriver(agent.Invoke.Driver, proc.SessionID); ccState != nil {
+			proc.BaselineInput = ccState.TotalInput
+			proc.BaselineOutput = ccState.TotalOutput
+			d.debugf("  baseline tokens: input=%d, output=%d", proc.BaselineInput, proc.BaselineOutput)
+		}
 	}
 
 	// Store session ID for future resume - this ensures each agent keeps their own session
-	db.UpdateAgentSessionID(d.database, agent.AgentID, proc.SessionID)
+	if proc.SessionID != "" {
+		db.UpdateAgentSessionID(d.database, agent.AgentID, proc.SessionID)
+	}
 
 	// Track process
 	d.mu.Lock()
@@ -678,7 +697,7 @@ func (d *Daemon) buildWakePrompt(agent types.Agent, triggerMsgID string) (string
 	}
 	triggerInfo := strings.Join(triggerLines, "\n")
 
-	// Wake prompt with optional checkin guidance
+	// Wake prompt 
 	var prompt string
 	if minCheckin > 0 {
 		minCheckinMins := minCheckin / 60000
@@ -687,10 +706,11 @@ func (d *Daemon) buildWakePrompt(agent types.Agent, triggerMsgID string) (string
 Trigger messages:
 %s
 
+Run: /fly $ARGUMENTS if this is the start of a new session 
 Run: fray get %s
 
 ---
-Send a reply in fray (in the same thread where the message was received, using the flag "--reply-to <msg-id>") as quickly as you can to acknowledge the user, then continue.  Don't use the literal word 'ack' as it can sound like a panicked reply. Be casual and mix it up.`,
+As soon as you 'fray back', post a reply in fray (in the same thread where the message was received, using the flag "--reply-to <msg-id>") as quickly as you can to acknowledge the user, then continue.  Don't use the literal word 'ack' as it can sound like a panicked reply. Be casual and mix it up.`,
 			triggerInfo, agent.AgentID)
 		_ = minCheckinMins // Reserved for future use
 	} else {
@@ -699,7 +719,10 @@ Send a reply in fray (in the same thread where the message was received, using t
 Trigger messages:
 %s
 
-Run: fray get %s then send a reply in fray (in the same thread where the message was received, using the flag "--reply-to <msg-id>") as quickly as you can to acknowledge the user, then continue. Don't use the literal word 'ack' as it can sound like a panicked reply. Be casual and mix it up.`,
+Run: /fly $ARGUMENTS if this is the start of a new session
+Run: fray get %s 
+
+As soon as you 'fray back', post a reply in fray (in the same thread where the message was received, using the flag "--reply-to <msg-id>") as quickly as you can to acknowledge the user, then continue. Don't use the literal word 'ack' as it can sound like a panicked reply. Be casual and mix it up.`,
 			triggerInfo, agent.AgentID)
 	}
 
@@ -739,7 +762,7 @@ func (d *Daemon) updatePresence() {
 		case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted:
 			// Poll ccusage for token-based state transitions
 			// Compare against baseline to detect NEW tokens (important for resumed sessions)
-			ccState := GetCCUsageState(proc.SessionID)
+			ccState := GetCCUsageStateForDriver(agent.Invoke.Driver, proc.SessionID)
 			if ccState != nil {
 				newInput := ccState.TotalInput - proc.BaselineInput
 				newOutput := ccState.TotalOutput - proc.BaselineOutput
