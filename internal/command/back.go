@@ -71,6 +71,16 @@ func NewBackCmd() *cobra.Command {
 				}
 			}
 
+			// Ensure agent thread hierarchy exists (backfills missing threads for existing agents)
+			if err := ensureAgentHierarchy(ctx, agentID); err != nil {
+				return writeCommandError(cmd, err)
+			}
+
+			// Ensure agent neo file exists (backfills for existing agents)
+			if err := ensureAgentNeo(ctx.Project.Root, agentID); err != nil {
+				return writeCommandError(cmd, err)
+			}
+
 			// Post event message for the session change
 			eventBody := fmt.Sprintf("@%s rejoined", agentID)
 			if !hadPriorBye {

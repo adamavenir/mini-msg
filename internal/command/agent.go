@@ -115,6 +115,14 @@ func NewAgentCreateCmd() *cobra.Command {
 				}); err != nil {
 					return writeCommandError(cmd, err)
 				}
+				// Ensure agent thread hierarchy exists (backfills for existing agents)
+				if err := ensureAgentHierarchy(ctx, agentID); err != nil {
+					return writeCommandError(cmd, err)
+				}
+				// Ensure agent neo file exists (backfills for existing agents)
+				if err := ensureAgentNeo(ctx.Project.Root, agentID); err != nil {
+					return writeCommandError(cmd, err)
+				}
 			} else {
 				agentGUID, err := core.GenerateGUID("usr")
 				if err != nil {
@@ -133,6 +141,14 @@ func NewAgentCreateCmd() *cobra.Command {
 					return writeCommandError(cmd, err)
 				}
 				if err := db.AppendAgent(ctx.Project.DBPath, agent); err != nil {
+					return writeCommandError(cmd, err)
+				}
+				// Create agent thread hierarchy for new agents
+				if err := ensureAgentHierarchy(ctx, agentID); err != nil {
+					return writeCommandError(cmd, err)
+				}
+				// Create agent neo file for context customization
+				if err := ensureAgentNeo(ctx.Project.Root, agentID); err != nil {
 					return writeCommandError(cmd, err)
 				}
 			}
@@ -713,7 +729,7 @@ Use --as %s and @%s throughout.
 ## Then: Join and Orient
 
 fray new %s              # or fray back %s if rejoining
-fray get %s/notes        # prior session handoffs
+fray get meta/%s/notes   # prior session handoffs
 fray get meta            # project-wide shared context
 
 **Read any instructions left for you in the notes.**

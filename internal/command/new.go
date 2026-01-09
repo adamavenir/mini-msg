@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -198,6 +199,10 @@ func NewNewCmd() *cobra.Command {
 			// Create agent thread hierarchy for new agents
 			if !isRejoin {
 				if err := ensureAgentHierarchy(ctx, agentID); err != nil {
+					return writeCommandError(cmd, err)
+				}
+				// Create agent neo file for context customization
+				if err := ensureAgentNeo(ctx.Project.Root, agentID); err != nil {
 					return writeCommandError(cmd, err)
 				}
 			}
@@ -545,6 +550,30 @@ func ensureAgentHierarchy(ctx *CommandContext, agentID string) error {
 		if err := db.SubscribeThread(ctx.DB, thread.GUID, agentID, time.Now().Unix()); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// ensureAgentNeo creates the agent's neo context file if it doesn't exist.
+// Creates .fray/llm/neo/{agent}.mld for context customization.
+func ensureAgentNeo(projectRoot, agentID string) error {
+	neoDir := filepath.Join(projectRoot, ".fray", "llm", "neo")
+	neoPath := filepath.Join(neoDir, agentID+".mld")
+
+	// Skip if neo file already exists
+	if _, err := os.Stat(neoPath); err == nil {
+		return nil
+	}
+
+	// Create neo/ directory
+	if err := os.MkdirAll(neoDir, 0o755); err != nil {
+		return fmt.Errorf("create neo directory: %w", err)
+	}
+
+	// Write stock neo template
+	if err := os.WriteFile(neoPath, db.NeoTemplate, 0o644); err != nil {
+		return fmt.Errorf("write neo template: %w", err)
 	}
 
 	return nil

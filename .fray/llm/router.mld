@@ -1,92 +1,23 @@
-import { @message } from @payload
+/import { @message } from @payload
 
-var @taskVerbs = ["implement", "fix", "build", "create", "add", "update", "refactor", "write", "debug", "test", "deploy", "review"]
-var @opinionAsks = ["thoughts?", "what do you think", "opinion on", "feedback on", "review this", "take a look", "weigh in"]
-var @questionPatterns = ["?", "how do", "what is", "where is", "when", "why", "can you explain"]
-var @fyiPatterns = ["fyi", "just so you know", "heads up", "cc:", "for your info"]
+/exe @haiku(prompt) = @prompt | cmd { claude -p --model haiku }
 
-exe @scorePatterns(text, patterns) = js {
-  const lower = text.toLowerCase();
-  let score = 0;
-  for (const p of patterns) {
-    if (lower.includes(p.toLowerCase())) score += 1;
+/exe @route(text) = [
+  let @prompt = `You're deciding whether to wake an agent for this message.
+
+The agent was mentioned but NOT directly addressed (not "@agent message" at start).
+Should they be woken up to read this, or can they wait until they're next online?
+
+Return JSON: {"wake": true} or {"wake": false}
+
+Message: @text`
+  let @result = @haiku(@prompt) | @json.llm
+  => {
+    shouldSpawn: @result.wake,
+    confidence: 0.7
   }
-  return score;
-}
-
-exe @maxOf(scores) = js {
-  return Math.max(...scores);
-}
-
-exe @haiku(prompt) = @prompt | cmd { claude -p --model haiku }
-
-exe @classifyWithHaiku(message) = [
-  let @prompt = `Classify this message into ONE category. Reply with just the category name.
-
-Categories:
-- deep-work: Task assignment, implementation request, bug fix, something requiring focused coding work
-- weigh-in: Asking for opinion, review, feedback, or thoughts on something
-- quick-answer: Simple question that can be answered quickly
-- acknowledge: FYI, heads-up, CC, no response needed
-
-Message: @message
-
-Category:`
-  let @result = @haiku(@prompt)
-  => @result.trim().toLowerCase()
 ]
 
-exe @route(text) = [
-  let @taskScore = @scorePatterns(@text, @taskVerbs)
-  let @opinionScore = @scorePatterns(@text, @opinionAsks)
-  let @questionScore = @scorePatterns(@text, @questionPatterns)
-  let @fyiScore = @scorePatterns(@text, @fyiPatterns)
+/show @route(@message)
 
-  let @maxScore = @maxOf([@taskScore, @opinionScore, @questionScore, @fyiScore])
-
-  => when first [
-    @taskScore >= 2 => {
-      mode: "deep-work",
-      shouldSpawn: true,
-      confidence: 0.9
-    }
-
-    @taskScore == 1 && @taskScore == @maxScore => {
-      mode: "deep-work",
-      shouldSpawn: true,
-      confidence: 0.8
-    }
-
-    @fyiScore >= 1 => {
-      mode: "acknowledge",
-      shouldSpawn: false,
-      confidence: 0.9
-    }
-
-    @opinionScore >= 1 => {
-      mode: "weigh-in",
-      shouldSpawn: true,
-      confidence: 0.8
-    }
-
-    @questionScore >= 1 => {
-      mode: "quick-answer",
-      shouldSpawn: true,
-      confidence: 0.7
-    }
-
-    * => [
-      let @classified = @classifyWithHaiku(@text)
-      let @spawn = @classified != "acknowledge"
-      => {
-        mode: @classified,
-        shouldSpawn: @spawn,
-        confidence: 0.6
-      }
-    ]
-  ]
-]
-
-show @route(@message)
-
-export { @route }
+/export { @route }
