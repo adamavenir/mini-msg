@@ -1079,10 +1079,12 @@ func TestSessionLifecycle_ResumeUsesExistingSessionID(t *testing.T) {
 	h := newDaemonHarness(t)
 	defer h.daemon.Stop()
 
-	// Create agent WITH existing session ID (simulates previous spawn)
+	// Create agent WITH existing session ID (simulates previous spawn that ended with idle)
+	// Presence must be idle (not offline) for resume - offline means explicit bye (fresh start)
 	existingSessionID := "existing-session-abc123"
 	alice := h.createManagedAgent("alice")
 	db.UpdateAgentSessionID(h.db, alice.AgentID, existingSessionID)
+	db.UpdateAgentPresence(h.db, alice.AgentID, types.PresenceIdle)
 	h.createAgent("bob", false)
 
 	// Bob mentions alice
@@ -1108,13 +1110,14 @@ func TestSessionLifecycle_ResumeUsesExistingSessionID(t *testing.T) {
 	}
 }
 
-func TestSessionLifecycle_ByeClearsSessionID(t *testing.T) {
+func TestSessionLifecycle_ByePreservesSessionIDForDisplay(t *testing.T) {
 	h := newDaemonHarness(t)
 
 	// Create agent with session ID
 	alice := h.createManagedAgent("alice")
-	sessionID := "session-to-clear"
+	sessionID := "session-to-preserve"
 	db.UpdateAgentSessionID(h.db, alice.AgentID, sessionID)
+	db.UpdateAgentPresence(h.db, alice.AgentID, types.PresenceActive)
 
 	// Verify it's set
 	updated, _ := db.GetAgent(h.db, alice.AgentID)
@@ -1122,15 +1125,53 @@ func TestSessionLifecycle_ByeClearsSessionID(t *testing.T) {
 		t.Fatalf("setup failed: session ID not set")
 	}
 
-	// Simulate bye: clear session ID (this is what bye command does)
-	if err := db.UpdateAgentSessionID(h.db, alice.AgentID, ""); err != nil {
-		t.Fatalf("clear session ID: %v", err)
+	// Simulate bye: set presence to offline but PRESERVE session ID (for token display)
+	// This is the new behavior - session ID stays for activity panel token usage
+	db.UpdateAgentPresence(h.db, alice.AgentID, types.PresenceOffline)
+
+	// Session ID should still be present (preserved for display)
+	updated, _ = db.GetAgent(h.db, alice.AgentID)
+	if updated.LastSessionID == nil || *updated.LastSessionID != sessionID {
+		t.Errorf("expected session ID preserved for display, got %v", updated.LastSessionID)
+	}
+	if updated.Presence != types.PresenceOffline {
+		t.Errorf("expected offline presence, got %q", updated.Presence)
+	}
+}
+
+func TestSessionLifecycle_OfflineAgentStartsFreshSession(t *testing.T) {
+	h := newDaemonHarness(t)
+	defer h.daemon.Stop()
+
+	// Create agent in offline state (simulates bye) but WITH session ID (for display)
+	alice := h.createManagedAgent("alice")
+	oldSessionID := "old-session-from-display"
+	db.UpdateAgentSessionID(h.db, alice.AgentID, oldSessionID)
+	// Agent is already offline from createManagedAgent
+
+	h.createAgent("bob", false)
+
+	// Bob mentions alice
+	h.postMessage("bob", "@alice please help", types.MessageTypeUser)
+
+	// Start daemon
+	ctx := context.Background()
+	if err := h.daemon.Start(ctx); err != nil {
+		t.Fatalf("start daemon: %v", err)
 	}
 
-	// Session ID should be cleared
-	updated, _ = db.GetAgent(h.db, alice.AgentID)
-	if updated.LastSessionID != nil && *updated.LastSessionID != "" {
-		t.Errorf("expected empty session ID after bye, got %q", *updated.LastSessionID)
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify spawn occurred
+	spawn := h.mockDriver.LastSpawn()
+	if spawn == nil {
+		t.Fatal("expected spawn record")
+	}
+
+	// Agent passed to driver should have nil session ID (fresh start for offline agents)
+	// even though DB still has the old session ID for display
+	if spawn.Agent.LastSessionID != nil {
+		t.Errorf("expected nil LastSessionID for offline agent spawn, got %q", *spawn.Agent.LastSessionID)
 	}
 }
 

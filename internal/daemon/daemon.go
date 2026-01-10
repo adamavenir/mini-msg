@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -757,9 +758,23 @@ func (d *Daemon) checkWakeConditions(ctx context.Context, agents []types.Agent) 
 
 		d.debugf("wake: condition %s triggered for @%s", cond.GUID, agent.AgentID)
 
-		// Delete the wake condition (one-shot)
-		if err := db.DeleteWakeCondition(d.database, d.project.DBPath, cond.GUID); err != nil {
-			d.debugf("wake: error deleting condition %s: %v", cond.GUID, err)
+		// Handle condition based on persist mode
+		switch cond.PersistMode {
+		case types.WakePersist, types.WakePersistUntilBye, types.WakePersistRestoreOnBack:
+			// Persistent condition: don't delete, just update created_at for timer conditions
+			if cond.Type == types.WakeConditionAfter && cond.AfterMs != nil {
+				// Reset the timer for next trigger
+				newExpiresAt := time.Now().Unix() + (*cond.AfterMs / 1000)
+				if err := db.ResetTimerCondition(d.database, d.project.DBPath, cond.GUID, newExpiresAt); err != nil {
+					d.debugf("wake: error resetting timer condition %s: %v", cond.GUID, err)
+				}
+			}
+			d.debugf("wake: condition %s is persistent (%s), keeping active", cond.GUID, cond.PersistMode)
+		default:
+			// One-shot: delete the wake condition
+			if err := db.DeleteWakeCondition(d.database, d.project.DBPath, cond.GUID); err != nil {
+				d.debugf("wake: error deleting condition %s: %v", cond.GUID, err)
+			}
 		}
 
 		// Spawn the agent
@@ -798,6 +813,10 @@ func (d *Daemon) checkWakeCondition(ctx context.Context, cond types.WakeConditio
 	case types.WakeConditionPattern:
 		// Check for pattern matches in recent messages
 		return d.checkPatternWake(ctx, cond, agent)
+
+	case types.WakeConditionPrompt:
+		// LLM-evaluated condition with polling
+		return d.checkPromptWake(ctx, cond, agent)
 
 	default:
 		d.debugf("wake: unknown condition type %s", cond.Type)
@@ -944,6 +963,135 @@ func (d *Daemon) assessWakeWithRouter(ctx context.Context, cond types.WakeCondit
 	return result.ShouldSpawn
 }
 
+// checkPromptWake evaluates LLM-based prompt conditions with polling.
+func (d *Daemon) checkPromptWake(ctx context.Context, cond types.WakeCondition, agent types.Agent) (bool, string) {
+	if cond.PromptText == nil || cond.PollIntervalMs == nil {
+		return false, ""
+	}
+
+	// Check if poll interval has elapsed since last check
+	now := time.Now().UnixMilli()
+	if cond.LastPolledAt != nil {
+		elapsed := now - *cond.LastPolledAt
+		if elapsed < *cond.PollIntervalMs {
+			// Not time to poll yet
+			return false, ""
+		}
+	}
+
+	// Update last_polled_at timestamp
+	if err := db.UpdateLastPolledAt(d.database, cond.GUID, now); err != nil {
+		d.debugf("wake: error updating last_polled_at for %s: %v", cond.GUID, err)
+	}
+
+	d.debugf("wake: evaluating prompt condition for @%s", agent.AgentID)
+
+	// Gather agent statuses for context
+	agents, err := d.getManagedAgents()
+	if err != nil {
+		d.debugf("wake: error getting agents for prompt eval: %v", err)
+		return false, ""
+	}
+
+	var agentStatuses []types.AgentStatusForPrompt
+	for _, a := range agents {
+		idleSeconds := int64(0)
+		if a.LastSeen > 0 {
+			idleSeconds = (time.Now().Unix() - a.LastSeen)
+		}
+		agentStatuses = append(agentStatuses, types.AgentStatusForPrompt{
+			Name:        a.AgentID,
+			Presence:    string(a.Presence),
+			Status:      a.Status,
+			IdleSeconds: idleSeconds,
+		})
+	}
+
+	// Use wake-prompt.mld to evaluate
+	shouldWake := d.evaluatePromptCondition(ctx, cond, agent, agentStatuses)
+	if shouldWake {
+		d.debugf("wake: prompt condition triggered for @%s", agent.AgentID)
+		return true, ""
+	}
+
+	return false, ""
+}
+
+// evaluatePromptCondition runs the wake-prompt.mld template.
+func (d *Daemon) evaluatePromptCondition(ctx context.Context, cond types.WakeCondition, agent types.Agent, agentStatuses []types.AgentStatusForPrompt) bool {
+	// Check if wake-prompt.mld exists
+	wakePromptPath := filepath.Join(d.project.Root, ".fray", "llm", "wake-prompt.mld")
+	if _, err := os.Stat(wakePromptPath); os.IsNotExist(err) {
+		// Try to copy the default template
+		if err := d.ensureWakePromptTemplate(); err != nil {
+			d.debugf("wake: wake-prompt.mld not found and couldn't create default: %v", err)
+			return false
+		}
+	}
+
+	// Build payload
+	payload := types.WakePromptPayload{
+		Agent:    agent.AgentID,
+		Prompt:   *cond.PromptText,
+		Agents:   agentStatuses,
+		InThread: cond.InThread,
+	}
+
+	// Run the mlld script
+	result, err := d.runWakePrompt(payload)
+	if err != nil {
+		d.debugf("wake: error running wake-prompt.mld: %v", err)
+		return false
+	}
+
+	d.debugf("wake: prompt eval result for @%s: shouldWake=%v, reason=%s, confidence=%.2f",
+		agent.AgentID, result.ShouldWake, result.Reason, result.Confidence)
+
+	return result.ShouldWake
+}
+
+// ensureWakePromptTemplate creates the wake-prompt.mld template if it doesn't exist.
+func (d *Daemon) ensureWakePromptTemplate() error {
+	llmDir := filepath.Join(d.project.Root, ".fray", "llm")
+	if err := os.MkdirAll(llmDir, 0755); err != nil {
+		return err
+	}
+
+	wakePromptPath := filepath.Join(llmDir, "wake-prompt.mld")
+	if _, err := os.Stat(wakePromptPath); os.IsNotExist(err) {
+		return os.WriteFile(wakePromptPath, db.WakePromptTemplate, 0644)
+	}
+	return nil
+}
+
+// runWakePrompt executes the wake-prompt.mld template with the given payload.
+func (d *Daemon) runWakePrompt(payload types.WakePromptPayload) (*types.WakePromptResult, error) {
+	// Encode payload to JSON
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	// Run mlld
+	wakePromptPath := filepath.Join(d.project.Root, ".fray", "llm", "wake-prompt.mld")
+	cmd := exec.Command("mlld", wakePromptPath)
+	cmd.Stdin = strings.NewReader(string(payloadJSON))
+	cmd.Dir = d.project.Root
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("mlld failed: %w", err)
+	}
+
+	// Parse result
+	var result types.WakePromptResult
+	if err := json.Unmarshal(output, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse mlld output: %w", err)
+	}
+
+	return &result, nil
+}
+
 // getMessagesAfter returns messages mentioning agent after the given watermark.
 // Includes mentions in all threads (not just room) and replies to agent's messages.
 func (d *Daemon) getMessagesAfter(watermark, agentID string) ([]types.Message, error) {
@@ -974,6 +1122,13 @@ func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID
 	}
 
 	d.debugf("  spawning @%s with driver %s", agent.AgentID, agent.Invoke.Driver)
+
+	// If agent was offline (from bye), clear session ID so driver starts fresh.
+	// We keep LastSessionID in DB for token usage display, but clear it for spawning.
+	if agent.Presence == types.PresenceOffline {
+		d.debugf("  agent was offline, starting fresh session")
+		agent.LastSessionID = nil // Clear locally for driver, DB retains for display
+	}
 
 	// Update presence to spawning
 	prevPresence := agent.Presence
@@ -1057,6 +1212,99 @@ func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID
 	return lastMention, nil
 }
 
+// spawnBRBAgent spawns a fresh session for an agent that requested BRB.
+// Uses a continuation prompt instead of wake prompt since there are no trigger messages.
+func (d *Daemon) spawnBRBAgent(ctx context.Context, agent types.Agent) error {
+	if agent.Invoke == nil || agent.Invoke.Driver == "" {
+		return fmt.Errorf("agent %s has no driver configured", agent.AgentID)
+	}
+
+	driver := d.drivers[agent.Invoke.Driver]
+	if driver == nil {
+		return fmt.Errorf("unknown driver: %s", agent.Invoke.Driver)
+	}
+
+	d.debugf("  spawning @%s with driver %s (BRB continuation)", agent.AgentID, agent.Invoke.Driver)
+
+	// Update presence to spawning
+	prevPresence := agent.Presence
+	if err := db.UpdateAgentPresenceWithAudit(d.database, d.project.DBPath, agent.AgentID, prevPresence, types.PresenceSpawning, "brb_spawn", "daemon", agent.Status); err != nil {
+		return err
+	}
+
+	// Build continuation prompt (no trigger messages)
+	prompt := d.buildContinuationPrompt(agent)
+
+	// Spawn process
+	proc, err := driver.Spawn(ctx, agent, prompt)
+	if err != nil {
+		d.debugf("  BRB spawn error: %v", err)
+		db.UpdateAgentPresenceWithAudit(d.database, d.project.DBPath, agent.AgentID, types.PresenceSpawning, types.PresenceError, "brb_spawn_error", "daemon", agent.Status)
+		return err
+	}
+
+	d.debugf("  spawned pid %d (BRB)", proc.Cmd.Process.Pid)
+
+	// Wait for session ID if driver captures it asynchronously
+	if proc.SessionIDReady != nil {
+		select {
+		case <-proc.SessionIDReady:
+			d.debugf("  session ID captured: %s", proc.SessionID)
+		case <-time.After(5 * time.Second):
+			d.debugf("  warning: session ID capture timed out")
+		}
+	}
+
+	if proc.SessionID != "" {
+		d.debugf("  session %s", proc.SessionID)
+	}
+
+	// Store session ID for future resume
+	if proc.SessionID != "" {
+		db.UpdateAgentSessionID(d.database, agent.AgentID, proc.SessionID)
+	}
+
+	// Track process
+	d.mu.Lock()
+	d.processes[agent.AgentID] = proc
+	delete(d.handled, agent.AgentID)
+	d.mu.Unlock()
+
+	// Record session start (no trigger message for BRB)
+	sessionStart := types.SessionStart{
+		AgentID:   agent.AgentID,
+		SessionID: proc.SessionID,
+		StartedAt: time.Now().Unix(),
+		// TriggeredBy is nil for BRB spawns
+	}
+	db.AppendSessionStart(d.project.DBPath, sessionStart)
+
+	// Initialize activity record
+	if proc.Cmd.Process != nil {
+		d.detector.RecordActivity(proc.Cmd.Process.Pid)
+	}
+
+	// Start goroutine to monitor process lifecycle
+	d.wg.Add(1)
+	go d.monitorProcess(agent.AgentID, proc)
+
+	return nil
+}
+
+// buildContinuationPrompt creates the prompt for BRB respawns.
+// Unlike wake prompt, there are no trigger messages - agent is continuing from prior session.
+func (d *Daemon) buildContinuationPrompt(agent types.Agent) string {
+	return fmt.Sprintf(`**You are @%s.** Continuing from previous session.
+
+Your last session ended with 'fray brb'. Pick up where you left off.
+
+Run: /fly %s
+Run: fray get %s/notes
+
+Check your notes for context from the previous session.`,
+		agent.AgentID, agent.AgentID, agent.AgentID)
+}
+
 // monitorProcess drains stdout/stderr and waits for process exit.
 func (d *Daemon) monitorProcess(agentID string, proc *Process) {
 	defer d.wg.Done()
@@ -1106,8 +1354,21 @@ func (d *Daemon) monitorProcess(agentID string, proc *Process) {
 
 	// Handle exit
 	d.mu.Lock()
-	d.handleProcessExit(agentID, proc)
+	shouldRespawnBRB := d.handleProcessExit(agentID, proc)
 	d.mu.Unlock()
+
+	// If agent requested BRB, spawn fresh session immediately
+	if shouldRespawnBRB {
+		d.debugf("@%s: spawning fresh session (BRB respawn)", agentID)
+		// Re-fetch agent to get latest state
+		agent, err := db.GetAgent(d.database, agentID)
+		if err != nil || agent == nil {
+			d.debugf("@%s: BRB spawn failed - agent not found", agentID)
+			return
+		}
+		// Spawn with continuation prompt
+		d.spawnBRBAgent(context.Background(), *agent)
+	}
 }
 
 // buildWakePrompt creates the prompt for waking an agent.
@@ -1407,7 +1668,8 @@ func (d *Daemon) killProcess(agentID string, proc *Process, reason string) {
 
 // handleProcessExit cleans up after a process exits.
 // Must be called with d.mu held. Safe to call multiple times.
-func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
+// Returns true if agent requested BRB respawn (caller should spawn fresh session).
+func (d *Daemon) handleProcessExit(agentID string, proc *Process) bool {
 	// Check if this proc is still the current one for this agent.
 	// A new process may have been spawned, in which case we shouldn't
 	// update presence (new process owns that), but we still record session_end
@@ -1418,7 +1680,7 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 	// For current proc, check handled flag to prevent duplicate session_end.
 	// For old proc (isCurrentProc=false), always record - no duplication possible.
 	if isCurrentProc && d.handled[agentID] {
-		return
+		return false
 	}
 	if isCurrentProc {
 		d.handled[agentID] = true
@@ -1459,17 +1721,33 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 	}
 
 	// Only update presence and remove from map if this is the current process
+	shouldRespawnBRB := false
 	if isCurrentProc {
 		// Check current presence - if agent already ran `fray bye`, presence is offline
 		// and we should respect that rather than overwriting with idle
+		// If agent ran `fray brb`, presence is brb and we should respawn immediately
 		agent, _ := db.GetAgent(d.database, agentID)
 		alreadyOffline := agent != nil && agent.Presence == types.PresenceOffline
+		wantsBRB := agent != nil && agent.Presence == types.PresenceBRB
 		prevPresence := types.PresenceState("")
 		if agent != nil {
 			prevPresence = agent.Presence
 		}
 
-		if !alreadyOffline {
+		if wantsBRB {
+			// Agent requested immediate respawn via `fray brb`
+			d.debugf("@%s: BRB detected - will respawn immediately", agentID)
+			shouldRespawnBRB = true
+			// Set to idle (normal state) - spawn will set to spawning
+			var status *string
+			if agent != nil {
+				status = agent.Status
+			}
+			db.UpdateAgentPresenceWithAudit(d.database, d.project.DBPath, agentID, prevPresence, types.PresenceIdle, "brb_exit", "daemon", status)
+			// Clear session ID so fresh session starts
+			db.UpdateAgentSessionID(d.database, agentID, "")
+			// No cooldown for BRB - that's the point
+		} else if !alreadyOffline {
 			var reason string
 			var newPresence types.PresenceState
 			if exitCode == 0 {
@@ -1515,7 +1793,7 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 		// Exception: resume_failure clears session ID above to prevent retry loop.
 
 		// Set left_at so fray back knows this was a proper session end (not orphaned)
-		// (only if not already set by fray bye)
+		// (only if not already set by fray bye/brb)
 		if agent == nil || agent.LeftAt == nil {
 			now := time.Now().Unix()
 			db.UpdateAgent(d.database, agentID, db.AgentUpdates{
@@ -1525,6 +1803,7 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 
 		delete(d.processes, agentID)
 	}
+	return shouldRespawnBRB
 }
 
 // getDriver returns the driver for an agent.

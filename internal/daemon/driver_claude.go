@@ -181,7 +181,11 @@ func (d *ClaudeDriver) Spawn(ctx context.Context, agent types.Agent, prompt stri
 	}
 
 	// Set FRAY_AGENT_ID so the agent can use fray commands without --as flag
-	cmd.Env = append(os.Environ(), "FRAY_AGENT_ID="+agent.AgentID)
+	// Set CLAUDE_SESSION_ID so fray post can attach session ID to messages
+	cmd.Env = append(os.Environ(),
+		"FRAY_AGENT_ID="+agent.AgentID,
+		"CLAUDE_SESSION_ID="+sessionID,
+	)
 
 	// Get pipes for stdin/stdout/stderr
 	stdin, err := cmd.StdinPipe()

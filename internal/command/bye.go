@@ -64,6 +64,18 @@ func NewByeCmd() *cobra.Command {
 				}
 			}
 
+			// Handle wake condition lifecycle on bye
+			// 1. Clear persist-until-bye conditions
+			clearedWake, err := db.ClearPersistUntilByeConditions(ctx.DB, ctx.Project.DBPath, agentID)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+			// 2. Pause persist-restore-on-back conditions
+			pausedWake, err := db.PauseWakeConditions(ctx.DB, ctx.Project.DBPath, agentID)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+
 			var posted *types.Message
 			if message != "" {
 				bases, err := db.GetAgentBases(ctx.DB)
@@ -110,12 +122,11 @@ func NewByeCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
-			// For managed agents, set presence to offline and clear session ID so daemon spawns fresh
+			// For managed agents, set presence to offline
+		// Note: We preserve LastSessionID for token usage display in activity panel.
+		// The daemon will start fresh based on presence being offline.
 			if agent.Managed {
 				if err := db.UpdateAgentPresenceWithAudit(ctx.DB, ctx.Project.DBPath, agentID, agent.Presence, types.PresenceOffline, "bye", "command", agent.Status); err != nil {
-					return writeCommandError(cmd, err)
-				}
-				if err := db.UpdateAgentSessionID(ctx.DB, agentID, ""); err != nil {
 					return writeCommandError(cmd, err)
 				}
 			}
@@ -132,11 +143,13 @@ func NewByeCmd() *cobra.Command {
 
 			if ctx.JSONMode {
 				payload := map[string]any{
-					"agent_id":       agentID,
-					"status":         "left",
-					"message_id":     nil,
-					"claims_cleared": clearedClaims,
-					"roles_cleared":  clearedRoles,
+					"agent_id":              agentID,
+					"status":                "left",
+					"message_id":            nil,
+					"claims_cleared":        clearedClaims,
+					"roles_cleared":         clearedRoles,
+					"wake_conditions_cleared": clearedWake,
+					"wake_conditions_paused":  pausedWake,
 				}
 				if posted != nil {
 					payload["message_id"] = posted.ID
@@ -162,6 +175,20 @@ func NewByeCmd() *cobra.Command {
 					plural = ""
 				}
 				fmt.Fprintf(out, "  Released %d session role%s\n", clearedRoles, plural)
+			}
+			if clearedWake > 0 {
+				plural := "s"
+				if clearedWake == 1 {
+					plural = ""
+				}
+				fmt.Fprintf(out, "  Cleared %d wake condition%s\n", clearedWake, plural)
+			}
+			if pausedWake > 0 {
+				plural := "s"
+				if pausedWake == 1 {
+					plural = ""
+				}
+				fmt.Fprintf(out, "  Paused %d wake condition%s (will restore on back)\n", pausedWake, plural)
 			}
 			return nil
 		},
