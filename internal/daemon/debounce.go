@@ -310,6 +310,26 @@ func IsReplyToAgent(database *sql.DB, msg types.Message, agentID string) bool {
 	return false
 }
 
+// AgentAlreadyReplied returns true if the agent has already posted a reply to the given message.
+// This is used to avoid re-spawning for messages the agent already responded to.
+func AgentAlreadyReplied(database *sql.DB, msgID, agentID string) bool {
+	replies, err := db.GetReplies(database, msgID)
+	if err != nil {
+		return false
+	}
+
+	for _, reply := range replies {
+		if reply.FromAgent == agentID {
+			return true
+		}
+		// Prefix match: "alice" matches "alice.1"
+		if strings.HasPrefix(reply.FromAgent, agentID+".") {
+			return true
+		}
+	}
+	return false
+}
+
 // ShouldSpawn determines if a mention should trigger a spawn.
 // Returns false if:
 // - Message is a self-mention

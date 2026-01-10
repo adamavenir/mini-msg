@@ -380,6 +380,16 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 		isDirectAddress := IsDirectAddress(msg, agent.AgentID)
 		isReplyToAgent := IsReplyToAgent(d.database, msg, agent.AgentID)
 
+		// Skip reply-to-agent messages if agent already replied to them.
+		// This prevents double-spawns when watermark wasn't updated during session.
+		if isReplyToAgent && AgentAlreadyReplied(d.database, msg.ID, agent.AgentID) {
+			d.debugf("    %s: skip (agent already replied)", msg.ID)
+			if !hasQueued && !spawned {
+				lastProcessedID = msg.ID
+			}
+			continue
+		}
+
 		// FYI patterns (fyi @agent, cc @agent, etc) are informational - skip entirely
 		if IsFYIPattern(msg) {
 			d.debugf("    %s: skip (FYI pattern)", msg.ID)
@@ -913,7 +923,7 @@ Run: /fly %s if this is the start of a new session
 Run: fray get %s
 
 ---
-As soon as you 'fray back', post a reply in fray (in the same thread where the message was received, using the flag "--reply-to <msg-id>") as quickly as you can to acknowledge the user, then continue.  Don't use the literal word 'ack' as it can sound like a panicked reply. Be casual and mix it up.`,
+After 'fray back', reply in the thread where you were mentioned (using "--reply-to <msg-id>"). If you can answer the question immediately and with confidence, just answer directly - no need to ack first. Otherwise, ack quickly then continue. Don't use the literal word 'ack'. Be casual.`,
 			agent.AgentID, triggerInfo, forkContext, agent.AgentID, agent.AgentID)
 		_ = minCheckinMins // Reserved for future use
 	} else {
@@ -925,7 +935,7 @@ Trigger messages:
 Run: /fly %s if this is the start of a new session
 Run: fray get %s
 
-As soon as you 'fray back', post a reply in fray (in the same thread where the message was received, using the flag "--reply-to <msg-id>") as quickly as you can to acknowledge the user, then continue. Don't use the literal word 'ack' as it can sound like a panicked reply. Be casual and mix it up.`,
+After 'fray back', reply in the thread where you were mentioned (using "--reply-to <msg-id>"). If you can answer the question immediately and with confidence, just answer directly - no need to ack first. Otherwise, ack quickly then continue. Don't use the literal word 'ack'. Be casual.`,
 			agent.AgentID, triggerInfo, forkContext, agent.AgentID, agent.AgentID)
 	}
 

@@ -406,6 +406,59 @@ func TestIsReplyToAgent_SubagentMatching(t *testing.T) {
 	}
 }
 
+func TestAgentAlreadyReplied(t *testing.T) {
+	h := newTestHarness(t)
+
+	h.createAgent("alice", true)
+	h.createAgent("bob", false)
+
+	// Alice posts, Bob replies, Alice hasn't replied yet
+	aliceMsg := h.postMessage("alice", "Hello", types.MessageTypeAgent)
+	bobReply := h.postReply("bob", "Hi there", aliceMsg.ID, types.MessageTypeUser)
+
+	// Alice hasn't replied to Bob's message yet
+	if AgentAlreadyReplied(h.db, bobReply.ID, "alice") {
+		t.Error("alice should not have replied yet")
+	}
+
+	// Alice replies to Bob's message
+	h.postReply("alice", "Thanks!", bobReply.ID, types.MessageTypeAgent)
+
+	// Now Alice has replied
+	if !AgentAlreadyReplied(h.db, bobReply.ID, "alice") {
+		t.Error("alice should be detected as having replied")
+	}
+
+	// Bob hasn't replied to his own message
+	if AgentAlreadyReplied(h.db, bobReply.ID, "bob") {
+		t.Error("bob should not have replied to his own message")
+	}
+}
+
+func TestAgentAlreadyReplied_SubagentMatching(t *testing.T) {
+	h := newTestHarness(t)
+
+	h.createAgent("alice", true)
+	h.createAgent("alice.1", true)
+	h.createAgent("bob", false)
+
+	// Bob posts a message
+	bobMsg := h.postMessage("bob", "Hey alice team", types.MessageTypeUser)
+
+	// alice.1 (subagent) replies
+	h.postReply("alice.1", "Got it", bobMsg.ID, types.MessageTypeAgent)
+
+	// Parent agent "alice" should be detected as having replied (via subagent)
+	if !AgentAlreadyReplied(h.db, bobMsg.ID, "alice") {
+		t.Error("parent should be detected when subagent replied")
+	}
+
+	// Subagent should also match exactly
+	if !AgentAlreadyReplied(h.db, bobMsg.ID, "alice.1") {
+		t.Error("subagent should match its own reply")
+	}
+}
+
 func TestDebouncer_WatermarkTracking(t *testing.T) {
 	h := newTestHarness(t)
 
@@ -1337,6 +1390,45 @@ func TestErrorRecovery_MultipleAgentsIndependentlyManaged(t *testing.T) {
 		}
 	}
 	if !bobSpawned {
+		t.Error("expected bob to spawn")
+	}
+}
+
+func TestSpawnFlow_MultipleAgentsMentionedAllSpawn(t *testing.T) {
+	h := newDaemonHarness(t)
+	defer h.daemon.Stop()
+
+	// Create two managed agents and carol (human)
+	h.createManagedAgent("alice")
+	h.createManagedAgent("bob")
+	h.createAgent("carol", false)
+
+	// Carol mentions both agents - both should spawn
+	h.postMessage("carol", "@alice @bob please collaborate on this", types.MessageTypeUser)
+
+	// Start daemon
+	ctx := context.Background()
+	if err := h.daemon.Start(ctx); err != nil {
+		t.Fatalf("start daemon: %v", err)
+	}
+
+	// Wait for poll cycles (may need multiple to spawn both)
+	time.Sleep(300 * time.Millisecond)
+
+	// Both should spawn
+	if h.mockDriver.SpawnCount() != 2 {
+		t.Errorf("expected 2 spawns for @alice @bob, got %d", h.mockDriver.SpawnCount())
+	}
+
+	// Verify both were spawned
+	agentsSpawned := make(map[string]bool)
+	for _, spawn := range h.mockDriver.spawns {
+		agentsSpawned[spawn.Agent.AgentID] = true
+	}
+	if !agentsSpawned["alice"] {
+		t.Error("expected alice to spawn")
+	}
+	if !agentsSpawned["bob"] {
 		t.Error("expected bob to spawn")
 	}
 }
