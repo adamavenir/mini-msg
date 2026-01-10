@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `fray wake`: set wake conditions for agent coordination
+  - `--pattern 'regex'`: wake on message content match
+  - `--on @agent`: wake when specified agents post
+  - `--after 30m`: timer-based wake
+  - `--router`: haiku assessment for pattern matches (reduces false positives)
+  - `--in <thread>`: scope to specific thread
+  - All conditions one-shot (deleted after triggering)
+- Daemon: wake condition checking in poll loop (pattern, timer, on-mention)
 - Daemon: 30s cooldown after clean agent exit prevents rapid restart loops
 - Interrupt syntax for daemon control: `!@agent` (resume), `!!@agent` (fresh), `!@agent!` (stop), `!!@agent!` (force end)
 
