@@ -71,6 +71,12 @@ type ReactionEntry struct {
 	ReactedAt int64  `json:"reacted_at"`
 }
 
+// InterruptInfo describes how to interrupt an agent.
+type InterruptInfo struct {
+	Double  bool `json:"double"`   // !! prefix: clear session (fresh start)
+	NoSpawn bool `json:"no_spawn"` // ! suffix: don't spawn after interrupt
+}
+
 // Message represents a room message.
 type Message struct {
 	ID               string                     `json:"id"`

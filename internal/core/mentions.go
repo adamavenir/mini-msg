@@ -4,18 +4,23 @@ import (
 	"regexp"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/adamavenir/fray/internal/types"
 )
 
 var (
 	mentionRe            = regexp.MustCompile(`@([a-z][a-z0-9]*(?:[-\.][a-z0-9]+)*)`)
 	mentionWithSessionRe = regexp.MustCompile(`@([a-z][a-z0-9]*(?:[-\.][a-z0-9]+)*)(?:#([a-zA-Z0-9]+))?`)
-	issueRefRe           = regexp.MustCompile(`@([a-z]+-[a-zA-Z0-9]+)`)
+	// interruptMentionRe captures: (1) prefix !!, (2) agent name, (3) suffix !
+	interruptMentionRe = regexp.MustCompile(`(!{1,2})@([a-z][a-z0-9]*(?:[-\.][a-z0-9]+)*)(!?)`)
+	issueRefRe         = regexp.MustCompile(`@([a-z]+-[a-zA-Z0-9]+)`)
 )
 
-// MentionResult holds extracted mentions and fork sessions.
+// MentionResult holds extracted mentions, fork sessions, and interrupts.
 type MentionResult struct {
-	Mentions     []string          // Mention targets without @ prefix
-	ForkSessions map[string]string // Agent → session ID for @agent#sessid spawns
+	Mentions     []string                      // Mention targets without @ prefix
+	ForkSessions map[string]string             // Agent → session ID for @agent#sessid spawns
+	Interrupts   map[string]types.InterruptInfo // Agent → interrupt info for !@agent patterns
 }
 
 // ExtractMentions returns mention targets without @ prefix.
@@ -60,14 +65,16 @@ func ExtractMentions(body string, agentBases map[string]struct{}) []string {
 	return mentions
 }
 
-// ExtractMentionsWithSession extracts mentions with optional session IDs.
+// ExtractMentionsWithSession extracts mentions with optional session IDs and interrupt syntax.
 // Parses @agent#sessid syntax where sessid is optional.
-// Returns MentionResult with mentions and fork_sessions map.
+// Parses !@agent, !!@agent, !@agent!, !!@agent! interrupt syntax.
+// Returns MentionResult with mentions, fork_sessions, and interrupts maps.
 func ExtractMentionsWithSession(body string, agentBases map[string]struct{}) MentionResult {
 	matches := mentionWithSessionRe.FindAllStringSubmatchIndex(body, -1)
 	result := MentionResult{
 		Mentions:     make([]string, 0, len(matches)),
 		ForkSessions: make(map[string]string),
+		Interrupts:   make(map[string]types.InterruptInfo),
 	}
 
 	for _, match := range matches {
@@ -116,6 +123,49 @@ func ExtractMentionsWithSession(body string, agentBases map[string]struct{}) Men
 			result.Mentions = append(result.Mentions, name)
 			if sessionID != "" {
 				result.ForkSessions[name] = sessionID
+			}
+		}
+	}
+
+	// Extract interrupt patterns (!@agent, !!@agent, !@agent!, !!@agent!)
+	interruptMatches := interruptMentionRe.FindAllStringSubmatch(body, -1)
+	for _, match := range interruptMatches {
+		if len(match) < 4 {
+			continue
+		}
+		prefix := match[1] // "!" or "!!"
+		name := match[2]   // agent name
+		suffix := match[3] // "" or "!"
+
+		// Validate agent name
+		isValid := false
+		if name == "all" {
+			isValid = true
+		} else if containsDot(name) {
+			isValid = true
+		} else if agentBases != nil {
+			_, isValid = agentBases[name]
+		} else if len(name) >= 3 && len(name) <= 15 {
+			isValid = true
+		}
+
+		if isValid {
+			// Add to mentions if not already present
+			found := false
+			for _, m := range result.Mentions {
+				if m == name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				result.Mentions = append(result.Mentions, name)
+			}
+
+			// Record interrupt info
+			result.Interrupts[name] = types.InterruptInfo{
+				Double:  prefix == "!!",
+				NoSpawn: suffix == "!",
 			}
 		}
 	}

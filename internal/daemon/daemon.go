@@ -20,22 +20,23 @@ import (
 
 // Daemon watches for @mentions and spawns managed agents.
 type Daemon struct {
-	mu           sync.RWMutex
-	project      core.Project
-	database     *sql.DB
-	debouncer    *MentionDebouncer
-	detector     ActivityDetector
-	router       *router.Router      // mlld-based routing for mention interpretation
-	processes    map[string]*Process // agent_id -> process
-	spawning     map[string]bool     // agent_id -> true if spawn in progress (prevents races)
-	handled      map[string]bool     // agent_id -> true if exit already handled
-	drivers      map[string]Driver   // driver name -> driver
-	stopCh       chan struct{}
-	cancelFunc   context.CancelFunc // cancels spawned process contexts
-	wg           sync.WaitGroup
-	lockPath     string
-	pollInterval time.Duration
-	debug        bool
+	mu            sync.RWMutex
+	project       core.Project
+	database      *sql.DB
+	debouncer     *MentionDebouncer
+	detector      ActivityDetector
+	router        *router.Router      // mlld-based routing for mention interpretation
+	processes     map[string]*Process // agent_id -> process
+	spawning      map[string]bool     // agent_id -> true if spawn in progress (prevents races)
+	handled       map[string]bool     // agent_id -> true if exit already handled
+	cooldownUntil map[string]time.Time // agent_id -> when cooldown expires (after clean exit)
+	drivers       map[string]Driver    // driver name -> driver
+	stopCh        chan struct{}
+	cancelFunc    context.CancelFunc // cancels spawned process contexts
+	wg            sync.WaitGroup
+	lockPath      string
+	pollInterval  time.Duration
+	debug         bool
 }
 
 // LockInfo represents the daemon lock file contents.
@@ -65,19 +66,20 @@ func New(project core.Project, database *sql.DB, cfg Config) *Daemon {
 
 	frayDir := filepath.Dir(project.DBPath)
 	d := &Daemon{
-		project:      project,
-		database:     database,
-		debouncer:    NewMentionDebouncer(database, project.DBPath),
-		detector:     NewActivityDetector(),
-		router:       router.New(frayDir),
-		processes:    make(map[string]*Process),
-		spawning:     make(map[string]bool),
-		handled:      make(map[string]bool),
-		drivers:      make(map[string]Driver),
-		stopCh:       make(chan struct{}),
-		lockPath:     filepath.Join(frayDir, "daemon.lock"),
-		pollInterval: cfg.PollInterval,
-		debug:        cfg.Debug,
+		project:       project,
+		database:      database,
+		debouncer:     NewMentionDebouncer(database, project.DBPath),
+		detector:      NewActivityDetector(),
+		router:        router.New(frayDir),
+		processes:     make(map[string]*Process),
+		spawning:      make(map[string]bool),
+		handled:       make(map[string]bool),
+		cooldownUntil: make(map[string]time.Time),
+		drivers:       make(map[string]Driver),
+		stopCh:        make(chan struct{}),
+		lockPath:      filepath.Join(frayDir, "daemon.lock"),
+		pollInterval:  cfg.PollInterval,
+		debug:         cfg.Debug,
 	}
 
 	// Register drivers
@@ -136,6 +138,7 @@ func (d *Daemon) Stop() error {
 	d.processes = make(map[string]*Process)
 	d.spawning = make(map[string]bool)
 	d.handled = make(map[string]bool)
+	d.cooldownUntil = make(map[string]time.Time)
 	d.mu.Unlock()
 
 	// Release lock
@@ -374,6 +377,22 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 			continue
 		}
 
+		// Check for interrupt syntax (!@agent, !!@agent, !@agent!, !!@agent!)
+		// Interrupts bypass cooldown and can kill running processes
+		isInterrupt := false
+		if interruptInfo := d.getInterruptInfo(msg, agent.AgentID); interruptInfo != nil {
+			skipSpawn := d.handleInterrupt(ctx, agent, msg, *interruptInfo)
+			if skipSpawn {
+				// noSpawn was set, just advance watermark
+				if !hasQueued {
+					lastProcessedID = msg.ID
+				}
+				continue
+			}
+			// Interrupt handled, proceed to spawn (cooldown cleared, process killed if any)
+			isInterrupt = true
+		}
+
 		// Check if this is a direct address OR a reply to the agent's message
 		// Direct address: @agent at start of message
 		// Reply to agent: threaded reply to something the agent wrote
@@ -449,6 +468,13 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 		}
 		if currentAgent != nil {
 			agent.Presence = currentAgent.Presence
+			// Clear cooldown if agent ran `fray bye` (presence is offline)
+			if agent.Presence == types.PresenceOffline {
+				if _, hasCooldown := d.cooldownUntil[agent.AgentID]; hasCooldown {
+					delete(d.cooldownUntil, agent.AgentID)
+					d.debugf("    %s: cooldown cleared (agent ran fray bye)", msg.ID)
+				}
+			}
 		}
 
 		// If we already spawned this poll, queue the mention
@@ -463,12 +489,13 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 
 		// Check if agent has a tracked process OR a spawn in progress
 		// Key invariant: if we have a process or spawn lock, queue - never spawn duplicates
+		// Exception: interrupts bypass this (they already killed the process)
 		d.mu.RLock()
 		_, hasProcess := d.processes[agent.AgentID]
 		isSpawning := d.spawning[agent.AgentID]
 		d.mu.RUnlock()
 
-		if isSpawning {
+		if isSpawning && !isInterrupt {
 			// Spawn already in progress - queue to avoid race condition
 			d.debugf("    %s: queued (spawn in progress)", msg.ID)
 			d.debouncer.QueueMention(agent.AgentID, msg.ID)
@@ -476,7 +503,7 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 			continue
 		}
 
-		if hasProcess {
+		if hasProcess && !isInterrupt {
 			// Agent has running process - queue regardless of presence state
 			// (presence may be 'idle' if stdout went quiet, but process is still running)
 			d.debugf("    %s: queued (process running)", msg.ID)
@@ -509,8 +536,27 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 			continue
 		}
 
-		// Direct addresses, chained replies, and router-approved ambiguous mentions spawn
-		if isAmbiguousMention {
+		// Check cooldown - queue mention if in cooldown period
+		// Skip for interrupts (they already cleared cooldown in handleInterrupt)
+		if !isInterrupt {
+			if cooldownExpires, inCooldown := d.cooldownUntil[agent.AgentID]; inCooldown {
+				if time.Now().Before(cooldownExpires) {
+					remaining := time.Until(cooldownExpires).Round(time.Second)
+					d.debugf("    %s: queued (cooldown: %v remaining)", msg.ID, remaining)
+					d.debouncer.QueueMention(agent.AgentID, msg.ID)
+					hasQueued = true
+					continue
+				}
+				// Cooldown expired - clear it and proceed to spawn
+				delete(d.cooldownUntil, agent.AgentID)
+				d.debugf("    %s: cooldown expired, proceeding to spawn", msg.ID)
+			}
+		}
+
+		// Direct addresses, chained replies, router-approved mentions, and interrupts spawn
+		if isInterrupt {
+			d.debugf("    %s: interrupt - triggering spawn", msg.ID)
+		} else if isAmbiguousMention {
 			d.debugf("    %s: ambiguous mention approved by router - triggering spawn", msg.ID)
 		} else {
 			d.debugf("    %s: direct=%v reply=%v - triggering spawn", msg.ID, isDirectAddress, isReplyToAgent)
@@ -1197,6 +1243,10 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 			if exitCode == 0 {
 				reason = "exit_ok"
 				newPresence = types.PresenceIdle
+				// Set 30s cooldown after clean exit - prevents immediate re-spawn
+				// Cooldown is cleared by: fray bye, interrupt syntax, or expiration
+				d.cooldownUntil[agentID] = time.Now().Add(30 * time.Second)
+				d.debugf("@%s: setting 30s cooldown (expires %s)", agentID, d.cooldownUntil[agentID].Format(time.RFC3339))
 			} else if exitCode == -1 {
 				// Signal kill (SIGTERM/SIGINT) - treat as idle, not error
 				// This handles: user Ctrl-C, daemon restart, network interruption
@@ -1252,4 +1302,62 @@ func (d *Daemon) getDriver(agentID string) Driver {
 		return nil
 	}
 	return d.drivers[agent.Invoke.Driver]
+}
+
+// getInterruptInfo extracts interrupt info for an agent from a message body.
+// Returns nil if no interrupt syntax found for this agent.
+func (d *Daemon) getInterruptInfo(msg types.Message, agentID string) *types.InterruptInfo {
+	// Get agent bases for mention validation
+	bases, _ := db.GetAgentBases(d.database)
+	result := core.ExtractMentionsWithSession(msg.Body, bases)
+	if info, ok := result.Interrupts[agentID]; ok {
+		return &info
+	}
+	return nil
+}
+
+// handleInterrupt processes an interrupt request for an agent.
+// Returns true if interrupt was handled and caller should skip normal spawn logic.
+func (d *Daemon) handleInterrupt(ctx context.Context, agent types.Agent, msg types.Message, info types.InterruptInfo) bool {
+	d.debugf("    %s: interrupt detected (double=%v, noSpawn=%v)", msg.ID, info.Double, info.NoSpawn)
+
+	// Clear cooldown (interrupts always bypass)
+	if _, hasCooldown := d.cooldownUntil[agent.AgentID]; hasCooldown {
+		delete(d.cooldownUntil, agent.AgentID)
+		d.debugf("    %s: cleared cooldown (interrupt bypass)", msg.ID)
+	}
+
+	// Kill running process if any
+	d.mu.Lock()
+	proc, hasProcess := d.processes[agent.AgentID]
+	d.mu.Unlock()
+
+	if hasProcess && proc.Cmd.Process != nil {
+		d.debugf("    %s: killing running process (pid %d)", msg.ID, proc.Cmd.Process.Pid)
+		proc.Cmd.Process.Kill()
+		// Wait for monitorProcess to clean up - give it a moment
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// If !! prefix: clear session ID for fresh start
+	if info.Double {
+		d.debugf("    %s: clearing session ID (fresh start)", msg.ID)
+		db.UpdateAgentSessionID(d.database, agent.AgentID, "")
+	}
+
+	// If ! suffix: don't spawn after interrupt
+	if info.NoSpawn {
+		d.debugf("    %s: noSpawn set, skipping spawn", msg.ID)
+		return true // Skip normal spawn
+	}
+
+	// Normal interrupt: proceed to spawn (caller will handle)
+	return false
+}
+
+// ClearCooldown clears the cooldown for an agent (called from bye command).
+func (d *Daemon) ClearCooldown(agentID string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	delete(d.cooldownUntil, agentID)
 }
