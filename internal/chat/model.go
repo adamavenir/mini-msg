@@ -1131,6 +1131,19 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 	}
 
 	line := m.viewport.YOffset + viewportY
+
+	// Check for subthread zone clicks before checking messages
+	if m.currentThread != nil {
+		children, _ := db.GetChildThreadsWithStats(m.db, m.currentThread.GUID)
+		for _, child := range children {
+			zoneID := "subthread-" + child.GUID
+			if m.zoneManager.Get(zoneID).InBounds(msg) {
+				m.navigateToThread(child.GUID)
+				return true, nil
+			}
+		}
+	}
+
 	message, ok := m.messageAtLine(line)
 	if !ok || message == nil {
 		return ok, nil
@@ -1296,6 +1309,22 @@ func (m *Model) navigateToAgentThread(agentID string) {
 
 	// Thread not found in list (might be deleted/archived)
 	m.status = fmt.Sprintf("@%s's last thread not found", agentID)
+}
+
+// navigateToThread navigates to a thread by GUID.
+func (m *Model) navigateToThread(threadGUID string) {
+	thread, err := db.GetThread(m.db, threadGUID)
+	if err != nil || thread == nil {
+		m.status = fmt.Sprintf("Thread not found: %s", threadGUID)
+		return
+	}
+
+	m.currentThread = thread
+	m.currentPseudo = ""
+	m.threadMessages, _ = db.GetThreadMessages(m.db, thread.GUID)
+	m.addRecentThread(*thread)
+	m.refreshViewport(true)
+	m.status = fmt.Sprintf("Thread: %s", thread.Name)
 }
 
 func (m *Model) copyFromZone(mouseMsg tea.MouseMsg, msg types.Message) {
