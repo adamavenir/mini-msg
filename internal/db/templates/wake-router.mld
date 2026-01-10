@@ -1,0 +1,29 @@
+/import { @message, @agent, @pattern, @from, @thread } from @payload
+
+/exe @haiku(prompt) = @prompt | cmd { claude -p --model haiku }
+
+/exe @assess(text, pat, agt) = [
+  let @prompt = `You're deciding whether to wake an agent based on a pattern match.
+
+The message matched the pattern "{{pat}}" which the agent {{agt}} set as a wake condition.
+Should they be woken up to see this, or is this a false positive?
+
+Consider:
+- Is this an actionable message or just noise?
+- Would the agent want to be interrupted for this?
+- Is this the kind of event the pattern was likely meant to catch?
+
+Return JSON: {"shouldWake": true, "reason": "brief explanation", "confidence": 0.0-1.0}
+
+Message: {{text}}`
+  let @result = @haiku(@prompt) | @json.llm
+  => {
+    shouldWake: @result.shouldWake,
+    reason: @result.reason,
+    confidence: @result.confidence
+  }
+]
+
+/show @assess(@message, @pattern, @agent)
+
+/export { @assess }

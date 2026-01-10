@@ -317,6 +317,9 @@ func (d *Daemon) poll(ctx context.Context) {
 		d.checkReactions(ctx, agent)
 	}
 
+	// Check wake conditions (pattern, timer, on-mention)
+	d.checkWakeConditions(ctx, agents)
+
 	// Update presence for running processes
 	d.updatePresence()
 }
@@ -710,6 +713,235 @@ func (d *Daemon) checkReactions(ctx context.Context, agent types.Agent) {
 			d.debugf("  @%s: reaction watermark update failed: %v", agent.AgentID, err)
 		}
 	}
+}
+
+// checkWakeConditions checks pattern, timer, and on-mention wake conditions.
+func (d *Daemon) checkWakeConditions(ctx context.Context, agents []types.Agent) {
+	// Build agent map for quick lookup
+	agentMap := make(map[string]types.Agent)
+	for _, agent := range agents {
+		agentMap[agent.AgentID] = agent
+	}
+
+	// Get all active wake conditions
+	conditions, err := db.GetWakeConditions(d.database, "")
+	if err != nil {
+		d.debugf("wake: error getting wake conditions: %v", err)
+		return
+	}
+
+	if len(conditions) == 0 {
+		return
+	}
+
+	d.debugf("wake: checking %d wake conditions", len(conditions))
+
+	// Check each condition
+	for _, cond := range conditions {
+		agent, ok := agentMap[cond.AgentID]
+		if !ok {
+			d.debugf("wake: condition for non-managed agent @%s, skipping", cond.AgentID)
+			continue
+		}
+
+		// Only wake idle/offline agents
+		if agent.Presence != types.PresenceIdle && agent.Presence != types.PresenceOffline {
+			d.debugf("wake: @%s not idle/offline (presence: %s), skipping", agent.AgentID, agent.Presence)
+			continue
+		}
+
+		triggered, triggerMsg := d.checkWakeCondition(ctx, cond, agent)
+		if !triggered {
+			continue
+		}
+
+		d.debugf("wake: condition %s triggered for @%s", cond.GUID, agent.AgentID)
+
+		// Delete the wake condition (one-shot)
+		if err := db.DeleteWakeCondition(d.database, d.project.DBPath, cond.GUID); err != nil {
+			d.debugf("wake: error deleting condition %s: %v", cond.GUID, err)
+		}
+
+		// Spawn the agent
+		d.mu.Lock()
+		d.spawning[agent.AgentID] = true
+		d.mu.Unlock()
+
+		_, err := d.spawnAgent(ctx, agent, triggerMsg)
+
+		d.mu.Lock()
+		delete(d.spawning, agent.AgentID)
+		d.mu.Unlock()
+
+		if err != nil {
+			d.debugf("wake: @%s spawn error: %v", agent.AgentID, err)
+		}
+	}
+}
+
+// checkWakeCondition checks if a specific wake condition is triggered.
+// Returns true and the trigger message ID if triggered.
+func (d *Daemon) checkWakeCondition(ctx context.Context, cond types.WakeCondition, agent types.Agent) (bool, string) {
+	switch cond.Type {
+	case types.WakeConditionAfter:
+		// Timer-based: check if expired
+		if cond.ExpiresAt != nil && time.Now().Unix() >= *cond.ExpiresAt {
+			d.debugf("wake: timer condition expired for @%s", agent.AgentID)
+			return true, ""
+		}
+		return false, ""
+
+	case types.WakeConditionOnMention:
+		// Check if any watched agent posted since condition was created
+		return d.checkOnMentionWake(cond, agent)
+
+	case types.WakeConditionPattern:
+		// Check for pattern matches in recent messages
+		return d.checkPatternWake(ctx, cond, agent)
+
+	default:
+		d.debugf("wake: unknown condition type %s", cond.Type)
+		return false, ""
+	}
+}
+
+// checkOnMentionWake checks if any watched agent has posted.
+func (d *Daemon) checkOnMentionWake(cond types.WakeCondition, agent types.Agent) (bool, string) {
+	if len(cond.OnAgents) == 0 {
+		return false, ""
+	}
+
+	// Get recent messages since condition was created
+	opts := &types.MessageQueryOptions{
+		Limit: 50,
+	}
+
+	// Scope to thread if specified
+	if cond.InThread != nil {
+		opts.Home = cond.InThread
+	}
+
+	messages, err := db.GetMessages(d.database, opts)
+	if err != nil {
+		d.debugf("wake: error getting messages for on-mention check: %v", err)
+		return false, ""
+	}
+
+	// Check if any message is from a watched agent and after condition creation
+	for _, msg := range messages {
+		if msg.TS <= cond.CreatedAt {
+			continue
+		}
+
+		// Skip meta/ unless explicitly scoped
+		if cond.InThread == nil && len(msg.Home) >= 5 && msg.Home[:5] == "meta/" {
+			continue
+		}
+
+		// Check if from a watched agent
+		for _, watchedAgent := range cond.OnAgents {
+			if msg.FromAgent == watchedAgent || strings.HasPrefix(msg.FromAgent, watchedAgent+".") {
+				d.debugf("wake: @%s posted (watched by @%s)", msg.FromAgent, agent.AgentID)
+				return true, msg.ID
+			}
+		}
+	}
+
+	return false, ""
+}
+
+// checkPatternWake checks for pattern matches in recent messages.
+func (d *Daemon) checkPatternWake(ctx context.Context, cond types.WakeCondition, agent types.Agent) (bool, string) {
+	if cond.Pattern == nil {
+		return false, ""
+	}
+
+	// Compile the pattern
+	compiled := cond.CompilePattern()
+	if compiled == nil {
+		d.debugf("wake: failed to compile pattern for @%s", agent.AgentID)
+		return false, ""
+	}
+
+	// Get recent messages since condition was created
+	opts := &types.MessageQueryOptions{
+		Limit: 50,
+	}
+
+	// Scope to thread if specified
+	if cond.InThread != nil {
+		opts.Home = cond.InThread
+	}
+
+	messages, err := db.GetMessages(d.database, opts)
+	if err != nil {
+		d.debugf("wake: error getting messages for pattern check: %v", err)
+		return false, ""
+	}
+
+	// Check each message against the pattern
+	for _, msg := range messages {
+		if msg.TS <= cond.CreatedAt {
+			continue
+		}
+
+		// Skip meta/ unless explicitly scoped
+		if cond.InThread == nil && !cond.MatchesThread(msg.Home) {
+			continue
+		}
+
+		// Check pattern match
+		if !compiled.MatchesMessage(msg.Body) {
+			continue
+		}
+
+		d.debugf("wake: pattern matched for @%s in msg %s", agent.AgentID, msg.ID)
+
+		// If router enabled, assess with haiku
+		if cond.UseRouter {
+			shouldWake := d.assessWakeWithRouter(ctx, cond, msg, agent)
+			if !shouldWake {
+				d.debugf("wake: router rejected wake for @%s", agent.AgentID)
+				continue
+			}
+		}
+
+		return true, msg.ID
+	}
+
+	return false, ""
+}
+
+// assessWakeWithRouter uses the wake-router.mld template to assess if agent should wake.
+func (d *Daemon) assessWakeWithRouter(ctx context.Context, cond types.WakeCondition, msg types.Message, agent types.Agent) bool {
+	// Check if wake-router.mld exists
+	wakeRouterPath := filepath.Join(d.project.Root, ".fray", "llm", "wake-router.mld")
+	if _, err := os.Stat(wakeRouterPath); os.IsNotExist(err) {
+		d.debugf("wake: wake-router.mld not found, defaulting to wake")
+		return true
+	}
+
+	// Build payload for wake router
+	payload := types.WakeRouterPayload{
+		Message: msg.Body,
+		From:    msg.FromAgent,
+		Agent:   agent.AgentID,
+		Pattern: *cond.Pattern,
+	}
+	if msg.Home != "room" {
+		payload.Thread = &msg.Home
+	}
+
+	// Use existing router infrastructure
+	result := d.router.Route(router.RouterPayload{
+		Message: msg.Body,
+		From:    msg.FromAgent,
+		Agent:   agent.AgentID,
+		Thread:  payload.Thread,
+	})
+
+	// Use router's shouldSpawn decision
+	return result.ShouldSpawn
 }
 
 // getMessagesAfter returns messages mentioning agent after the given watermark.

@@ -12,3 +12,6 @@ var NeoTemplate []byte
 
 //go:embed templates/status.mld
 var StatusTemplate []byte
+
+//go:embed templates/wake-router.mld
+var WakeRouterTemplate []byte

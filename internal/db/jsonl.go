@@ -345,6 +345,37 @@ type RoleStopJSONLRecord struct {
 	StoppedAt int64  `json:"stopped_at"`
 }
 
+// WakeConditionJSONLRecord represents a wake condition in JSONL.
+type WakeConditionJSONLRecord struct {
+	Type      string   `json:"type"` // "wake_condition"
+	GUID      string   `json:"guid"`
+	AgentID   string   `json:"agent_id"`
+	SetBy     string   `json:"set_by"`
+	CondType  string   `json:"cond_type"` // on_mention, after, pattern
+	Pattern   *string  `json:"pattern,omitempty"`
+	OnAgents  []string `json:"on_agents,omitempty"`
+	InThread  *string  `json:"in_thread,omitempty"`
+	AfterMs   *int64   `json:"after_ms,omitempty"`
+	UseRouter bool     `json:"use_router,omitempty"`
+	Prompt    *string  `json:"prompt,omitempty"`
+	CreatedAt int64    `json:"created_at"`
+	ExpiresAt *int64   `json:"expires_at,omitempty"`
+}
+
+// WakeConditionClearJSONLRecord represents clearing wake conditions.
+type WakeConditionClearJSONLRecord struct {
+	Type      string `json:"type"` // "wake_condition_clear"
+	AgentID   string `json:"agent_id"`
+	ClearedAt int64  `json:"cleared_at"`
+}
+
+// WakeConditionDeleteJSONLRecord represents deleting a specific wake condition.
+type WakeConditionDeleteJSONLRecord struct {
+	Type      string `json:"type"` // "wake_condition_delete"
+	GUID      string `json:"guid"`
+	DeletedAt int64  `json:"deleted_at"`
+}
+
 // ProjectKnownAgent stores per-project known-agent data.
 type ProjectKnownAgent struct {
 	Name        *string  `json:"name,omitempty"`

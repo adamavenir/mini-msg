@@ -543,3 +543,58 @@ func AppendRoleStop(projectPath, agentID, roleName string, stoppedAt int64) erro
 	touchDatabaseFile(projectPath)
 	return nil
 }
+
+// AppendWakeCondition appends a wake condition record to JSONL.
+func AppendWakeCondition(projectPath string, condition types.WakeCondition) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := WakeConditionJSONLRecord{
+		Type:      "wake_condition",
+		GUID:      condition.GUID,
+		AgentID:   condition.AgentID,
+		SetBy:     condition.SetBy,
+		CondType:  string(condition.Type),
+		Pattern:   condition.Pattern,
+		OnAgents:  condition.OnAgents,
+		InThread:  condition.InThread,
+		AfterMs:   condition.AfterMs,
+		UseRouter: condition.UseRouter,
+		Prompt:    condition.Prompt,
+		CreatedAt: condition.CreatedAt,
+		ExpiresAt: condition.ExpiresAt,
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendWakeConditionClear appends a wake condition clear record to JSONL.
+func AppendWakeConditionClear(projectPath, agentID string) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := WakeConditionClearJSONLRecord{
+		Type:      "wake_condition_clear",
+		AgentID:   agentID,
+		ClearedAt: time.Now().Unix(),
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendWakeConditionDelete appends a wake condition delete record to JSONL.
+func AppendWakeConditionDelete(projectPath, guid string) error {
+	frayDir := resolveFrayDir(projectPath)
+	record := WakeConditionDeleteJSONLRecord{
+		Type:      "wake_condition_delete",
+		GUID:      guid,
+		DeletedAt: time.Now().Unix(),
+	}
+	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}

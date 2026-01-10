@@ -267,6 +267,25 @@ CREATE TABLE IF NOT EXISTS fray_session_roles (
   PRIMARY KEY (agent_id, role_name)
 );
 CREATE INDEX IF NOT EXISTS idx_fray_session_roles_role ON fray_session_roles(role_name);
+
+-- Wake conditions (triggers for agent wake)
+CREATE TABLE IF NOT EXISTS fray_wake_conditions (
+  guid TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,              -- agent to wake
+  set_by TEXT NOT NULL,                -- agent who set this condition
+  type TEXT NOT NULL,                  -- 'on_mention', 'after', 'pattern'
+  pattern TEXT,                        -- regex for pattern type
+  on_agents TEXT DEFAULT '[]',         -- JSON array for on_mention type
+  in_thread TEXT,                      -- scope to thread (null = anywhere except meta/)
+  after_ms INTEGER,                    -- delay for after type
+  use_router INTEGER NOT NULL DEFAULT 0, -- use haiku router for assessment
+  prompt TEXT,                         -- context passed on wake
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER                   -- null = no expiry
+);
+CREATE INDEX IF NOT EXISTS idx_fray_wake_conditions_agent ON fray_wake_conditions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_fray_wake_conditions_type ON fray_wake_conditions(type);
+CREATE INDEX IF NOT EXISTS idx_fray_wake_conditions_expires ON fray_wake_conditions(expires_at);
 `
 
 const defaultConfigSQL = `
