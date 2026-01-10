@@ -34,6 +34,7 @@ func NewAgentCmd() *cobra.Command {
 		NewAgentRefreshCmd(),
 		NewAgentEndCmd(),
 		NewAgentListCmd(),
+		NewAgentStatusCmd(),
 		NewAgentCheckCmd(),
 		NewAgentAvatarCmd(),
 	)
@@ -530,6 +531,97 @@ func NewAgentListCmd() *cobra.Command {
 			}
 
 			return nil
+		},
+	}
+
+	cmd.Flags().Bool("managed", false, "show only managed agents")
+
+	return cmd
+}
+
+// AgentStatusEntry represents a single agent in the status output.
+type AgentStatusEntry struct {
+	Name        string `json:"name"`
+	Presence    string `json:"presence"`
+	Status      string `json:"status"`
+	IdleSeconds int64  `json:"idle_seconds"`
+}
+
+// AgentStatusOutput is the JSON output format for fray agent status.
+type AgentStatusOutput struct {
+	Agents []AgentStatusEntry `json:"agents"`
+}
+
+// NewAgentStatusCmd shows agent status for LLM polling.
+func NewAgentStatusCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show agent status for LLM polling",
+		Long: `Output agent status in JSON format for LLM polling.
+
+This command is designed to be called by haiku when evaluating
+wake conditions with --prompt. Returns presence, status, and idle time.
+
+Example output:
+{
+  "agents": [
+    {"name": "dev", "presence": "active", "status": "fixing auth", "idle_seconds": 0},
+    {"name": "designer", "presence": "idle", "status": "reviewing PR", "idle_seconds": 634}
+  ]
+}`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmdCtx, err := GetContext(cmd)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+			defer cmdCtx.DB.Close()
+
+			managedOnly, _ := cmd.Flags().GetBool("managed")
+
+			agents, err := db.GetAllAgents(cmdCtx.DB)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+
+			now := time.Now().Unix()
+			var entries []AgentStatusEntry
+
+			for _, agent := range agents {
+				if managedOnly && !agent.Managed {
+					continue
+				}
+
+				presence := string(agent.Presence)
+				if presence == "" {
+					presence = "offline"
+				}
+
+				status := ""
+				if agent.Status != nil {
+					status = *agent.Status
+				}
+
+				// Calculate idle time from last_seen
+				idleSeconds := int64(0)
+				if agent.LastSeen > 0 {
+					idleSeconds = now - agent.LastSeen
+					if idleSeconds < 0 {
+						idleSeconds = 0
+					}
+				}
+
+				entries = append(entries, AgentStatusEntry{
+					Name:        agent.AgentID,
+					Presence:    presence,
+					Status:      status,
+					IdleSeconds: idleSeconds,
+				})
+			}
+
+			output := AgentStatusOutput{Agents: entries}
+
+			// Always output JSON (this command is for LLM consumption)
+			return json.NewEncoder(cmd.OutOrStdout()).Encode(output)
 		},
 	}
 

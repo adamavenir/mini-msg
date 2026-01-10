@@ -140,3 +140,15 @@
 {"type":"question_update","guid":"qstn-f35ycx2k","status":"answered","answered_in":"msg-7isql1xp"}
 {"type":"question_update","guid":"qstn-204cgphw","status":"answered","answered_in":"msg-7isql1xp"}
 {"type":"question_update","guid":"qstn-9y5rjwmv","status":"answered","answered_in":"msg-7isql1xp"}
+{"type":"question","guid":"qstn-hfk9wkox","re":"Which of these gaps are in scope for party MVP vs future?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-og1ie6b2","asked_in":"msg-fs2o37nk","options":[{"label":"Default permissions"},{"label":"Knowledge graph curation patterns"},{"label":"Project-specific commands"},{"label":"Driver-specific defaults"}],"created_at":1768024798}
+{"type":"question","guid":"qstn-3vd0tfnv","re":"For onboarding: is party interactive (asks questions) or declarative (reads a config)?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-og1ie6b2","asked_in":"msg-fs2o37nk","created_at":1768024798}
+{"type":"question","guid":"qstn-nsvpaof7","re":"How tightly coupled should party be to mlld specifically? Does party ship *with* mlld or is it a separate installable?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-og1ie6b2","asked_in":"msg-fs2o37nk","created_at":1768024798}
+{"type":"question","guid":"qstn-gt83r18a","re":"For continuous mode: is that party's job in v1, or is that a separate orchestration layer?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-og1ie6b2","asked_in":"msg-fs2o37nk","created_at":1768024798}
+{"type":"question_update","guid":"qstn-hfk9wkox","status":"answered","answered_in":"msg-0b7hj20u"}
+{"type":"question_update","guid":"qstn-3vd0tfnv","status":"answered","answered_in":"msg-0b7hj20u"}
+{"type":"question_update","guid":"qstn-nsvpaof7","status":"answered","answered_in":"msg-0b7hj20u"}
+{"type":"question_update","guid":"qstn-gt83r18a","status":"answered","answered_in":"msg-0b7hj20u"}
+{"type":"question","guid":"qstn-w8rw460h","re":"Does this scope feel right for MVP?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-og1ie6b2","asked_in":"msg-sy4kaaes","options":[{"label":"Yes, start with howto foundation"},{"label":"Too big - cut to just setup wizard"},{"label":"Too small - add more capabilities"}],"created_at":1768027068}
+{"type":"question","guid":"qstn-skjytirp","re":"Where should howto content live?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-og1ie6b2","asked_in":"msg-sy4kaaes","options":[{"label":"Embedded in fray Go binary"},{"label":".mld files in fray repo"},{"label":"External docs party fetches"}],"created_at":1768027068}
+{"type":"question_update","guid":"qstn-w8rw460h","status":"answered","answered_in":"msg-trs44aqv"}
+{"type":"question_update","guid":"qstn-skjytirp","status":"answered","answered_in":"msg-trs44aqv"}

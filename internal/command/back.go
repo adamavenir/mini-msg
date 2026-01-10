@@ -82,6 +82,12 @@ func NewBackCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
+			// Resume paused wake conditions (for persist-restore-on-back)
+			resumedWake, err := db.ResumeWakeConditions(ctx.DB, ctx.Project.DBPath, agentID)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+
 			// Post event message for the session change
 			eventBody := fmt.Sprintf("@%s rejoined", agentID)
 			if !hadPriorBye {
@@ -129,10 +135,11 @@ func NewBackCmd() *cobra.Command {
 
 			if jsonMode {
 				payload := map[string]any{
-					"agent_id":   agentID,
-					"status":     "active",
-					"message_id": postedID,
-					"claude_env": wroteEnv,
+					"agent_id":               agentID,
+					"status":                 "active",
+					"message_id":             postedID,
+					"claude_env":             wroteEnv,
+					"wake_conditions_resumed": resumedWake,
 				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 			}
@@ -147,6 +154,13 @@ func NewBackCmd() *cobra.Command {
 			}
 			if wroteEnv {
 				fmt.Fprintln(out, "  Registered with Claude hooks")
+			}
+			if resumedWake > 0 {
+				plural := "s"
+				if resumedWake == 1 {
+					plural = ""
+				}
+				fmt.Fprintf(out, "  Resumed %d wake condition%s\n", resumedWake, plural)
 			}
 			return nil
 		},

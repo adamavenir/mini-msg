@@ -22,6 +22,7 @@ const (
 	PresenceIdle      PresenceState = "idle"
 	PresenceError     PresenceState = "error"
 	PresenceOffline   PresenceState = "offline"
+	PresenceBRB       PresenceState = "brb"       // agent wants immediate respawn (fray brb)
 )
 
 // PromptDelivery specifies how prompts are passed to CLI.
