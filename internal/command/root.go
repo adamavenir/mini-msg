@@ -105,6 +105,7 @@ func NewRootCmd(version string) *cobra.Command {
 		NewCursorCmd(),
 		NewInstallNotifierCmd(),
 		hooks.NewHookInstallCmd(),
+		hooks.NewHookUninstallCmd(),
 		hooks.NewHookSessionCmd(),
 		hooks.NewHookPromptCmd(),
 		hooks.NewHookPrecommitCmd(),

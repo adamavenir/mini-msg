@@ -87,11 +87,21 @@ func (m *Model) formatMessage(msg types.Message, prefixLength int, readToMap map
 		editedSuffix = " (edited)"
 	}
 
-	// Build the meta line with guid and read_to markers
+	// Build the meta line with guid, session_id (optional), and read_to markers
 	guidPrefix := core.GetGUIDPrefix(msg.ID, prefixLength)
 	guidText := fmt.Sprintf("#%s%s", guidPrefix, editedSuffix)
 	// Footer GUID stays dimmed (no bold/underline) but is click-to-copy zone
 	guidPart := m.zoneManager.Mark("guid-"+msg.ID, guidText)
+
+	// Add session ID to footer if present (abbreviated to first 8 chars)
+	sessionPart := ""
+	if msg.SessionID != nil && *msg.SessionID != "" {
+		sessID := *msg.SessionID
+		if len(sessID) > 8 {
+			sessID = sessID[:8]
+		}
+		sessionPart = fmt.Sprintf("sess:%s", sessID)
+	}
 
 	readToPart := ""
 	if agents, ok := readToMap[msg.ID]; ok && len(agents) > 0 {
@@ -102,24 +112,33 @@ func (m *Model) formatMessage(msg types.Message, prefixLength int, readToMap map
 		readToPart = "read_to: " + strings.Join(mentions, " ")
 	}
 
+	// Build left side of footer: guid + session
+	leftParts := []string{guidPart}
+	if sessionPart != "" {
+		leftParts = append(leftParts, sessionPart)
+	}
+	leftText := strings.Join(leftParts, "  ")
+	leftWidth := len(guidText)
+	if sessionPart != "" {
+		leftWidth += 2 + len(sessionPart)
+	}
+
 	var meta string
 	if readToPart != "" && width > 0 {
 		// Right-align read_to on the same line
-		// Note: use unstyled guidText for width calculation
-		guidWidth := len(guidText)
 		readWidth := len(readToPart)
-		padding := width - guidWidth - readWidth
+		padding := width - leftWidth - readWidth
 		if padding < 2 {
 			padding = 2
 		}
-		metaText := guidPart + strings.Repeat(" ", padding) + readToPart
+		metaText := leftText + strings.Repeat(" ", padding) + readToPart
 		styledMeta := lipgloss.NewStyle().Foreground(color).Faint(true).Render(metaText)
 		meta = m.zoneManager.Mark("footer-"+msg.ID, styledMeta)
 	} else if readToPart != "" {
-		styledMeta := lipgloss.NewStyle().Foreground(color).Faint(true).Render(guidPart + "  " + readToPart)
+		styledMeta := lipgloss.NewStyle().Foreground(color).Faint(true).Render(leftText + "  " + readToPart)
 		meta = m.zoneManager.Mark("footer-"+msg.ID, styledMeta)
 	} else {
-		styledMeta := lipgloss.NewStyle().Foreground(color).Faint(true).Render(guidPart)
+		styledMeta := lipgloss.NewStyle().Foreground(color).Faint(true).Render(leftText)
 		meta = m.zoneManager.Mark("footer-"+msg.ID, styledMeta)
 	}
 

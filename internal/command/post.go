@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -218,8 +219,9 @@ Paths:
 			for _, u := range users {
 				bases[u] = struct{}{}
 			}
-			mentions := core.ExtractMentions(messageBody, bases)
-			mentions = core.ExpandAllMention(mentions, bases)
+			mentionResult := core.ExtractMentionsWithSession(messageBody, bases)
+			mentions := core.ExpandAllMention(mentionResult.Mentions, bases)
+			forkSessions := mentionResult.ForkSessions
 
 			now := time.Now().Unix()
 			home := ""
@@ -230,11 +232,20 @@ Paths:
 			if isHumanUser {
 				msgType = types.MessageTypeUser
 			}
+
+			// Capture session ID from environment (set by Claude Code)
+			var sessionID *string
+			if sid := os.Getenv("CLAUDE_SESSION_ID"); sid != "" {
+				sessionID = &sid
+			}
+
 			created, err := db.CreateMessage(ctx.DB, types.Message{
 				TS:               now,
 				FromAgent:        agentID,
+				SessionID:        sessionID,
 				Body:             messageBody,
 				Mentions:         mentions,
+				ForkSessions:     forkSessions,
 				Home:             home,
 				ReplyTo:          replyID,
 				QuoteMessageGUID: quoteID,

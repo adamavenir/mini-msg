@@ -71,6 +71,50 @@ Legacy (deprecated):
 				target = args[0]
 			}
 
+			// Handle --session flag: filter messages by session ID
+			sessionFilter, _ := cmd.Flags().GetString("session")
+			if sessionFilter != "" {
+				limitVal := 0
+				if last != "" {
+					var err error
+					limitVal, err = strconv.Atoi(last)
+					if err != nil {
+						return writeCommandError(cmd, fmt.Errorf("invalid --last value"))
+					}
+				}
+				messages, err := db.GetMessagesBySession(ctx.DB, sessionFilter, limitVal)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				messages, err = db.ApplyMessageEditCounts(ctx.Project.DBPath, messages)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if hideEvents {
+					messages = filterEventMessages(messages)
+				}
+
+				if ctx.JSONMode {
+					return json.NewEncoder(cmd.OutOrStdout()).Encode(messages)
+				}
+
+				out := cmd.OutOrStdout()
+				fmt.Fprintf(out, "Session %s:\n\n", sessionFilter)
+				if len(messages) == 0 {
+					fmt.Fprintln(out, "No messages from this session")
+					return nil
+				}
+				lines := FormatMessageListAccordion(messages, AccordionOptions{
+					ShowAll:     showAllMessages,
+					ProjectName: projectName,
+					AgentBases:  agentBases,
+				})
+				for _, line := range lines {
+					fmt.Fprintln(out, line)
+				}
+				return nil
+			}
+
 			// Handle special path: "notifs"
 			if target == "notifs" {
 				return getNotifications(cmd, ctx, asRef, projectName, agentBases, showAllMessages)
@@ -505,6 +549,7 @@ Legacy (deprecated):
 	cmd.Flags().String("by", "", "filter messages by agent")
 	cmd.Flags().String("with", "", "filter messages containing text")
 	cmd.Flags().Bool("reactions", false, "show only messages with reactions")
+	cmd.Flags().String("session", "", "filter messages by session ID")
 
 	return cmd
 }

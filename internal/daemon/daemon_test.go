@@ -715,8 +715,8 @@ func TestSpawnFlow_DirectMention(t *testing.T) {
 	if spawn == nil {
 		t.Fatal("expected spawn record")
 	}
-	if !strings.Contains(spawn.Prompt, "@mentioned") {
-		t.Errorf("expected prompt to mention being @mentioned, got: %s", spawn.Prompt)
+	if !strings.Contains(spawn.Prompt, "You are @alice") {
+		t.Errorf("expected prompt to say 'You are @alice', got: %s", spawn.Prompt)
 	}
 	if !strings.Contains(spawn.Prompt, "fray get alice") {
 		t.Errorf("expected prompt to include 'fray get alice', got: %s", spawn.Prompt)
@@ -1167,6 +1167,8 @@ func TestErrorRecovery_ProcessExitWithErrorSetsPresence(t *testing.T) {
 	defer h.daemon.Stop()
 
 	// Configure mock driver to return a process that exits with error code
+	// Note: Don't set SessionID - quick failures with session IDs are treated as
+	// resume failures (graceful recovery) and go to idle instead of error
 	cmd := exec.Command("sh", "-c", "exit 1")
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start failing process: %v", err)
@@ -1174,7 +1176,6 @@ func TestErrorRecovery_ProcessExitWithErrorSetsPresence(t *testing.T) {
 	h.mockDriver.spawnProc = &Process{
 		Cmd:       cmd,
 		StartedAt: time.Now(),
-		SessionID: "failing-session",
 	}
 
 	// Create agents

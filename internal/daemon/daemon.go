@@ -822,6 +822,15 @@ func (d *Daemon) buildWakePrompt(agent types.Agent, triggerMsgID string) (string
 	// Get min_checkin for the prompt
 	_, _, minCheckin, _ := GetTimeouts(agent.Invoke)
 
+	// Check for fork spawn: was this agent mentioned with @agent#sessid syntax?
+	var forkSessionID string
+	triggerMsg, _ := db.GetMessage(d.database, triggerMsgID)
+	if triggerMsg != nil && triggerMsg.ForkSessions != nil {
+		if sessID, ok := triggerMsg.ForkSessions[agent.AgentID]; ok {
+			forkSessionID = sessID
+		}
+	}
+
 	// Group messages by home (thread) for better context
 	homeGroups := make(map[string][]string)
 	for _, msgID := range allMentions {
@@ -848,6 +857,39 @@ func (d *Daemon) buildWakePrompt(agent types.Agent, triggerMsgID string) (string
 	}
 	triggerInfo := strings.Join(triggerLines, "\n")
 
+	// Build fork context if this is a fork spawn
+	forkContext := ""
+	if forkSessionID != "" {
+		// Get messages from the fork session for context
+		forkMsgs := d.getSessionMessages(forkSessionID, agent.AgentID, 5)
+		if len(forkMsgs) > 0 {
+			var msgSummaries []string
+			for _, msg := range forkMsgs {
+				preview := msg.Body
+				if len(preview) > 100 {
+					preview = preview[:100] + "..."
+				}
+				msgSummaries = append(msgSummaries, fmt.Sprintf("  - [%s] %s", msg.ID, preview))
+			}
+			forkContext = fmt.Sprintf(`
+**Fork Context (session %s):**
+This spawn was triggered with @%s#%s syntax, meaning you should have context from a prior session.
+Recent messages from that session:
+%s
+
+Use this context to continue the work without re-reading everything.
+`,
+				forkSessionID, agent.AgentID, forkSessionID, strings.Join(msgSummaries, "\n"))
+		} else {
+			forkContext = fmt.Sprintf(`
+**Fork Context (session %s):**
+This spawn was triggered with @%s#%s syntax, but no messages from that session were found.
+The session ID may be invalid or the messages may have been pruned.
+`,
+				forkSessionID, agent.AgentID, forkSessionID)
+		}
+	}
+
 	// Wake prompt - explicitly state agent identity to override any cached context
 	var prompt string
 	if minCheckin > 0 {
@@ -856,28 +898,110 @@ func (d *Daemon) buildWakePrompt(agent types.Agent, triggerMsgID string) (string
 
 Trigger messages:
 %s
-
+%s
 Run: /fly %s if this is the start of a new session
 Run: fray get %s
 
 ---
 As soon as you 'fray back', post a reply in fray (in the same thread where the message was received, using the flag "--reply-to <msg-id>") as quickly as you can to acknowledge the user, then continue.  Don't use the literal word 'ack' as it can sound like a panicked reply. Be casual and mix it up.`,
-			agent.AgentID, triggerInfo, agent.AgentID, agent.AgentID)
+			agent.AgentID, triggerInfo, forkContext, agent.AgentID, agent.AgentID)
 		_ = minCheckinMins // Reserved for future use
 	} else {
 		prompt = fmt.Sprintf(`**You are @%s.** Check fray for context.
 
 Trigger messages:
 %s
-
+%s
 Run: /fly %s if this is the start of a new session
 Run: fray get %s
 
 As soon as you 'fray back', post a reply in fray (in the same thread where the message was received, using the flag "--reply-to <msg-id>") as quickly as you can to acknowledge the user, then continue. Don't use the literal word 'ack' as it can sound like a panicked reply. Be casual and mix it up.`,
-			agent.AgentID, triggerInfo, agent.AgentID, agent.AgentID)
+			agent.AgentID, triggerInfo, forkContext, agent.AgentID, agent.AgentID)
 	}
 
 	return prompt, allMentions
+}
+
+// getSessionMessages retrieves recent messages from a specific session for fork context.
+func (d *Daemon) getSessionMessages(sessionID, agentID string, limit int) []types.Message {
+	// Query messages where session_id matches
+	rows, err := d.database.Query(`
+		SELECT guid, ts, channel_id, home, from_agent, session_id, body, mentions, fork_sessions, type, "references", surface_message, reply_to, quote_message_guid, edited_at, archived_at, reactions
+		FROM fray_messages
+		WHERE session_id = ? AND from_agent = ?
+		ORDER BY ts DESC
+		LIMIT ?
+	`, sessionID, agentID, limit)
+	if err != nil {
+		d.debugf("getSessionMessages error: %v", err)
+		return nil
+	}
+	defer rows.Close()
+
+	var messages []types.Message
+	for rows.Next() {
+		var msg types.Message
+		var channelID, home, sessionIDVal, forkSessions, references, surfaceMessage, replyTo, quoteMsgGUID sql.NullString
+		var editedAt, archivedAt sql.NullInt64
+		var mentionsJSON, reactionsJSON string
+
+		err := rows.Scan(
+			&msg.ID, &msg.TS, &channelID, &home, &msg.FromAgent, &sessionIDVal,
+			&msg.Body, &mentionsJSON, &forkSessions, &msg.Type,
+			&references, &surfaceMessage, &replyTo, &quoteMsgGUID,
+			&editedAt, &archivedAt, &reactionsJSON,
+		)
+		if err != nil {
+			d.debugf("getSessionMessages scan error: %v", err)
+			continue
+		}
+
+		if channelID.Valid {
+			msg.ChannelID = &channelID.String
+		}
+		if home.Valid {
+			msg.Home = home.String
+		}
+		if sessionIDVal.Valid {
+			msg.SessionID = &sessionIDVal.String
+		}
+		if references.Valid {
+			msg.References = &references.String
+		}
+		if surfaceMessage.Valid {
+			msg.SurfaceMessage = &surfaceMessage.String
+		}
+		if replyTo.Valid {
+			msg.ReplyTo = &replyTo.String
+		}
+		if quoteMsgGUID.Valid {
+			msg.QuoteMessageGUID = &quoteMsgGUID.String
+		}
+		if editedAt.Valid {
+			msg.EditedAt = &editedAt.Int64
+		}
+		if archivedAt.Valid {
+			msg.ArchivedAt = &archivedAt.Int64
+		}
+
+		// Parse mentions JSON
+		if mentionsJSON != "" {
+			json.Unmarshal([]byte(mentionsJSON), &msg.Mentions)
+		}
+		// Parse fork_sessions JSON
+		if forkSessions.Valid && forkSessions.String != "" {
+			json.Unmarshal([]byte(forkSessions.String), &msg.ForkSessions)
+		}
+
+		messages = append(messages, msg)
+	}
+
+	// Reverse to get chronological order
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
+
+	return messages
 }
 
 // updatePresence checks running processes and updates their presence.
@@ -1007,6 +1131,15 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 		exitCode = proc.Cmd.ProcessState.ExitCode()
 	}
 
+	// Get the last message from this session for boundary tracking
+	var lastMsgID *string
+	if proc.SessionID != "" {
+		msgs := d.getSessionMessages(proc.SessionID, agentID, 1)
+		if len(msgs) > 0 {
+			lastMsgID = &msgs[len(msgs)-1].ID
+		}
+	}
+
 	// Record session end for audit trail
 	sessionEnd := types.SessionEnd{
 		AgentID:    agentID,
@@ -1014,6 +1147,7 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 		ExitCode:   exitCode,
 		DurationMs: time.Since(proc.StartedAt).Milliseconds(),
 		EndedAt:    time.Now().Unix(),
+		LastMsgID:  lastMsgID,
 	}
 	db.AppendSessionEnd(d.project.DBPath, sessionEnd)
 
@@ -1050,8 +1184,23 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 				reason = "signal_kill"
 				newPresence = types.PresenceIdle
 			} else {
-				reason = "exit_error"
-				newPresence = types.PresenceError
+				// Check for likely session resume failure:
+				// - Quick failure (< 30s)
+				// - Non-zero exit code
+				// - Had a session ID (was trying to resume)
+				durationSec := time.Since(proc.StartedAt).Seconds()
+				if durationSec < 30 && proc.SessionID != "" {
+					// Likely resume failure - set to idle so next spawn starts fresh
+					d.debugf("@%s: quick failure (%ds, exit=%d) with session %s - likely resume failure, clearing session",
+						agentID, int(durationSec), exitCode, proc.SessionID)
+					reason = "resume_failure"
+					newPresence = types.PresenceIdle
+					// Clear session ID to prevent retry loop
+					db.UpdateAgentSessionID(d.database, agentID, "")
+				} else {
+					reason = "exit_error"
+					newPresence = types.PresenceError
+				}
 			}
 			var status *string
 			if agent != nil {
@@ -1059,8 +1208,9 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) {
 			}
 			db.UpdateAgentPresenceWithAudit(d.database, d.project.DBPath, agentID, prevPresence, newPresence, reason, "daemon", status)
 		}
-		// NOTE: Do NOT clear session ID here. Session remains resumable until agent runs `fray bye`.
+		// NOTE: Do NOT clear session ID here for normal exits. Session remains resumable until agent runs `fray bye`.
 		// Daemon-initiated exits (done-detection) are soft ends; session context persists on disk.
+		// Exception: resume_failure clears session ID above to prevent retry loop.
 
 		// Set left_at so fray back knows this was a proper session end (not orphaned)
 		// (only if not already set by fray bye)

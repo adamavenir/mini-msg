@@ -823,3 +823,18 @@ func GetRecentMessages(db *sql.DB, sinceSeconds int) ([]types.Message, error) {
 
 	return scanMessages(rows)
 }
+
+// GetMessagesBySession returns messages from a specific session.
+func GetMessagesBySession(db *sql.DB, sessionID string, limit int) ([]types.Message, error) {
+	query := "SELECT " + messageColumns + " FROM fray_messages WHERE session_id = ? ORDER BY ts ASC"
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	rows, err := db.Query(query, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanMessagesWithReactions(db, rows)
+}

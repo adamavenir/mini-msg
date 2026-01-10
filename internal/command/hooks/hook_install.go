@@ -21,9 +21,20 @@ func NewHookInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "hook-install",
 		Short: "Install Claude Code hooks for fray integration",
+		Long: `Install Claude Code hooks for fray integration.
+
+By default, installs hooks for agent registration and context injection.
+Use --safety to also install protection against destructive git commands.
+
+Examples:
+  fray hook-install              # Install fray integration hooks
+  fray hook-install --safety     # Also install safety guards
+  fray hook-install --safety --global  # Install safety globally`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			precommit, _ := cmd.Flags().GetBool("precommit")
+			safety, _ := cmd.Flags().GetBool("safety")
+			global, _ := cmd.Flags().GetBool("global")
 
 			projectDir := os.Getenv("CLAUDE_PROJECT_DIR")
 			if projectDir == "" {
@@ -32,6 +43,20 @@ func NewHookInstallCmd() *cobra.Command {
 					return writeCommandError(cmd, err)
 				}
 				projectDir = cwd
+			}
+
+			out := cmd.OutOrStdout()
+
+			// Handle --safety flag (can be used alone or with other hooks)
+			if safety {
+				if err := installSafetyHooks(projectDir, dryRun, out, global); err != nil {
+					return writeCommandError(cmd, err)
+				}
+				if global {
+					// Safety-only global install, skip project-local hooks
+					fmt.Fprintln(out, "\nRestart Claude Code to activate safety hooks.")
+					return nil
+				}
 			}
 
 			claudeDir := filepath.Join(projectDir, ".claude")
@@ -77,8 +102,6 @@ func NewHookInstallCmd() *cobra.Command {
 					},
 				},
 			}
-
-			out := cmd.OutOrStdout()
 
 			if dryRun {
 				fmt.Fprintf(out, "Would write to: %s\n", settingsPath)
@@ -133,6 +156,8 @@ func NewHookInstallCmd() *cobra.Command {
 
 	cmd.Flags().Bool("dry-run", false, "show what would be written without writing")
 	cmd.Flags().Bool("precommit", false, "also install git pre-commit hook for claim conflict detection")
+	cmd.Flags().Bool("safety", false, "install safety guards against destructive git commands")
+	cmd.Flags().Bool("global", false, "install to ~/.claude (all projects) instead of .claude (this project)")
 
 	return cmd
 }

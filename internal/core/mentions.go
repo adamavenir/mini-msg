@@ -7,9 +7,16 @@ import (
 )
 
 var (
-	mentionRe  = regexp.MustCompile(`@([a-z][a-z0-9]*(?:[-\.][a-z0-9]+)*)`)
-	issueRefRe = regexp.MustCompile(`@([a-z]+-[a-zA-Z0-9]+)`)
+	mentionRe            = regexp.MustCompile(`@([a-z][a-z0-9]*(?:[-\.][a-z0-9]+)*)`)
+	mentionWithSessionRe = regexp.MustCompile(`@([a-z][a-z0-9]*(?:[-\.][a-z0-9]+)*)(?:#([a-zA-Z0-9]+))?`)
+	issueRefRe           = regexp.MustCompile(`@([a-z]+-[a-zA-Z0-9]+)`)
 )
+
+// MentionResult holds extracted mentions and fork sessions.
+type MentionResult struct {
+	Mentions     []string          // Mention targets without @ prefix
+	ForkSessions map[string]string // Agent → session ID for @agent#sessid spawns
+}
 
 // ExtractMentions returns mention targets without @ prefix.
 func ExtractMentions(body string, agentBases map[string]struct{}) []string {
@@ -51,6 +58,69 @@ func ExtractMentions(body string, agentBases map[string]struct{}) []string {
 	}
 
 	return mentions
+}
+
+// ExtractMentionsWithSession extracts mentions with optional session IDs.
+// Parses @agent#sessid syntax where sessid is optional.
+// Returns MentionResult with mentions and fork_sessions map.
+func ExtractMentionsWithSession(body string, agentBases map[string]struct{}) MentionResult {
+	matches := mentionWithSessionRe.FindAllStringSubmatchIndex(body, -1)
+	result := MentionResult{
+		Mentions:     make([]string, 0, len(matches)),
+		ForkSessions: make(map[string]string),
+	}
+
+	for _, match := range matches {
+		if len(match) < 4 {
+			continue
+		}
+		start := match[0]
+		if start > 0 {
+			prev, _ := utf8.DecodeLastRuneInString(body[:start])
+			if isAlphaNum(prev) {
+				continue
+			}
+		}
+
+		name := body[match[2]:match[3]]
+
+		// Extract session ID if present (groups 4-5)
+		var sessionID string
+		if len(match) >= 6 && match[4] != -1 && match[5] != -1 {
+			sessionID = body[match[4]:match[5]]
+		}
+
+		if name == "all" {
+			result.Mentions = append(result.Mentions, name)
+			continue
+		}
+		if containsDot(name) {
+			result.Mentions = append(result.Mentions, name)
+			if sessionID != "" {
+				result.ForkSessions[name] = sessionID
+			}
+			continue
+		}
+
+		if agentBases != nil {
+			if _, ok := agentBases[name]; ok {
+				result.Mentions = append(result.Mentions, name)
+				if sessionID != "" {
+					result.ForkSessions[name] = sessionID
+				}
+			}
+			continue
+		}
+
+		if len(name) >= 3 && len(name) <= 15 {
+			result.Mentions = append(result.Mentions, name)
+			if sessionID != "" {
+				result.ForkSessions[name] = sessionID
+			}
+		}
+	}
+
+	return result
 }
 
 // ExtractIssueRefs finds @prefix-id style references.

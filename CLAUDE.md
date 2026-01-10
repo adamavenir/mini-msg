@@ -182,12 +182,26 @@ bd close fray-abc --reason "..."        # Complete with reason
 fray integrates with Claude Code via hooks for ambient chat awareness:
 
 ```bash
-fray hook-install   # Install hooks to .claude/settings.local.json
+fray hook-install            # Install integration hooks
+fray hook-install --safety   # Also install safety guards
+fray hook-install --safety --global  # Install safety globally (~/.claude)
 ```
 
-This installs:
+**Integration hooks** (installed by default):
 - **SessionStart**: Prompts unregistered agents to join, or injects room context
 - **UserPromptSubmit**: Injects latest messages before each prompt
+- **PreCompact**: Reminds to preserve work before context compaction
+
+**Safety guards** (installed with `--safety`):
+Protects `.fray/` data from destructive git commands:
+- `git stash` blocked when `.fray/` has uncommitted changes
+- `git checkout/restore <files>` blocked when `.fray/` dirty
+- `git reset --hard` blocked when `.fray/` dirty
+- `git clean -f` always blocked (deletes untracked files)
+- `rm .fray/` or `rm .fray/*.jsonl` always blocked
+- `git push --force` to main/master always blocked
+
+Safe operations still allowed: `git checkout -b`, `git restore --staged`, `git clean -n`, `git stash pop/apply/list`.
 
 Agents register via `fray new <name>`, which auto-writes `FRAY_AGENT_ID` to `CLAUDE_ENV_FILE` when running under hooks.
 
@@ -394,4 +408,10 @@ fray get --last 10 --json      # Most read commands support --json (chat does no
 fray rebuild                   # Rebuild database from JSONL (fixes schema errors)
 fray migrate                   # Migrate from v0.1.0 to v0.2.0
 fray install-notifier          # Install macOS notification app with fray icon
+
+# Claude Code hooks
+fray hook-install              # Install integration hooks (session, prompt, precompact)
+fray hook-install --safety     # Also install safety guards (protect .fray/)
+fray hook-install --safety --global  # Install safety guards for all projects
+fray hook-uninstall --safety   # Remove safety guards
 ```

@@ -1904,3 +1904,220 @@
 {"type":"agent_update","agent_id":"pm","mention_watermark":"msg-xtjmf14m"}
 {"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1767990168,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-xtjmf14m"}
 {"type":"session_end","agent_id":"pm","session_id":"0dfd3de5-5d46-40b7-b2c4-39b7cc85e6f3","exit_code":0,"duration_ms":182033,"ended_at":1767990281}
+{"type":"presence_event","agent_id":"architect","from":"active","to":"offline","status":"Reviewed daemon timeout design (fray-73w9). Filed 2 bugs from thread. Checking for other ready work.","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"designer","from":"active","to":"offline","status":"awaiting: adam's review of uncommitted code","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"dev","from":"offline","to":"offline","status":"Fixed thread notifications for #fray-pnm9","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"gpt52","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"opus","from":"offline","to":"offline","status":"completed fray-adj6 (knowledge hierarchy) and closed parent epic fray-1mch (Roles \u0026 Knowledge System)","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"pm","from":"active","to":"offline","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"reviewer","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"test-d1","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"test-d2","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"test-d3","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"testy","from":"active","to":"offline","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"tok","from":"active","to":"offline","status":"done: initial prune feedback posted, ready for next session","reason":"reset","source":"command","ts":1768009974}
+{"type":"presence_event","agent_id":"architect","from":"active","to":"idle","status":"Reviewed daemon timeout design (fray-73w9). Filed 2 bugs from thread. Checking for other ready work.","reason":"startup_cleanup","source":"startup","ts":1768010521}
+{"type":"presence_event","agent_id":"designer","from":"active","to":"idle","status":"awaiting: adam's review of uncommitted code","reason":"startup_cleanup","source":"startup","ts":1768010521}
+{"type":"presence_event","agent_id":"pm","from":"active","to":"idle","reason":"startup_cleanup","source":"startup","ts":1768010521}
+{"type":"presence_event","agent_id":"testy","from":"active","to":"idle","reason":"startup_cleanup","source":"startup","ts":1768010521}
+{"type":"presence_event","agent_id":"tok","from":"active","to":"idle","status":"done: initial prune feedback posted, ready for next session","reason":"startup_cleanup","source":"startup","ts":1768010521}
+{"type":"presence_event","agent_id":"architect","from":"idle","to":"offline","status":"Reviewed daemon timeout design (fray-73w9). Filed 2 bugs from thread. Checking for other ready work.","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"designer","from":"idle","to":"offline","status":"awaiting: adam's review of uncommitted code","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"dev","from":"offline","to":"offline","status":"Fixed thread notifications for #fray-pnm9","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"gpt52","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"opus","from":"offline","to":"offline","status":"completed fray-adj6 (knowledge hierarchy) and closed parent epic fray-1mch (Roles \u0026 Knowledge System)","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"pm","from":"idle","to":"offline","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"reviewer","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"test-d1","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"test-d2","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"test-d3","from":"offline","to":"offline","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"testy","from":"idle","to":"offline","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"tok","from":"idle","to":"offline","status":"done: initial prune feedback posted, ready for next session","reason":"reset","source":"command","ts":1768010526}
+{"type":"presence_event","agent_id":"pm","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768011331}
+{"type":"session_start","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","triggered_by":"msg-edwqptec","started_at":1768011332}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-edwqptec"}
+{"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1768011350,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"prompted","mention_watermark":"msg-edwqptec"}
+{"type":"presence_event","agent_id":"pm","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768011356}
+{"type":"session_end","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","exit_code":0,"duration_ms":90813,"ended_at":1768011422}
+{"type":"presence_event","agent_id":"pm","from":"idle","to":"idle","reason":"exit_ok","source":"daemon","ts":1768011422}
+{"type":"presence_event","agent_id":"pm","from":"idle","to":"spawning","reason":"spawn","source":"daemon","ts":1768011422}
+{"type":"session_start","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","triggered_by":"msg-ptwpet4v","started_at":1768011422}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-ptwpet4v"}
+{"type":"presence_event","agent_id":"pm","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768011453}
+{"type":"session_end","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","exit_code":0,"duration_ms":32648,"ended_at":1768011454}
+{"type":"presence_event","agent_id":"pm","from":"error","to":"idle","reason":"exit_ok","source":"daemon","ts":1768011454}
+{"type":"presence_event","agent_id":"pm","from":"idle","to":"spawning","reason":"spawn","source":"daemon","ts":1768011455}
+{"type":"session_start","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","triggered_by":"msg-yop6j9st","started_at":1768011455}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-yop6j9st"}
+{"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1768011474,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"spawning","mention_watermark":"msg-yop6j9st"}
+{"type":"presence_event","agent_id":"pm","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768011477}
+{"type":"session_end","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","exit_code":0,"duration_ms":144067,"ended_at":1768011599}
+{"type":"presence_event","agent_id":"pm","from":"idle","to":"idle","reason":"exit_ok","source":"daemon","ts":1768011599}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-t1k3e65z"}
+{"type":"presence_event","agent_id":"pm","from":"idle","to":"spawning","reason":"spawn","source":"daemon","ts":1768011919}
+{"type":"session_start","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","triggered_by":"msg-wfkkca4p","started_at":1768011920}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-wfkkca4p"}
+{"type":"agent","id":"usr-7vkdvufg","name":"pm","global_name":"fray-pm","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T16:24:49Z","active_status":"active","agent_id":"pm","avatar":"🅿","registered_at":1767371089,"last_seen":1768011937,"left_at":null,"managed":true,"invoke":{"driver":"claude","model":"sonnet[1m]","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"prompted","mention_watermark":"msg-wfkkca4p"}
+{"type":"presence_event","agent_id":"pm","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768011942}
+{"type":"session_end","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","exit_code":0,"duration_ms":145994,"ended_at":1768012065}
+{"type":"presence_event","agent_id":"pm","from":"idle","to":"idle","reason":"exit_ok","source":"daemon","ts":1768012065}
+{"type":"presence_event","agent_id":"architect","from":"offline","to":"spawning","status":"Reviewed daemon timeout design (fray-73w9). Filed 2 bugs from thread. Checking for other ready work.","reason":"spawn","source":"daemon","ts":1768012067}
+{"type":"session_start","agent_id":"architect","session_id":"2b89acec-235c-4cbf-8d1e-47e5d079a608","triggered_by":"msg-7y8ywves","started_at":1768012067}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"designer","from":"offline","to":"spawning","status":"awaiting: adam's review of uncommitted code","reason":"spawn","source":"daemon","ts":1768012077}
+{"type":"session_start","agent_id":"designer","session_id":"4b956a5c-6804-461b-890a-c5c598d7c8d9","triggered_by":"msg-7y8ywves","started_at":1768012077}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"dev","from":"offline","to":"spawning","status":"Fixed thread notifications for #fray-pnm9","reason":"spawn","source":"daemon","ts":1768012088}
+{"type":"session_start","agent_id":"dev","session_id":"cda89438-ae46-4c48-a4a0-52254f5a6c4d","triggered_by":"msg-7y8ywves","started_at":1768012088}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-7y8ywves"}
+{"type":"agent_update","agent_id":"gpt52","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"designer","from":"spawning","to":"active","status":"awaiting: adam's review of uncommitted code","reason":"back","source":"command","ts":1768012100}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"active","agent_id":"designer","avatar":"🅳","registered_at":1767205832,"last_seen":1768012100,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"architect","from":"spawning","to":"active","status":"Reviewed daemon timeout design (fray-73w9). Filed 2 bugs from thread. Checking for other ready work.","reason":"back","source":"command","ts":1768012100}
+{"type":"agent","id":"usr-fp2pbez5","name":"architect","global_name":"fray-architect","home_channel":"ch-xkzte3i1","created_at":"2026-01-01T07:48:55Z","active_status":"active","agent_id":"architect","avatar":"🅰","registered_at":1767253735,"last_seen":1768012100,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-7y8ywves"}
+{"type":"agent_update","agent_id":"opus","mention_watermark":"msg-7y8ywves"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"dev","from":"spawning","to":"active","status":"Fixed thread notifications for #fray-pnm9","reason":"back","source":"command","ts":1768012108}
+{"type":"agent","id":"usr-mptuvoqg","name":"dev","global_name":"fray-dev","home_channel":"ch-xkzte3i1","created_at":"2026-01-02T08:02:13Z","active_status":"active","agent_id":"dev","avatar":"🆅","registered_at":1767340933,"last_seen":1768012108,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-7y8ywves"}
+{"type":"agent_update","agent_id":"reviewer","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"test-d1","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768012125}
+{"type":"session_start","agent_id":"test-d1","session_id":"47354eeb-3cbc-4866-836b-524383663bf2","triggered_by":"msg-7y8ywves","started_at":1768012125}
+{"type":"agent_update","agent_id":"test-d1","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"test-d2","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768012141}
+{"type":"session_start","agent_id":"test-d2","session_id":"9f25146e-8b77-4a32-b3d3-2d06f1274ca5","triggered_by":"msg-7y8ywves","started_at":1768012141}
+{"type":"agent_update","agent_id":"test-d2","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"test-d3","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768012206}
+{"type":"session_start","agent_id":"test-d3","session_id":"f118c4c9-5943-4187-8926-0d30d45e81b0","triggered_by":"msg-7y8ywves","started_at":1768012206}
+{"type":"agent_update","agent_id":"test-d3","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"test-d2","from":"spawning","to":"active","reason":"back","source":"command","ts":1768012213}
+{"type":"agent","id":"usr-oxh2tc5j","name":"test-d2","global_name":"fray-test-d2","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:39Z","active_status":"active","agent_id":"test-d2","registered_at":1767400719,"last_seen":1768012213,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"test-d1","from":"spawning","to":"active","reason":"back","source":"command","ts":1768012264}
+{"type":"agent","id":"usr-ny4odx0f","name":"test-d1","global_name":"fray-test-d1","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:35Z","active_status":"active","agent_id":"test-d1","registered_at":1767400715,"last_seen":1768012264,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"testy","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768012284}
+{"type":"session_start","agent_id":"testy","session_id":"9534a8b9-70d1-4668-b494-69218c08e04e","triggered_by":"msg-7y8ywves","started_at":1768012286}
+{"type":"agent_update","agent_id":"testy","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"tok","from":"offline","to":"spawning","status":"done: initial prune feedback posted, ready for next session","reason":"spawn","source":"daemon","ts":1768012378}
+{"type":"session_start","agent_id":"tok","session_id":"1991f74e-671a-44d6-a630-45863bca836c","triggered_by":"msg-7y8ywves","started_at":1768012378}
+{"type":"agent_update","agent_id":"tok","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"test-d3","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768012378}
+{"type":"presence_event","agent_id":"testy","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768012378}
+{"type":"presence_event","agent_id":"architect","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012378}
+{"type":"presence_event","agent_id":"designer","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012378}
+{"type":"presence_event","agent_id":"dev","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012378}
+{"type":"presence_event","agent_id":"test-d1","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012378}
+{"type":"presence_event","agent_id":"test-d2","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012378}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-jp3e92rv"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-80usyyo9"}
+{"type":"presence_event","agent_id":"tok","from":"spawning","to":"error","status":"done: initial prune feedback posted, ready for next session","reason":"spawn_timeout","source":"daemon","ts":1768012409}
+{"type":"presence_event","agent_id":"testy","from":"error","to":"active","reason":"back","source":"command","ts":1768012481}
+{"type":"agent","id":"usr-45anjczz","name":"testy","global_name":"fray-testy","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T04:13:22Z","active_status":"active","agent_id":"testy","registered_at":1767845602,"last_seen":1768012481,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"testy","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012482}
+{"type":"presence_event","agent_id":"test-d3","from":"error","to":"active","reason":"back","source":"command","ts":1768012490}
+{"type":"agent","id":"usr-9681gj4l","name":"test-d3","global_name":"fray-test-d3","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:43Z","active_status":"active","agent_id":"test-d3","registered_at":1767400723,"last_seen":1768012490,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"test-d3","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012491}
+{"type":"presence_event","agent_id":"opus","from":"offline","to":"spawning","status":"completed fray-adj6 (knowledge hierarchy) and closed parent epic fray-1mch (Roles \u0026 Knowledge System)","reason":"spawn","source":"daemon","ts":1768012498}
+{"type":"session_start","agent_id":"opus","session_id":"d0259bd7-c285-4446-8cae-e3466b40fb4d","triggered_by":"msg-vadrlu3r","started_at":1768012498}
+{"type":"agent_update","agent_id":"opus","mention_watermark":"msg-vadrlu3r"}
+{"type":"presence_event","agent_id":"tok","from":"error","to":"active","status":"done: initial prune feedback posted, ready for next session","reason":"back","source":"command","ts":1768012499}
+{"type":"agent","id":"usr-y5wlrdv4","name":"tok","global_name":"fray-tok","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T22:31:28Z","active_status":"active","agent_id":"tok","registered_at":1767911488,"last_seen":1768012499,"left_at":null,"managed":true,"invoke":{"driver":"claude","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"tok","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012500}
+{"type":"presence_event","agent_id":"test-d2","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012504}
+{"type":"agent","id":"usr-oxh2tc5j","name":"test-d2","global_name":"fray-test-d2","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:39Z","active_status":"inactive","agent_id":"test-d2","registered_at":1767400719,"last_seen":1768012504,"left_at":1768012504,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-7y8ywves"}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-dwpz789y"}
+{"type":"presence_event","agent_id":"pm","from":"idle","to":"spawning","reason":"spawn","source":"daemon","ts":1768012520}
+{"type":"session_start","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","triggered_by":"msg-0ppo1fdg","started_at":1768012520}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-0ppo1fdg"}
+{"type":"presence_event","agent_id":"testy","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012528}
+{"type":"agent","id":"usr-45anjczz","name":"testy","global_name":"fray-testy","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T04:13:22Z","active_status":"inactive","agent_id":"testy","registered_at":1767845602,"last_seen":1768012528,"left_at":1768012528,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"opus","from":"spawning","to":"error","status":"completed fray-adj6 (knowledge hierarchy) and closed parent epic fray-1mch (Roles \u0026 Knowledge System)","reason":"spawn_timeout","source":"daemon","ts":1768012529}
+{"type":"session_end","agent_id":"test-d2","session_id":"9f25146e-8b77-4a32-b3d3-2d06f1274ca5","exit_code":0,"duration_ms":397618,"ended_at":1768012538}
+{"type":"presence_event","agent_id":"test-d2","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768012539}
+{"type":"session_start","agent_id":"test-d2","session_id":"0f63bc9b-aa65-4a2d-97e9-44abd4aa0711","triggered_by":"msg-gxrd51e5","started_at":1768012539}
+{"type":"agent_update","agent_id":"test-d2","mention_watermark":"msg-gxrd51e5"}
+{"type":"presence_event","agent_id":"pm","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768012551}
+{"type":"presence_event","agent_id":"test-d2","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768012570}
+{"type":"presence_event","agent_id":"test-d1","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012593}
+{"type":"agent","id":"usr-ny4odx0f","name":"test-d1","global_name":"fray-test-d1","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:35Z","active_status":"inactive","agent_id":"test-d1","registered_at":1767400715,"last_seen":1768012593,"left_at":1768012593,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-7y8ywves"}
+{"type":"session_end","agent_id":"test-d1","session_id":"47354eeb-3cbc-4866-836b-524383663bf2","exit_code":0,"duration_ms":498671,"ended_at":1768012624}
+{"type":"presence_event","agent_id":"test-d1","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768012624}
+{"type":"session_start","agent_id":"test-d1","session_id":"5425f039-d6bd-4d38-84f3-42c800e1f037","triggered_by":"msg-gxrd51e5","started_at":1768012626}
+{"type":"agent_update","agent_id":"test-d1","mention_watermark":"msg-gxrd51e5"}
+{"type":"session_end","agent_id":"testy","session_id":"9534a8b9-70d1-4668-b494-69218c08e04e","exit_code":0,"duration_ms":345280,"ended_at":1768012630}
+{"type":"presence_event","agent_id":"testy","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768012630}
+{"type":"session_start","agent_id":"testy","session_id":"74a077a1-0ac8-4730-a9a0-a65bd5695f76","triggered_by":"msg-gxrd51e5","started_at":1768012630}
+{"type":"agent_update","agent_id":"testy","mention_watermark":"msg-gxrd51e5"}
+{"type":"presence_event","agent_id":"test-d1","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768012654}
+{"type":"presence_event","agent_id":"opus","from":"error","to":"active","status":"completed fray-adj6 (knowledge hierarchy) and closed parent epic fray-1mch (Roles \u0026 Knowledge System)","reason":"back","source":"command","ts":1768012657}
+{"type":"agent","id":"usr-na579glt","name":"opus","global_name":"fray-opus","home_channel":"ch-xkzte3i1","created_at":"2025-12-30T23:28:41Z","active_status":"active","agent_id":"opus","registered_at":1767137321,"last_seen":1768012657,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-vadrlu3r"}
+{"type":"presence_event","agent_id":"opus","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012657}
+{"type":"presence_event","agent_id":"testy","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768012660}
+{"type":"session_end","agent_id":"architect","session_id":"2b89acec-235c-4cbf-8d1e-47e5d079a608","exit_code":-1,"duration_ms":600039,"ended_at":1768012667}
+{"type":"presence_event","agent_id":"architect","from":"idle","to":"idle","reason":"signal_kill","source":"daemon","ts":1768012667}
+{"type":"presence_event","agent_id":"architect","from":"idle","to":"spawning","reason":"spawn","source":"daemon","ts":1768012668}
+{"type":"session_start","agent_id":"architect","session_id":"2b89acec-235c-4cbf-8d1e-47e5d079a608","triggered_by":"msg-gxrd51e5","started_at":1768012668}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-gxrd51e5"}
+{"type":"session_end","agent_id":"dev","session_id":"cda89438-ae46-4c48-a4a0-52254f5a6c4d","exit_code":-1,"duration_ms":600633,"ended_at":1768012689}
+{"type":"presence_event","agent_id":"dev","from":"idle","to":"idle","reason":"signal_kill","source":"daemon","ts":1768012689}
+{"type":"presence_event","agent_id":"architect","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768012698}
+{"type":"presence_event","agent_id":"test-d2","from":"error","to":"active","reason":"back","source":"command","ts":1768012710}
+{"type":"agent","id":"usr-oxh2tc5j","name":"test-d2","global_name":"fray-test-d2","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:39Z","active_status":"active","agent_id":"test-d2","registered_at":1767400719,"last_seen":1768012710,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-gxrd51e5"}
+{"type":"presence_event","agent_id":"test-d2","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012711}
+{"type":"presence_event","agent_id":"test-d3","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012730}
+{"type":"agent","id":"usr-9681gj4l","name":"test-d3","global_name":"fray-test-d3","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:43Z","active_status":"inactive","agent_id":"test-d3","registered_at":1767400723,"last_seen":1768012730,"left_at":1768012730,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-7y8ywves"}
+{"type":"presence_event","agent_id":"testy","from":"error","to":"active","reason":"back","source":"command","ts":1768012758}
+{"type":"agent","id":"usr-45anjczz","name":"testy","global_name":"fray-testy","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T04:13:22Z","active_status":"active","agent_id":"testy","registered_at":1767845602,"last_seen":1768012758,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-gxrd51e5"}
+{"type":"presence_event","agent_id":"testy","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012759}
+{"type":"presence_event","agent_id":"test-d1","from":"error","to":"active","reason":"back","source":"command","ts":1768012782}
+{"type":"agent","id":"usr-ny4odx0f","name":"test-d1","global_name":"fray-test-d1","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:35Z","active_status":"active","agent_id":"test-d1","registered_at":1767400715,"last_seen":1768012782,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-gxrd51e5"}
+{"type":"session_end","agent_id":"test-d3","session_id":"f118c4c9-5943-4187-8926-0d30d45e81b0","exit_code":0,"duration_ms":576348,"ended_at":1768012782}
+{"type":"presence_event","agent_id":"test-d3","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768012783}
+{"type":"session_start","agent_id":"test-d3","session_id":"dda757b6-893f-4f2f-b485-269361a3eeb1","triggered_by":"msg-qoq5kcsw","started_at":1768012783}
+{"type":"agent_update","agent_id":"test-d3","mention_watermark":"msg-qoq5kcsw"}
+{"type":"presence_event","agent_id":"test-d1","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012783}
+{"type":"presence_event","agent_id":"architect","from":"error","to":"active","reason":"back","source":"command","ts":1768012793}
+{"type":"agent","id":"usr-fp2pbez5","name":"architect","global_name":"fray-architect","home_channel":"ch-xkzte3i1","created_at":"2026-01-01T07:48:55Z","active_status":"active","agent_id":"architect","avatar":"🅰","registered_at":1767253735,"last_seen":1768012793,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-gxrd51e5"}
+{"type":"presence_event","agent_id":"architect","from":"active","to":"offline","reason":"bye","source":"command","ts":1768012793}
+{"type":"agent","id":"usr-fp2pbez5","name":"architect","global_name":"fray-architect","home_channel":"ch-xkzte3i1","created_at":"2026-01-01T07:48:55Z","active_status":"inactive","agent_id":"architect","avatar":"🅰","registered_at":1767253735,"last_seen":1768012793,"left_at":1768012793,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-gxrd51e5"}
+{"type":"presence_event","agent_id":"testy","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012804}
+{"type":"agent","id":"usr-45anjczz","name":"testy","global_name":"fray-testy","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T04:13:22Z","active_status":"inactive","agent_id":"testy","registered_at":1767845602,"last_seen":1768012804,"left_at":1768012804,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-gxrd51e5"}
+{"type":"session_end","agent_id":"architect","session_id":"2b89acec-235c-4cbf-8d1e-47e5d079a608","exit_code":0,"duration_ms":143732,"ended_at":1768012812}
+{"type":"presence_event","agent_id":"test-d3","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768012814}
+{"type":"presence_event","agent_id":"tok","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012826}
+{"type":"agent","id":"usr-y5wlrdv4","name":"tok","global_name":"fray-tok","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T22:31:28Z","active_status":"inactive","agent_id":"tok","registered_at":1767911488,"last_seen":1768012826,"left_at":1768012826,"managed":true,"invoke":{"driver":"claude","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"offline","mention_watermark":"msg-7y8ywves"}
+{"type":"session_end","agent_id":"testy","session_id":"74a077a1-0ac8-4730-a9a0-a65bd5695f76","exit_code":0,"duration_ms":197479,"ended_at":1768012827}
+{"type":"presence_event","agent_id":"test-d3","from":"error","to":"active","reason":"back","source":"command","ts":1768012827}
+{"type":"agent","id":"usr-9681gj4l","name":"test-d3","global_name":"fray-test-d3","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:43Z","active_status":"active","agent_id":"test-d3","registered_at":1767400723,"last_seen":1768012827,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-qoq5kcsw"}
+{"type":"presence_event","agent_id":"test-d3","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768012828}
+{"type":"presence_event","agent_id":"test-d1","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012839}
+{"type":"agent","id":"usr-ny4odx0f","name":"test-d1","global_name":"fray-test-d1","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:35Z","active_status":"inactive","agent_id":"test-d1","registered_at":1767400715,"last_seen":1768012839,"left_at":1768012839,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-gxrd51e5"}
+{"type":"session_end","agent_id":"pm","session_id":"e35f2d81-820c-4cf0-850e-2c3aa3ee3af2","exit_code":0,"duration_ms":332063,"ended_at":1768012852}
+{"type":"presence_event","agent_id":"pm","from":"error","to":"idle","reason":"exit_ok","source":"daemon","ts":1768012852}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-emjbw09b"}
+{"type":"session_end","agent_id":"tok","session_id":"1991f74e-671a-44d6-a630-45863bca836c","exit_code":0,"duration_ms":479032,"ended_at":1768012857}
+{"type":"session_end","agent_id":"test-d1","session_id":"5425f039-d6bd-4d38-84f3-42c800e1f037","exit_code":0,"duration_ms":233457,"ended_at":1768012857}
+{"type":"presence_event","agent_id":"test-d2","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012874}
+{"type":"agent","id":"usr-oxh2tc5j","name":"test-d2","global_name":"fray-test-d2","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:39Z","active_status":"inactive","agent_id":"test-d2","registered_at":1767400719,"last_seen":1768012874,"left_at":1768012874,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-gxrd51e5"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-emjbw09b"}
+{"type":"presence_event","agent_id":"test-d3","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012891}
+{"type":"agent","id":"usr-9681gj4l","name":"test-d3","global_name":"fray-test-d3","home_channel":"ch-xkzte3i1","created_at":"2026-01-03T00:38:43Z","active_status":"inactive","agent_id":"test-d3","registered_at":1767400723,"last_seen":1768012891,"left_at":1768012891,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"offline","mention_watermark":"msg-qoq5kcsw"}
+{"type":"session_end","agent_id":"test-d2","session_id":"0f63bc9b-aa65-4a2d-97e9-44abd4aa0711","exit_code":0,"duration_ms":351980,"ended_at":1768012891}
+{"type":"presence_event","agent_id":"designer","from":"idle","to":"offline","reason":"bye","source":"command","ts":1768012892}
+{"type":"agent","id":"usr-v9m0ml5h","name":"designer","global_name":"fray-designer","home_channel":"ch-xkzte3i1","created_at":"2025-12-31T18:30:32Z","active_status":"inactive","agent_id":"designer","avatar":"🅳","registered_at":1767205832,"last_seen":1768012892,"left_at":1768012892,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"offline","mention_watermark":"msg-7y8ywves"}
+{"type":"session_end","agent_id":"test-d3","session_id":"dda757b6-893f-4f2f-b485-269361a3eeb1","exit_code":0,"duration_ms":122027,"ended_at":1768012905}
+{"type":"agent_update","agent_id":"gpt52","mention_watermark":"msg-emjbw09b"}
+{"type":"agent_update","agent_id":"opus","mention_watermark":"msg-emjbw09b"}
+{"type":"session_end","agent_id":"designer","session_id":"4b956a5c-6804-461b-890a-c5c598d7c8d9","exit_code":0,"duration_ms":829296,"ended_at":1768012907}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-emjbw09b"}
+{"type":"agent_update","agent_id":"reviewer","mention_watermark":"msg-emjbw09b"}
+{"type":"agent_update","agent_id":"test-d1","mention_watermark":"msg-emjbw09b"}
+{"type":"agent_update","agent_id":"test-d2","mention_watermark":"msg-rqr8rz8o"}
+{"type":"agent_update","agent_id":"test-d3","mention_watermark":"msg-rqr8rz8o"}
+{"type":"presence_event","agent_id":"testy","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768013074}
+{"type":"session_start","agent_id":"testy","session_id":"68f303c6-8983-44b9-92ec-e790d6d35483","triggered_by":"msg-rqr8rz8o","started_at":1768013076}
+{"type":"agent_update","agent_id":"testy","mention_watermark":"msg-rqr8rz8o"}
+{"type":"presence_event","agent_id":"tok","from":"offline","to":"spawning","reason":"spawn","source":"daemon","ts":1768013094}
+{"type":"session_start","agent_id":"tok","session_id":"7ad6aed6-6139-486f-b0be-c9038a15ba9d","triggered_by":"msg-vit3l703","started_at":1768013094}
+{"type":"presence_event","agent_id":"testy","from":"spawning","to":"active","reason":"back","source":"command","ts":1768013129}
+{"type":"agent","id":"usr-45anjczz","name":"testy","global_name":"fray-testy","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T04:13:22Z","active_status":"active","agent_id":"testy","registered_at":1767845602,"last_seen":1768013129,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000,"min_checkin_ms":600000},"presence":"active","mention_watermark":"msg-rqr8rz8o"}
+{"type":"presence_event","agent_id":"tok","from":"spawning","to":"active","reason":"back","source":"command","ts":1768013129}
+{"type":"agent","id":"usr-y5wlrdv4","name":"tok","global_name":"fray-tok","home_channel":"ch-xkzte3i1","created_at":"2026-01-08T22:31:28Z","active_status":"active","agent_id":"tok","registered_at":1767911488,"last_seen":1768013129,"left_at":null,"managed":true,"invoke":{"driver":"claude","trust":["wake"],"prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-7y8ywves"}

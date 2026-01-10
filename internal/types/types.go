@@ -346,11 +346,12 @@ type SessionStart struct {
 
 // SessionEnd records when an agent session completes.
 type SessionEnd struct {
-	AgentID    string `json:"agent_id"`
-	SessionID  string `json:"session_id"`
-	ExitCode   int    `json:"exit_code"`
-	DurationMs int64  `json:"duration_ms"`
-	EndedAt    int64  `json:"ended_at"`
+	AgentID    string  `json:"agent_id"`
+	SessionID  string  `json:"session_id"`
+	ExitCode   int     `json:"exit_code"`
+	DurationMs int64   `json:"duration_ms"`
+	EndedAt    int64   `json:"ended_at"`
+	LastMsgID  *string `json:"last_msg_id,omitempty"`
 }
 
 // SessionHeartbeat records periodic session health updates.
