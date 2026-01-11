@@ -1050,8 +1050,8 @@ func (m *Model) handleSubmit(text string) tea.Cmd {
 		m.status = err.Error()
 		return nil
 	}
-	mentions := core.ExtractMentions(body, agentBases)
-	mentions = core.ExpandAllMention(mentions, agentBases)
+	mentionResult := core.ExtractMentionsWithSession(body, agentBases)
+	mentions := core.ExpandAllMention(mentionResult.Mentions, agentBases)
 
 	var replyMsg *types.Message
 	if replyTo != nil && m.currentThread != nil {
@@ -1069,12 +1069,13 @@ func (m *Model) handleSubmit(text string) tea.Cmd {
 		debugLog("handleSubmit: creating message with replyTo=nil")
 	}
 	created, err := db.CreateMessage(m.db, types.Message{
-		FromAgent: m.username,
-		Body:      body,
-		Mentions:  mentions,
-		Type:      types.MessageTypeUser,
-		ReplyTo:   replyTo,
-		Home:      home,
+		FromAgent:    m.username,
+		Body:         body,
+		Mentions:     mentions,
+		ForkSessions: mentionResult.ForkSessions,
+		Type:         types.MessageTypeUser,
+		ReplyTo:      replyTo,
+		Home:         home,
 	})
 	if err != nil {
 		m.status = err.Error()
