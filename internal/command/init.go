@@ -487,7 +487,7 @@ func ensureLLMRouter(projectRoot string) error {
 	}
 
 	// Create mlld-config.json (if not exists)
-	// @proj resolver points to project root (parent of .fray)
+	// @proj resolver points to project root (absolute path)
 	mlldConfigPath := filepath.Join(projectRoot, ".fray", "mlld-config.json")
 	if _, err := os.Stat(mlldConfigPath); os.IsNotExist(err) {
 		mlldConfig := map[string]any{
@@ -498,7 +498,7 @@ func ensureLLMRouter(projectRoot string) error {
 						"prefix":   "@proj/",
 						"resolver": "LOCAL",
 						"config": map[string]any{
-							"basePath": "..",
+							"basePath": projectRoot,
 						},
 					},
 				},

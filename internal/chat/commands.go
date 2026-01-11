@@ -146,6 +146,9 @@ func (m *Model) runSlashCommand(input string) (tea.Cmd, error) {
 	case "/run":
 		// Run mlld scripts from .fray/llm/run/
 		return nil, m.runMlldScriptCommand(fields[1:])
+	case "/bye":
+		// Send bye for a specific agent
+		return m.runByeCommand(fields[1:])
 	}
 
 	return nil, fmt.Errorf("unknown command: %s", fields[0])
@@ -1842,30 +1845,42 @@ func (m *Model) runCloseQuestionsCommand(args []string) (tea.Cmd, error) {
 	return nil, nil
 }
 
-// runMlldScriptCommand runs mlld scripts from .fray/llm/run/.
+// runMlldScriptCommand runs mlld scripts from .fray/llm/run/ or llm/run/.
 // With no args, lists available scripts. With a script name, runs it.
+// Scripts in .fray/llm/run/ run from .fray/, scripts in llm/run/ run from project root.
 func (m *Model) runMlldScriptCommand(args []string) error {
-	runDir := filepath.Join(m.projectRoot, ".fray", "llm", "run")
+	frayRunDir := filepath.Join(m.projectRoot, ".fray", "llm", "run")
+	projRunDir := filepath.Join(m.projectRoot, "llm", "run")
 
-	// Check if run directory exists
-	if _, err := os.Stat(runDir); os.IsNotExist(err) {
-		return fmt.Errorf("no scripts found (create .fray/llm/run/*.mld)")
+	// Collect scripts from both locations
+	var allScripts []string
+	seen := make(map[string]bool)
+
+	if scripts, err := listMlldScripts(frayRunDir); err == nil {
+		for _, s := range scripts {
+			if !seen[s] {
+				seen[s] = true
+				allScripts = append(allScripts, s)
+			}
+		}
 	}
-
-	// List available scripts
-	scripts, err := listMlldScripts(runDir)
-	if err != nil {
-		return err
+	if scripts, err := listMlldScripts(projRunDir); err == nil {
+		for _, s := range scripts {
+			if !seen[s] {
+				seen[s] = true
+				allScripts = append(allScripts, s)
+			}
+		}
 	}
 
 	if len(args) == 0 {
 		// List scripts
-		if len(scripts) == 0 {
-			m.status = "No scripts in .fray/llm/run/"
+		if len(allScripts) == 0 {
+			m.status = "No scripts found (create .fray/llm/run/*.mld or llm/run/*.mld)"
 			return nil
 		}
 		lines := []string{"Available scripts:"}
-		for _, name := range scripts {
+		for _, name := range allScripts {
 			lines = append(lines, "  /run "+name)
 		}
 		msg := newEventMessage(strings.Join(lines, "\n"))
@@ -1874,17 +1889,30 @@ func (m *Model) runMlldScriptCommand(args []string) error {
 		return nil
 	}
 
-	// Run the specified script
+	// Find and run the specified script
 	scriptName := args[0]
-	scriptPath := filepath.Join(runDir, scriptName+".mld")
-	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+
+	// Check fray location first, then project location
+	var scriptPath string
+	var workingDir string
+
+	frayPath := filepath.Join(frayRunDir, scriptName+".mld")
+	projPath := filepath.Join(projRunDir, scriptName+".mld")
+
+	if _, err := os.Stat(frayPath); err == nil {
+		scriptPath = frayPath
+		workingDir = filepath.Join(m.projectRoot, ".fray")
+	} else if _, err := os.Stat(projPath); err == nil {
+		scriptPath = projPath
+		workingDir = m.projectRoot
+	} else {
 		return fmt.Errorf("script not found: %s", scriptName)
 	}
 
 	// Execute with mlld using the SDK
 	client := mlld.New()
 	client.Timeout = 5 * time.Minute
-	client.WorkingDir = filepath.Join(m.projectRoot, ".fray") // Run from .fray for relative paths
+	client.WorkingDir = workingDir
 
 	m.status = fmt.Sprintf("Running %s...", scriptName)
 
@@ -1924,4 +1952,157 @@ func listMlldScripts(dir string) ([]string, error) {
 		}
 	}
 	return scripts, nil
+}
+
+// runByeCommand sends bye for a specific agent.
+// Syntax: /bye @agent [message]
+func (m *Model) runByeCommand(args []string) (tea.Cmd, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("usage: /bye @agent [message]")
+	}
+
+	// Parse agent ID (strip @ prefix if present)
+	agentRef := args[0]
+	agentID := strings.TrimPrefix(agentRef, "@")
+	if agentID == "" {
+		return nil, fmt.Errorf("usage: /bye @agent [message]")
+	}
+
+	// Optional message
+	message := ""
+	if len(args) > 1 {
+		message = strings.Join(args[1:], " ")
+	}
+
+	// Get agent from database
+	agent, err := db.GetAgent(m.db, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent: %w", err)
+	}
+	if agent == nil {
+		return nil, fmt.Errorf("agent not found: @%s", agentID)
+	}
+
+	now := time.Now().Unix()
+	nowMs := time.Now().UnixMilli()
+
+	// Clear claims
+	clearedClaims, err := db.DeleteClaimsByAgent(m.db, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clear claims: %w", err)
+	}
+
+	// Clear session roles
+	sessionRoles, err := db.GetSessionRoles(m.db, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session roles: %w", err)
+	}
+	clearedRoles, err := db.ClearSessionRoles(m.db, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clear roles: %w", err)
+	}
+	for _, role := range sessionRoles {
+		if err := db.AppendRoleStop(m.projectDBPath, agentID, role.RoleName, nowMs); err != nil {
+			return nil, fmt.Errorf("failed to persist role stop: %w", err)
+		}
+	}
+
+	// Handle wake condition lifecycle on bye
+	clearedWake, err := db.ClearPersistUntilByeConditions(m.db, m.projectDBPath, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clear wake conditions: %w", err)
+	}
+	pausedWake, err := db.PauseWakeConditions(m.db, m.projectDBPath, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pause wake conditions: %w", err)
+	}
+
+	// Post optional message
+	var posted *types.Message
+	if message != "" {
+		bases, err := db.GetAgentBases(m.db)
+		if err != nil {
+			return nil, err
+		}
+		mentions := core.ExtractMentions(message, bases)
+		mentions = core.ExpandAllMention(mentions, bases)
+		created, err := db.CreateMessage(m.db, types.Message{
+			TS:        now,
+			FromAgent: agentID,
+			Body:      message,
+			Mentions:  mentions,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := db.AppendMessage(m.projectDBPath, created); err != nil {
+			return nil, err
+		}
+		posted = &created
+	}
+
+	// Post leave event
+	eventMsg, err := db.CreateMessage(m.db, types.Message{
+		TS:        now,
+		FromAgent: agentID,
+		Body:      fmt.Sprintf("@%s left", agentID),
+		Type:      types.MessageTypeEvent,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := db.AppendMessage(m.projectDBPath, eventMsg); err != nil {
+		return nil, err
+	}
+
+	// Update agent
+	updates := db.AgentUpdates{
+		LeftAt:   types.OptionalInt64{Set: true, Value: &now},
+		LastSeen: types.OptionalInt64{Set: true, Value: &now},
+		Status:   types.OptionalString{Set: true, Value: nil},
+	}
+	if err := db.UpdateAgent(m.db, agentID, updates); err != nil {
+		return nil, err
+	}
+
+	// For managed agents, set presence to offline
+	if agent.Managed {
+		if err := db.UpdateAgentPresenceWithAudit(m.db, m.projectDBPath, agentID, agent.Presence, types.PresenceOffline, "bye", "chat", agent.Status); err != nil {
+			return nil, err
+		}
+	}
+
+	// Persist agent update
+	updated, err := db.GetAgent(m.db, agentID)
+	if err != nil {
+		return nil, err
+	}
+	if updated != nil {
+		if err := db.AppendAgent(m.projectDBPath, *updated); err != nil {
+			return nil, err
+		}
+	}
+
+	// Build status message
+	var parts []string
+	parts = append(parts, fmt.Sprintf("@%s left", agentID))
+	if posted != nil {
+		parts = append(parts, fmt.Sprintf("posted [%s]", posted.ID))
+	}
+	if clearedClaims > 0 {
+		parts = append(parts, fmt.Sprintf("%d claims cleared", clearedClaims))
+	}
+	if clearedRoles > 0 {
+		parts = append(parts, fmt.Sprintf("%d roles cleared", clearedRoles))
+	}
+	if clearedWake > 0 {
+		parts = append(parts, fmt.Sprintf("%d wake cleared", clearedWake))
+	}
+	if pausedWake > 0 {
+		parts = append(parts, fmt.Sprintf("%d wake paused", pausedWake))
+	}
+
+	m.status = strings.Join(parts, ", ")
+	m.input.SetValue("")
+	return nil, nil
 }

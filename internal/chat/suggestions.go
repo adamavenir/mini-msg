@@ -2,6 +2,7 @@ package chat
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -56,6 +57,9 @@ var allCommands = []commandDef{
 	{Name: "/t", Desc: "Create a new thread", Usage: "<name> [\"anchor\"]"},
 	{Name: "/subthread", Desc: "Create subthread of current", Usage: "<name> [\"anchor\"]"},
 	{Name: "/st", Desc: "Create subthread of current", Usage: "<name> [\"anchor\"]"},
+	{Name: "/close", Desc: "Close questions for message", Usage: "<#msg-id>"},
+	{Name: "/run", Desc: "Run mlld script", Usage: "<script-name>"},
+	{Name: "/bye", Desc: "Send bye for agent", Usage: "@agent [message]"},
 }
 
 type suggestionItem struct {
@@ -148,8 +152,23 @@ func (m *Model) refreshSuggestions() {
 				return
 			}
 		} else {
-			// Command is complete (has space) - show usage help if available
+			// Command is complete (has space) - show dynamic suggestions or usage help
 			cmdName := value[:spaceIdx]
+			argPrefix := strings.TrimSpace(value[spaceIdx+1:])
+
+			// Special handling for /run - show available scripts
+			if cmdName == "/run" {
+				scriptSuggestions := m.buildRunScriptSuggestions(argPrefix)
+				if len(scriptSuggestions) > 0 {
+					m.suggestions = scriptSuggestions
+					m.suggestionIndex = -1
+					m.suggestionStart = spaceIdx + 1
+					m.suggestionKind = suggestionCommand
+					m.resize()
+					return
+				}
+			}
+
 			usageHelp := getCommandUsage(cmdName)
 			if usageHelp != "" {
 				m.suggestions = []suggestionItem{{
@@ -326,6 +345,60 @@ func (m *Model) buildSuggestions(kind suggestionKind, prefix string) ([]suggesti
 	default:
 		return nil, nil
 	}
+}
+
+// buildRunScriptSuggestions returns script suggestions for /run command.
+// Searches both .fray/llm/run/ (fray scripts) and llm/run/ (project scripts).
+func (m *Model) buildRunScriptSuggestions(prefix string) []suggestionItem {
+	// Collect scripts from both locations
+	frayRunDir := filepath.Join(m.projectRoot, ".fray", "llm", "run")
+	projRunDir := filepath.Join(m.projectRoot, "llm", "run")
+
+	seen := make(map[string]bool)
+	suggestions := make([]suggestionItem, 0, suggestionLimit)
+	prefix = strings.ToLower(prefix)
+
+	// Add fray scripts first
+	if scripts, err := listMlldScripts(frayRunDir); err == nil {
+		for _, script := range scripts {
+			if prefix != "" && !strings.HasPrefix(strings.ToLower(script), prefix) {
+				continue
+			}
+			if seen[script] {
+				continue
+			}
+			seen[script] = true
+			suggestions = append(suggestions, suggestionItem{
+				Display: script,
+				Insert:  script,
+			})
+			if len(suggestions) >= suggestionLimit {
+				return suggestions
+			}
+		}
+	}
+
+	// Add project scripts
+	if scripts, err := listMlldScripts(projRunDir); err == nil {
+		for _, script := range scripts {
+			if prefix != "" && !strings.HasPrefix(strings.ToLower(script), prefix) {
+				continue
+			}
+			if seen[script] {
+				continue
+			}
+			seen[script] = true
+			suggestions = append(suggestions, suggestionItem{
+				Display: script,
+				Insert:  script,
+			})
+			if len(suggestions) >= suggestionLimit {
+				return suggestions
+			}
+		}
+	}
+
+	return suggestions
 }
 
 func (m *Model) buildMentionSuggestions(prefix string) ([]suggestionItem, error) {
