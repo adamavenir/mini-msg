@@ -40,6 +40,8 @@ Examples:
   fray prune main              # Prune main room (respects all protections)
   fray prune main --keep 50    # Keep last 50 messages in room
   fray prune design-thread     # Prune specific thread
+  fray prune main --before msg-abc123      # Prune everything before msg-abc123
+  fray prune main --before abc             # Same, with prefix matching
   fray prune main --with faves             # Also prune faved messages
   fray prune main --without reacts         # Only prune messages without reactions
   fray prune main --without faves,reacts   # Only prune messages without faves or reactions
@@ -58,6 +60,7 @@ Note: Pinned messages cannot be pruned; they must be unpinned first.`,
 			withReact, _ := cmd.Flags().GetString("with-react")
 			withFlags, _ := cmd.Flags().GetStringSlice("with")
 			withoutFlags, _ := cmd.Flags().GetStringSlice("without")
+			beforeMsgID, _ := cmd.Flags().GetString("before")
 
 			// Parse protection options
 			opts := parsePruneProtectionOpts(withFlags, withoutFlags)
@@ -94,13 +97,25 @@ Note: Pinned messages cannot be pruned; they must be unpinned first.`,
 				return writeCommandError(cmd, err)
 			}
 
+			// Resolve --before message ID prefix if provided
+			var beforeGUID string
+			if beforeMsgID != "" {
+				beforeMsgID = strings.TrimPrefix(beforeMsgID, "#")
+				beforeMsgID = strings.TrimPrefix(beforeMsgID, "msg-")
+				msg, err := db.GetMessageByPrefix(ctx.DB, beforeMsgID)
+				if err != nil {
+					return writeCommandError(cmd, fmt.Errorf("could not resolve message: %s", beforeMsgID))
+				}
+				beforeGUID = msg.ID
+			}
+
 			var result pruneResult
 			if withReact != "" {
 				// Reaction-based pruning: prune messages with specific reaction
 				result, err = pruneMessagesWithReaction(ctx.Project.DBPath, home, withReact)
 			} else {
-				// Standard pruning: keep N most recent messages
-				result, err = pruneMessages(ctx.Project.DBPath, keep, pruneAll, home, opts)
+				// Standard pruning: keep N most recent messages or prune before a message
+				result, err = pruneMessages(ctx.Project.DBPath, keep, pruneAll, home, opts, beforeGUID)
 			}
 			if err != nil {
 				return writeCommandError(cmd, err)
@@ -140,6 +155,7 @@ Note: Pinned messages cannot be pruned; they must be unpinned first.`,
 
 	cmd.Flags().Int("keep", 20, "number of recent messages to keep")
 	cmd.Flags().Bool("all", false, "delete history.jsonl before pruning")
+	cmd.Flags().String("before", "", "prune messages before this message ID (keeps msg and everything after)")
 	cmd.Flags().String("with-react", "", "prune messages with this reaction (e.g., :filed: or 📁)")
 	cmd.Flags().StringSlice("with", nil, "remove protections: replies,faves,reacts (allow pruning those)")
 	cmd.Flags().StringSlice("without", nil, "only prune items lacking these: replies,faves,reacts")
@@ -230,7 +246,7 @@ func parsePruneProtectionOpts(withFlags, withoutFlags []string) pruneProtectionO
 	return opts
 }
 
-func pruneMessages(projectPath string, keep int, pruneAll bool, home string, opts pruneProtectionOpts) (pruneResult, error) {
+func pruneMessages(projectPath string, keep int, pruneAll bool, home string, opts pruneProtectionOpts, beforeGUID string) (pruneResult, error) {
 	frayDir := resolveFrayDir(projectPath)
 	messagesPath := filepath.Join(frayDir, "messages.jsonl")
 	historyPath := filepath.Join(frayDir, "history.jsonl")
@@ -282,13 +298,26 @@ func pruneMessages(projectPath string, keep int, pruneAll bool, home string, opt
 	}
 
 	kept := messages
-	if pruneAll || keep == 0 {
+	if beforeGUID != "" {
+		// Find the message and keep it and everything after
+		foundIdx := -1
+		for i, msg := range messages {
+			if msg.ID == beforeGUID {
+				foundIdx = i
+				break
+			}
+		}
+		if foundIdx >= 0 {
+			kept = messages[foundIdx:]
+		}
+		// If not found in this home, keep all (message might be in different thread)
+	} else if pruneAll || keep == 0 {
 		kept = nil
 	} else if len(messages) > keep {
 		kept = messages[len(messages)-keep:]
 	}
 
-	if keep > 0 && len(kept) > 0 && len(kept) < len(messages) {
+	if len(kept) > 0 && len(kept) < len(messages) {
 		keepIDs := make(map[string]struct{}, len(kept))
 		byID := make(map[string]db.MessageJSONLRecord, len(messages))
 		for _, msg := range messages {
