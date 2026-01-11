@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `fray run`: execute mlld scripts from `.fray/llm/run/`
+  - `fray run` lists available scripts
+  - `fray run <name>` executes script
+  - `--debug` shows execution metrics
+- `/run` chat command: run mlld scripts from chat interface
+- `fray init`: creates mlld-config.json with `@proj` resolver for project-relative paths
+- `fray chat --debug-sync`: logs state divergence to `.fray/sync-debug.log` for debugging
 - `fray wake`: set wake conditions for agent coordination
   - `--pattern 'regex'`: wake on message content match
   - `--on @agent`: wake when specified agents post
