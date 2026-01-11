@@ -450,6 +450,12 @@ func ensureLLMRouter(projectRoot string) error {
 		return fmt.Errorf("create llm directory: %w", err)
 	}
 
+	// Create llm/run/ directory for user scripts
+	runDir := filepath.Join(llmDir, "run")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		return fmt.Errorf("create llm/run directory: %w", err)
+	}
+
 	// Write stock router template (if not exists)
 	routerPath := filepath.Join(llmDir, "router.mld")
 	if _, err := os.Stat(routerPath); os.IsNotExist(err) {
@@ -463,6 +469,33 @@ func ensureLLMRouter(projectRoot string) error {
 	if _, err := os.Stat(statusPath); os.IsNotExist(err) {
 		if err := os.WriteFile(statusPath, db.StatusTemplate, 0o644); err != nil {
 			return fmt.Errorf("write status template: %w", err)
+		}
+	}
+
+	// Create mlld-config.json (if not exists)
+	// @proj resolver points to project root (parent of .fray)
+	mlldConfigPath := filepath.Join(projectRoot, ".fray", "mlld-config.json")
+	if _, err := os.Stat(mlldConfigPath); os.IsNotExist(err) {
+		mlldConfig := map[string]any{
+			"scriptDir": "llm/run",
+			"resolvers": map[string]any{
+				"prefixes": []map[string]any{
+					{
+						"prefix":   "@proj/",
+						"resolver": "LOCAL",
+						"config": map[string]any{
+							"basePath": "..",
+						},
+					},
+				},
+			},
+		}
+		configData, err := json.MarshalIndent(mlldConfig, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal mlld config: %w", err)
+		}
+		if err := os.WriteFile(mlldConfigPath, configData, 0o644); err != nil {
+			return fmt.Errorf("write mlld config: %w", err)
 		}
 	}
 

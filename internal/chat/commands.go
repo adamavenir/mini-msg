@@ -2,6 +2,8 @@ package chat
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/adamavenir/fray/internal/types"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	mlld "github.com/mlld-lang/mlld/sdk/go"
 )
 
 const (
@@ -140,6 +143,9 @@ func (m *Model) runSlashCommand(input string) (tea.Cmd, error) {
 	case "/close":
 		// Close all questions attached to a message
 		return m.runCloseQuestionsCommand(fields[1:])
+	case "/run":
+		// Run mlld scripts from .fray/llm/run/
+		return nil, m.runMlldScriptCommand(fields[1:])
 	}
 
 	return nil, fmt.Errorf("unknown command: %s", fields[0])
@@ -1834,4 +1840,88 @@ func (m *Model) runCloseQuestionsCommand(args []string) (tea.Cmd, error) {
 	m.refreshQuestionCounts()
 
 	return nil, nil
+}
+
+// runMlldScriptCommand runs mlld scripts from .fray/llm/run/.
+// With no args, lists available scripts. With a script name, runs it.
+func (m *Model) runMlldScriptCommand(args []string) error {
+	runDir := filepath.Join(m.projectRoot, ".fray", "llm", "run")
+
+	// Check if run directory exists
+	if _, err := os.Stat(runDir); os.IsNotExist(err) {
+		return fmt.Errorf("no scripts found (create .fray/llm/run/*.mld)")
+	}
+
+	// List available scripts
+	scripts, err := listMlldScripts(runDir)
+	if err != nil {
+		return err
+	}
+
+	if len(args) == 0 {
+		// List scripts
+		if len(scripts) == 0 {
+			m.status = "No scripts in .fray/llm/run/"
+			return nil
+		}
+		lines := []string{"Available scripts:"}
+		for _, name := range scripts {
+			lines = append(lines, "  /run "+name)
+		}
+		msg := newEventMessage(strings.Join(lines, "\n"))
+		m.messages = append(m.messages, msg)
+		m.refreshViewport(true)
+		return nil
+	}
+
+	// Run the specified script
+	scriptName := args[0]
+	scriptPath := filepath.Join(runDir, scriptName+".mld")
+	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+		return fmt.Errorf("script not found: %s", scriptName)
+	}
+
+	// Execute with mlld using the SDK
+	client := mlld.New()
+	client.Timeout = 5 * time.Minute
+	client.WorkingDir = filepath.Join(m.projectRoot, ".fray") // Run from .fray for relative paths
+
+	m.status = fmt.Sprintf("Running %s...", scriptName)
+
+	result, err := client.Execute(scriptPath, nil, nil)
+	if err != nil {
+		return fmt.Errorf("script error: %v", err)
+	}
+
+	// Display output
+	output := strings.TrimSpace(result.Output)
+	if output != "" {
+		msg := newEventMessage(fmt.Sprintf("[%s]\n%s", scriptName, output))
+		m.messages = append(m.messages, msg)
+	}
+
+	m.status = fmt.Sprintf("Ran %s", scriptName)
+	m.refreshViewport(true)
+	m.input.SetValue("")
+	return nil
+}
+
+// listMlldScripts returns names of .mld files in the given directory.
+func listMlldScripts(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var scripts []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".mld") {
+			scripts = append(scripts, strings.TrimSuffix(name, ".mld"))
+		}
+	}
+	return scripts, nil
 }

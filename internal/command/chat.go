@@ -29,6 +29,7 @@ func NewChatCmd() *cobra.Command {
 			showUpdatesFlag, _ := cmd.Flags().GetBool("show-updates")
 			archived, _ := cmd.Flags().GetBool("archived")
 			force, _ := cmd.Flags().GetBool("force")
+			debugSync, _ := cmd.Flags().GetBool("debug-sync")
 
 			var ctx *CommandContext
 			var err error
@@ -107,6 +108,7 @@ func NewChatCmd() *cobra.Command {
 				Last:            last,
 				ShowUpdates:     showUpdates,
 				IncludeArchived: archived,
+				DebugSync:       debugSync,
 			}
 
 			return chat.Run(options)
@@ -118,6 +120,7 @@ func NewChatCmd() *cobra.Command {
 	cmd.Flags().Bool("show-events", false, "show event messages")
 	cmd.Flags().Bool("show-updates", false, "include event messages (deprecated)")
 	cmd.Flags().Bool("archived", false, "include archived messages")
+	cmd.Flags().Bool("debug-sync", false, "log to .fray/sync-debug.log when state diverges from DB")
 
 	return cmd
 }

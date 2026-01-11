@@ -1462,7 +1462,9 @@ Run: /fly %s if this is the start of a new session
 Run: fray get %s
 
 ---
-After 'fray back', reply in the thread where you were mentioned (using "--reply-to <msg-id>"). If you can answer the question immediately and with confidence, just answer directly - no need to ack first. Otherwise, ack quickly then continue. Don't use the literal word 'ack'. Be casual.`,
+After 'fray back', reply in the thread where you were mentioned (using "--reply-to <msg-id>"). If you can answer the question immediately and with confidence, just answer directly - no need to ack first. Otherwise, ack quickly then continue. Don't use the literal word 'ack'. Be casual.
+
+IMPORTANT: Users only see messages posted to fray. Your stdout is not visible. Post progress updates and summaries to fray so users can follow your work.`,
 			agent.AgentID, triggerInfo, forkContext, agent.AgentID, agent.AgentID)
 		_ = minCheckinMins // Reserved for future use
 	} else {
@@ -1474,7 +1476,9 @@ Trigger messages:
 Run: /fly %s if this is the start of a new session
 Run: fray get %s
 
-After 'fray back', reply in the thread where you were mentioned (using "--reply-to <msg-id>"). If you can answer the question immediately and with confidence, just answer directly - no need to ack first. Otherwise, ack quickly then continue. Don't use the literal word 'ack'. Be casual.`,
+After 'fray back', reply in the thread where you were mentioned (using "--reply-to <msg-id>"). If you can answer the question immediately and with confidence, just answer directly - no need to ack first. Otherwise, ack quickly then continue. Don't use the literal word 'ack'. Be casual.
+
+IMPORTANT: Users only see messages posted to fray. Your stdout is not visible. Post progress updates and summaries to fray so users can follow your work.`,
 			agent.AgentID, triggerInfo, forkContext, agent.AgentID, agent.AgentID)
 	}
 

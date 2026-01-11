@@ -102,6 +102,7 @@ func NewRootCmd(version string) *cobra.Command {
 		NewRoleCmd(),
 		NewRolesCmd(),
 		NewRebuildCmd(),
+		NewRunCmd(),
 		NewHeartbeatCmd(),
 		NewClockCmd(),
 		NewCursorCmd(),
