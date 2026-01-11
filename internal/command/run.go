@@ -1,6 +1,7 @@
 package command
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -152,9 +153,19 @@ func runScriptWithPayload(cmd *cobra.Command, scriptPath, scriptName string, tim
 		return fmt.Errorf("script error: %v", err)
 	}
 
-	output := strings.TrimSpace(result.Output)
+	// Parse output - SDK may return raw mixed output if JSON parsing failed
+	output := extractCleanOutput(result)
+
+	// Print event and output (skip if just whitespace)
 	if output != "" {
-		fmt.Fprintln(cmd.OutOrStdout(), output)
+		fmt.Fprintf(cmd.OutOrStdout(), "[%s]\n%s\n", scriptName, output)
+	} else {
+		fmt.Fprintf(cmd.OutOrStdout(), "[%s] (no output)\n", scriptName)
+	}
+
+	// Log to .fray/log/
+	if err := logScriptOutput(frayDir, scriptName, output); err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to write log: %v\n", err)
 	}
 
 	if debug && result.Metrics != nil {
@@ -167,6 +178,94 @@ func runScriptWithPayload(cmd *cobra.Command, scriptPath, scriptName string, tim
 	}
 
 	return nil
+}
+
+// extractCleanOutput parses the SDK result and returns clean output.
+// The mlld CLI outputs progress/errors to stdout before the JSON, so we may
+// need to extract the JSON portion and parse it, or fall back to cleaning
+// the raw output.
+func extractCleanOutput(result *mlld.ExecuteResult) string {
+	// If we have effects, extract content from them (structured output worked)
+	if len(result.Effects) > 0 {
+		var outputLines []string
+		for _, effect := range result.Effects {
+			content := strings.TrimSpace(effect.Content)
+			if content != "" {
+				outputLines = append(outputLines, content)
+			}
+		}
+
+		// Also include result.Output if meaningful and not duplicated
+		mainOutput := strings.TrimSpace(result.Output)
+		if mainOutput != "" {
+			joined := strings.Join(outputLines, "\n")
+			if !strings.Contains(joined, mainOutput) {
+				outputLines = append([]string{mainOutput}, outputLines...)
+			}
+		}
+
+		return strings.Join(outputLines, "\n")
+	}
+
+	// If result.Output contains mixed content (raw output with JSON at the end),
+	// try to extract just the meaningful parts
+	rawOutput := result.Output
+
+	// Try to find JSON at the end and extract the parsed output from it
+	if jsonStart := strings.LastIndex(rawOutput, "\n{"); jsonStart != -1 {
+		jsonStr := rawOutput[jsonStart+1:]
+		var parsed struct {
+			Output  string `json:"output"`
+			Effects []struct {
+				Content string `json:"content"`
+			} `json:"effects"`
+		}
+		if err := json.Unmarshal([]byte(jsonStr), &parsed); err == nil {
+			// Successfully parsed JSON - extract clean output
+			var outputLines []string
+			parsedOut := strings.TrimSpace(parsed.Output)
+			if parsedOut != "" {
+				outputLines = append(outputLines, parsedOut)
+			}
+			for _, effect := range parsed.Effects {
+				content := strings.TrimSpace(effect.Content)
+				if content != "" && content != parsedOut {
+					outputLines = append(outputLines, content)
+				}
+			}
+
+			// Also include pre-JSON content (progress messages etc)
+			preJSON := strings.TrimSpace(rawOutput[:jsonStart])
+			if preJSON != "" {
+				return preJSON + "\n" + strings.Join(outputLines, "\n")
+			}
+			return strings.Join(outputLines, "\n")
+		}
+	}
+
+	// Fall back to returning trimmed raw output (minus any trailing JSON blob)
+	return strings.TrimSpace(rawOutput)
+}
+
+func logScriptOutput(frayDir, scriptName, output string) error {
+	logDir := filepath.Join(frayDir, "log")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return err
+	}
+
+	// Trim to 10 lines
+	lines := strings.Split(output, "\n")
+	if len(lines) > 10 {
+		lines = lines[:10]
+		lines = append(lines, fmt.Sprintf("... (%d more lines)", len(strings.Split(output, "\n"))-10))
+	}
+	trimmedOutput := strings.Join(lines, "\n")
+
+	// Create log file with timestamp
+	timestamp := time.Now().Format("20060102-150405")
+	logFile := filepath.Join(logDir, fmt.Sprintf("%s-%s.log", scriptName, timestamp))
+
+	return os.WriteFile(logFile, []byte(trimmedOutput), 0644)
 }
 
 func listScriptsWithDir(dir string) (map[string]string, error) {
