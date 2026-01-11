@@ -1,45 +1,55 @@
-/import { @agent } from @payload
+import { @agent } from @payload
 
-/exe @fray(args) = args | cmd { fray @args --json 2>/dev/null }
+exe @fray(args) = cmd { fray @args --json }
+exe @safe(obj, field) = js { return (obj && obj[field]) || [] }
+exe @at(name) = js { return "@" + name }
 
-// Pull context from fray
-/exe @notes = @fray(`get meta/@agent/notes --last 5`)
-/exe @meta = @fray(`get meta --last 10`)
-/exe @mentions = @fray(`@$@agent --last 10`)
-/exe @claims = @fray(`claims @$@agent`)
-/exe @ready = @fray(`bd ready`) | @json | default []
+>> Pull context from fray
+var @notes = @fray(`get meta/@agent/notes --last 5`)
+var @meta = @fray(`get meta --last 10`)
+var @mentions = @fray(`@$@agent --last 10`)
+var @claimsData = @fray(`claims @$@agent`)
+var @ready = cmd { bd ready }
 
-// Format notes for display
-/exe @formatNotes(msgs) = msgs | map(m => `- [${m.id}] ${m.body | truncate(100)}`) | join("\n")
+>> Extract arrays with fallbacks
+var @notesList = @safe(@notes, "messages")
+var @metaList = @safe(@meta, "messages")
+var @mentionsList = @safe(@mentions, "mentions")
+var @claimsList = @safe(@claimsData, "claims")
+var @readyList = @ready
 
-// Format mentions
-/exe @formatMentions(msgs) = msgs | map(m => `- [${m.id}] @${m.from_agent}: ${m.body | truncate(80)}`) | join("\n")
-
-// Format beads
-/exe @formatBeads(issues) = issues | map(i => `- [${i.id}] ${i.title}`) | join("\n")
-
-/exe @context = `**You are @${@agent}.** Check fray for context.
+var @context = `**You are @at(@agent).** Check fray for context.
 
 ## Your Notes (prior session handoffs)
-${@notes.messages | length > 0 ? @formatNotes(@notes.messages) : "(none)"}
+/for @m in @notesList
+- [@m.id] @m.body
+/end
 
 ## Project Meta (shared context)
-${@meta.messages | length > 0 ? @formatMentions(@meta.messages) : "(none)"}
+/for @m in @metaList
+- [@m.id] @m.from_agent: @m.body
+/end
 
 ## Recent @mentions
-${@mentions.messages | length > 0 ? @formatMentions(@mentions.messages) : "(none)"}
+/for @m in @mentionsList
+- [@m.id] @m.from_agent: @m.body
+/end
 
 ## Your Claims
-${@claims.claims | length > 0 ? @claims.claims | map(c => "- " + c.resource) | join("\n") : "(none)"}
+/for @c in @claimsList
+- @c.resource
+/end
 
 ## Ready Work (bd ready)
-${@ready | length > 0 ? @formatBeads(@ready) : "(none)"}
+/for @i in @readyList
+- [@i.id] @i.title
+/end
 
 ---
-Run: fray get opus
+Run: fray get @at(@agent)
 
 IMPORTANT: Users only see messages posted to fray. Your stdout is not visible. Post progress updates and summaries to fray so users can follow your work.`
 
-/show @context
+show @context
 
-/export { @context }
+export { @context }

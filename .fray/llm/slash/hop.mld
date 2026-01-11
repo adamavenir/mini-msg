@@ -1,29 +1,30 @@
-/import { @agent, @triggerMsgIDs, @userTask } from @payload
+import { @agent, @triggerMsgIDs } from @payload
 
-/exe @fray(args) = args | cmd { fray @args --json 2>/dev/null }
+exe @fray(args) = cmd { fray @args --json }
+exe @safe(obj, field) = js { return (obj && obj[field]) || [] }
+exe @at(name) = js { return "@" + name }
 
-// Minimal context for quick hop-in tasks
-/exe @mentions = @fray(`@$@agent --last 3`)
+>> Minimal context for quick hop-in tasks
+var @mentionsData = @fray(`@$@agent --last 3`)
+var @mentionsList = @safe(@mentionsData, "mentions")
 
-// Format mentions
-/exe @formatMentions(msgs) = msgs | map(m => `- [${m.id}] @${m.from_agent}: ${m.body | truncate(80)}`) | join("\n")
-
-/exe @prompt = `**You are @${@agent}.** Quick hop-in task.
+var @prompt = `**You are @at(@agent).** Quick hop-in task.
 
 ## Trigger
-Messages: ${@triggerMsgIDs | join(", ")}
-${@userTask ? `\nTask: ${@userTask}` : ""}
+Messages: @triggerMsgIDs
 
 ## Recent @mentions
-${@mentions.messages | length > 0 ? @formatMentions(@mentions.messages) : "(none)"}
+/for @m in @mentionsList
+- [@m.id] @m.from_agent: @m.body
+/end
 
 ---
-Complete this task efficiently. Run \`fray bye ${@agent}\` when done.
+Complete this task efficiently. Run "fray bye @agent" when done.
 
-If you go idle without completing, you'll be auto-terminated.
+If you go idle without completing, your session will end automatically.
 
 IMPORTANT: Users only see fray messages. Post progress updates to fray.`
 
-/show @prompt
+show @prompt
 
-/export { @prompt }
+export { @prompt }

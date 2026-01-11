@@ -1,33 +1,38 @@
-/import { @agent, @triggerMsgIDs } from @payload
+import { @agent, @triggerMsgIDs } from @payload
 
-/exe @fray(args) = args | cmd { fray @args --json 2>/dev/null }
+exe @fray(args) = cmd { fray @args --json }
+exe @safe(obj, field) = js { return (obj && obj[field]) || [] }
+exe @at(name) = js { return "@" + name }
 
-// Get session context for standup
-/exe @notes = @fray(`get meta/@agent/notes --last 3`)
-/exe @claims = @fray(`claims @$@agent`)
+>> Get session context for standup
+var @notes = @fray(`get meta/@agent/notes --last 3`)
+var @claimsData = @fray(`claims @$@agent`)
+var @notesList = @safe(@notes, "messages")
+var @claimsList = @safe(@claimsData, "claims")
 
-// Format notes
-/exe @formatNotes(msgs) = msgs | map(m => `- [${m.id}] ${m.body | truncate(100)}`) | join("\n")
-
-/exe @prompt = `**@${@agent}** - User is asking you to close out your session.
+var @prompt = `**@at(@agent)** - User is asking you to close out your session.
 
 ## Trigger
-Messages: ${@triggerMsgIDs | join(", ")}
+Messages: @triggerMsgIDs
 
 ## Your Notes
-${@notes.messages | length > 0 ? @formatNotes(@notes.messages) : "(none)"}
+/for @m in @notesList
+- [@m.id] @m.body
+/end
 
 ## Your Claims
-${@claims.claims | length > 0 ? @claims.claims | map(c => "- " + c.resource) | join("\n") : "(none)"}
+/for @c in @claimsList
+- @c.resource
+/end
 
 ---
 Generate a standup report and clean up your session:
 
 1. Post a brief standup to the room summarizing what you did
 2. Update your notes with any handoff context for next session
-3. Clear your claims: \`fray clear @${@agent}\`
-4. Leave: \`fray bye ${@agent} "standup message"\``
+3. Clear your claims: fray clear @at(@agent)
+4. Leave: fray bye @agent "standup message"`
 
-/show @prompt
+show @prompt
 
-/export { @prompt }
+export { @prompt }
