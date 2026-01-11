@@ -2125,3 +2125,8 @@
 {"type":"thread_subscribe","thread_guid":"thrd-7ie95678","agent_id":"pm","subscribed_at":1768136880}
 {"type":"thread_subscribe","thread_guid":"thrd-7ie95678","agent_id":"pm","subscribed_at":1768137060}
 {"type":"thread_subscribe","thread_guid":"thrd-7ie95678","agent_id":"pm","subscribed_at":1768140969}
+{"type":"thread_subscribe","thread_guid":"thrd-7ie95678","agent_id":"pm","subscribed_at":1768141200}
+{"type":"thread_subscribe","thread_guid":"thrd-7ie95678","agent_id":"pm","subscribed_at":1768141254}
+{"type":"thread_subscribe","thread_guid":"thrd-7ie95678","agent_id":"pm","subscribed_at":1768141362}
+{"type":"thread_update","guid":"thrd-9xltsisl","status":"archived"}
+{"type":"thread_subscribe","thread_guid":"thrd-7ie95678","agent_id":"pm","subscribed_at":1768141422}
