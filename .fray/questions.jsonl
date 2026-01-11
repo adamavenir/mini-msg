@@ -152,3 +152,15 @@
 {"type":"question","guid":"qstn-skjytirp","re":"Where should howto content live?","from_agent":"designer","to":"adam","status":"open","thread_guid":"thrd-og1ie6b2","asked_in":"msg-sy4kaaes","options":[{"label":"Embedded in fray Go binary"},{"label":".mld files in fray repo"},{"label":"External docs party fetches"}],"created_at":1768027068}
 {"type":"question_update","guid":"qstn-w8rw460h","status":"answered","answered_in":"msg-trs44aqv"}
 {"type":"question_update","guid":"qstn-skjytirp","status":"answered","answered_in":"msg-trs44aqv"}
+{"type":"question","guid":"qstn-f7zk3v0d","re":"**Should we capture stdout?** Options:","from_agent":"opus","to":"adam","status":"open","thread_guid":"thrd-ul6lto79","asked_in":"msg-9z1zye7c","options":[{"label":"Capture last N bytes and display on exit (simple)"},{"label":"Log all output to `.fray/sessions/{id}.log` (audit trail)"},{"label":"Post final output as a fray message (visible in chat)"},{"label":"Keep as-is, just fix the prompt"}],"created_at":1768087759}
+{"type":"question","guid":"qstn-l9pn4hgw","re":"**What triggered this specific failure?** - Did I produce output after my last fray post? - Or did my fray post fail to send?","from_agent":"opus","to":"adam","status":"open","thread_guid":"thrd-ul6lto79","asked_in":"msg-9z1zye7c","created_at":1768087759}
+{"type":"question_update","guid":"qstn-f7zk3v0d","status":"answered","answered_in":"msg-7icd26r7"}
+{"type":"question","guid":"qstn-7eqj4apn","re":"For sidebar: Should fork sessions show as separate entries? Or just modify the existing agent row with `#XXX` suffix?","from_agent":"clank","status":"open","thread_guid":"thrd-shnv16hg","asked_in":"msg-idqwp50g","created_at":1768094245}
+{"type":"question","guid":"qstn-z9ldjiut","re":"For messages: Do fork messages need different treatment in room vs when viewing historical sessions?","from_agent":"clank","status":"open","thread_guid":"thrd-shnv16hg","asked_in":"msg-idqwp50g","created_at":1768094245}
+{"type":"question","guid":"qstn-r8gsvcv8","re":"Should `#n` and `#r` indicators be visible in sidebar, or only `#XXX` (forks)?","from_agent":"clank","status":"open","thread_guid":"thrd-shnv16hg","asked_in":"msg-idqwp50g","created_at":1768094245}
+{"type":"question","guid":"qstn-pxbtoyf4","re":"What happens when multiple agents fork the same session? Currently would show same `#XXX`.","from_agent":"clank","status":"open","thread_guid":"thrd-shnv16hg","asked_in":"msg-idqwp50g","created_at":1768094245}
+{"type":"question_update","guid":"qstn-7eqj4apn","status":"answered","answered_in":"msg-mrm1wl6i"}
+{"type":"question_update","guid":"qstn-z9ldjiut","status":"answered","answered_in":"msg-mrm1wl6i"}
+{"type":"question_update","guid":"qstn-r8gsvcv8","status":"answered","answered_in":"msg-mrm1wl6i"}
+{"type":"question_update","guid":"qstn-pxbtoyf4","status":"answered","answered_in":"msg-mrm1wl6i"}
+{"type":"question_update","guid":"qstn-l9pn4hgw","status":"answered","answered_in":"msg-mrm1wl6i"}

@@ -14,7 +14,7 @@ IMPORTANT: Return {"wake": false} for these patterns:
 - Code blocks or structured data referencing agents
 - Reference context: "see @agent's work", "like @agent said"
 
-If you see "answered @agent" and a set of Q&A pairs, that is a structured answer pattern and should be treated like a direct reply.
+If you see "answered @agent" and a set of Q&A pairs, that is a structured answer pattern and should be treated like a direct reply -- DO wake the agent for this.
 
 Unless otherwise specified, return {"wake": true} if the agent is being asked a question or requested to take action.
 

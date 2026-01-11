@@ -1,0 +1,14 @@
+{
+  "scriptDir": "llm/run",
+  "resolvers": {
+    "prefixes": [
+      {
+        "prefix": "@proj/",
+        "resolver": "LOCAL",
+        "config": {
+          "basePath": ".."
+        }
+      }
+    ]
+  }
+}

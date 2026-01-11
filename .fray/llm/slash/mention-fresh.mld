@@ -1,0 +1,49 @@
+/import { @agent, @triggerMsgIDs, @userTask } from @payload
+
+/exe @fray(args) = args | cmd { fray @args --json 2>/dev/null }
+
+// Pull context from fray
+/exe @notes = @fray(`get meta/@agent/notes --last 5`)
+/exe @meta = @fray(`get meta --last 10`)
+/exe @mentions = @fray(`@$@agent --last 10`)
+/exe @claims = @fray(`claims @$@agent`)
+/exe @ready = @fray(`bd ready`) | @json | default []
+
+// Format notes for display
+/exe @formatNotes(msgs) = msgs | map(m => `- [${m.id}] ${m.body | truncate(100)}`) | join("\n")
+
+// Format mentions
+/exe @formatMentions(msgs) = msgs | map(m => `- [${m.id}] @${m.from_agent}: ${m.body | truncate(80)}`) | join("\n")
+
+// Format beads
+/exe @formatBeads(issues) = issues | map(i => `- [${i.id}] ${i.title}`) | join("\n")
+
+/exe @prompt = `**You are @${@agent}.** Starting a fresh session.
+
+## Trigger
+Messages: ${@triggerMsgIDs | join(", ")}
+${@userTask ? `\nTask: ${@userTask}` : ""}
+
+## Your Notes (prior session handoffs)
+${@notes.messages | length > 0 ? @formatNotes(@notes.messages) : "(none)"}
+
+## Project Meta (shared context)
+${@meta.messages | length > 0 ? @formatMentions(@meta.messages) : "(none)"}
+
+## Recent @mentions
+${@mentions.messages | length > 0 ? @formatMentions(@mentions.messages) : "(none)"}
+
+## Your Claims
+${@claims.claims | length > 0 ? @claims.claims | map(c => "- " + c.resource) | join("\n") : "(none)"}
+
+## Ready Work (bd ready)
+${@ready | length > 0 ? @formatBeads(@ready) : "(none)"}
+
+---
+You have full context above. Reply in the thread where you were mentioned (use --reply-to <msg-id>). If you can answer immediately, just answer. Otherwise, acknowledge briefly then continue.
+
+IMPORTANT: Users only see fray messages. Post progress updates and summaries to fray.`
+
+/show @prompt
+
+/export { @prompt }

@@ -1,0 +1,26 @@
+/import { @agent, @triggerMsgIDs } from @payload
+
+/exe @fray(args) = args | cmd { fray @args --json 2>/dev/null }
+
+// Lighter context for resume - agent already has session context
+/exe @mentions = @fray(`@$@agent --last 5`)
+
+// Format mentions
+/exe @formatMentions(msgs) = msgs | map(m => `- [${m.id}] @${m.from_agent}: ${m.body | truncate(80)}`) | join("\n")
+
+/exe @prompt = `**You are @${@agent}.** Check fray for context.
+
+## Trigger
+Messages: ${@triggerMsgIDs | join(", ")}
+
+## Recent @mentions
+${@mentions.messages | length > 0 ? @formatMentions(@mentions.messages) : "(none)"}
+
+---
+Reply in the thread where you were mentioned (use --reply-to <msg-id>). If you can answer immediately, just answer. Otherwise, acknowledge briefly then continue.
+
+IMPORTANT: Users only see fray messages. Post progress updates and summaries to fray.`
+
+/show @prompt
+
+/export { @prompt }

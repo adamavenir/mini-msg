@@ -1,0 +1,33 @@
+/import { @agent, @triggerMsgIDs } from @payload
+
+/exe @fray(args) = args | cmd { fray @args --json 2>/dev/null }
+
+// Get session context for standup
+/exe @notes = @fray(`get meta/@agent/notes --last 3`)
+/exe @claims = @fray(`claims @$@agent`)
+
+// Format notes
+/exe @formatNotes(msgs) = msgs | map(m => `- [${m.id}] ${m.body | truncate(100)}`) | join("\n")
+
+/exe @prompt = `**@${@agent}** - User is asking you to close out your session.
+
+## Trigger
+Messages: ${@triggerMsgIDs | join(", ")}
+
+## Your Notes
+${@notes.messages | length > 0 ? @formatNotes(@notes.messages) : "(none)"}
+
+## Your Claims
+${@claims.claims | length > 0 ? @claims.claims | map(c => "- " + c.resource) | join("\n") : "(none)"}
+
+---
+Generate a standup report and clean up your session:
+
+1. Post a brief standup to the room summarizing what you did
+2. Update your notes with any handoff context for next session
+3. Clear your claims: \`fray clear @${@agent}\`
+4. Leave: \`fray bye ${@agent} "standup message"\``
+
+/show @prompt
+
+/export { @prompt }

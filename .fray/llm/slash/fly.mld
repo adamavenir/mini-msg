@@ -1,0 +1,45 @@
+/import { @agent } from @payload
+
+/exe @fray(args) = args | cmd { fray @args --json 2>/dev/null }
+
+// Pull context from fray
+/exe @notes = @fray(`get meta/@agent/notes --last 5`)
+/exe @meta = @fray(`get meta --last 10`)
+/exe @mentions = @fray(`@$@agent --last 10`)
+/exe @claims = @fray(`claims @$@agent`)
+/exe @ready = @fray(`bd ready`) | @json | default []
+
+// Format notes for display
+/exe @formatNotes(msgs) = msgs | map(m => `- [${m.id}] ${m.body | truncate(100)}`) | join("\n")
+
+// Format mentions
+/exe @formatMentions(msgs) = msgs | map(m => `- [${m.id}] @${m.from_agent}: ${m.body | truncate(80)}`) | join("\n")
+
+// Format beads
+/exe @formatBeads(issues) = issues | map(i => `- [${i.id}] ${i.title}`) | join("\n")
+
+/exe @context = `**You are @${@agent}.** Check fray for context.
+
+## Your Notes (prior session handoffs)
+${@notes.messages | length > 0 ? @formatNotes(@notes.messages) : "(none)"}
+
+## Project Meta (shared context)
+${@meta.messages | length > 0 ? @formatMentions(@meta.messages) : "(none)"}
+
+## Recent @mentions
+${@mentions.messages | length > 0 ? @formatMentions(@mentions.messages) : "(none)"}
+
+## Your Claims
+${@claims.claims | length > 0 ? @claims.claims | map(c => "- " + c.resource) | join("\n") : "(none)"}
+
+## Ready Work (bd ready)
+${@ready | length > 0 ? @formatBeads(@ready) : "(none)"}
+
+---
+Run: fray get opus
+
+IMPORTANT: Users only see messages posted to fray. Your stdout is not visible. Post progress updates and summaries to fray so users can follow your work.`
+
+/show @context
+
+/export { @context }
