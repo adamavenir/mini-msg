@@ -30,10 +30,21 @@ Target can be:
   <thread-name>  - prune a specific thread by name
   <thread-id>    - prune a specific thread by ID (thrd-*)
 
+By default, messages with replies, faves, reactions, or pins are protected.
+Use --with to remove protections (allow pruning those items).
+Use --without to only prune items lacking those attributes.
+
+Protection types: replies, faves, reacts
+
 Examples:
-  fray prune main              # Prune main room
+  fray prune main              # Prune main room (respects all protections)
   fray prune main --keep 50    # Keep last 50 messages in room
-  fray prune design-thread     # Prune specific thread`,
+  fray prune design-thread     # Prune specific thread
+  fray prune main --with faves             # Also prune faved messages
+  fray prune main --without reacts         # Only prune messages without reactions
+  fray prune main --without faves,reacts   # Only prune messages without faves or reactions
+
+Note: Pinned messages cannot be pruned; they must be unpinned first.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := GetContext(cmd)
@@ -45,6 +56,11 @@ Examples:
 			keep, _ := cmd.Flags().GetInt("keep")
 			pruneAll, _ := cmd.Flags().GetBool("all")
 			withReact, _ := cmd.Flags().GetString("with-react")
+			withFlags, _ := cmd.Flags().GetStringSlice("with")
+			withoutFlags, _ := cmd.Flags().GetStringSlice("without")
+
+			// Parse protection options
+			opts := parsePruneProtectionOpts(withFlags, withoutFlags)
 
 			if keep < 0 {
 				return writeCommandError(cmd, fmt.Errorf("invalid --keep value: %d", keep))
@@ -84,7 +100,7 @@ Examples:
 				result, err = pruneMessagesWithReaction(ctx.Project.DBPath, home, withReact)
 			} else {
 				// Standard pruning: keep N most recent messages
-				result, err = pruneMessages(ctx.Project.DBPath, keep, pruneAll, home)
+				result, err = pruneMessages(ctx.Project.DBPath, keep, pruneAll, home, opts)
 			}
 			if err != nil {
 				return writeCommandError(cmd, err)
@@ -125,6 +141,8 @@ Examples:
 	cmd.Flags().Int("keep", 20, "number of recent messages to keep")
 	cmd.Flags().Bool("all", false, "delete history.jsonl before pruning")
 	cmd.Flags().String("with-react", "", "prune messages with this reaction (e.g., :filed: or 📁)")
+	cmd.Flags().StringSlice("with", nil, "remove protections: replies,faves,reacts (allow pruning those)")
+	cmd.Flags().StringSlice("without", nil, "only prune items lacking these: replies,faves,reacts")
 	return cmd
 }
 
@@ -154,7 +172,65 @@ type pruneResult struct {
 	ClearedHistory bool
 }
 
-func pruneMessages(projectPath string, keep int, pruneAll bool, home string) (pruneResult, error) {
+// pruneProtectionOpts controls which protections to apply during pruning.
+// By default all protections are enabled (messages with replies/faves/reacts are kept).
+type pruneProtectionOpts struct {
+	// ProtectReplies: if true (default), messages with replies are protected
+	ProtectReplies bool
+	// ProtectFaves: if true (default), faved messages are protected
+	ProtectFaves bool
+	// ProtectReacts: if true (default), messages with reactions are protected
+	ProtectReacts bool
+	// RequireReplies: if true, only prune messages that have replies
+	RequireReplies bool
+	// RequireFaves: if true, only prune messages that have faves
+	RequireFaves bool
+	// RequireReacts: if true, only prune messages that have reactions
+	RequireReacts bool
+}
+
+// parsePruneProtectionOpts parses --with and --without flags into protection options.
+// --with removes protections (e.g., --with faves allows pruning faved messages)
+// --without filters to only prune items lacking those attributes
+func parsePruneProtectionOpts(withFlags, withoutFlags []string) pruneProtectionOpts {
+	opts := pruneProtectionOpts{
+		ProtectReplies: true,
+		ProtectFaves:   true,
+		ProtectReacts:  true,
+	}
+
+	// --with removes protections
+	for _, flag := range withFlags {
+		for _, item := range strings.Split(flag, ",") {
+			switch strings.TrimSpace(strings.ToLower(item)) {
+			case "replies":
+				opts.ProtectReplies = false
+			case "faves":
+				opts.ProtectFaves = false
+			case "reacts", "reactions":
+				opts.ProtectReacts = false
+			}
+		}
+	}
+
+	// --without adds requirements (only prune items lacking these)
+	for _, flag := range withoutFlags {
+		for _, item := range strings.Split(flag, ",") {
+			switch strings.TrimSpace(strings.ToLower(item)) {
+			case "replies":
+				opts.RequireReplies = true
+			case "faves":
+				opts.RequireFaves = true
+			case "reacts", "reactions":
+				opts.RequireReacts = true
+			}
+		}
+	}
+
+	return opts
+}
+
+func pruneMessages(projectPath string, keep int, pruneAll bool, home string, opts pruneProtectionOpts) (pruneResult, error) {
 	frayDir := resolveFrayDir(projectPath)
 	messagesPath := filepath.Join(frayDir, "messages.jsonl")
 	historyPath := filepath.Join(frayDir, "history.jsonl")
@@ -200,7 +276,7 @@ func pruneMessages(projectPath string, keep int, pruneAll bool, home string) (pr
 	}
 
 	// Collect IDs that must be preserved for integrity
-	requiredIDs, err := collectRequiredMessageIDs(projectPath)
+	requiredIDs, excludeIDs, err := collectRequiredMessageIDs(projectPath, opts)
 	if err != nil {
 		return pruneResult{}, err
 	}
@@ -224,6 +300,11 @@ func pruneMessages(projectPath string, keep int, pruneAll bool, home string) (pr
 
 		// Add required IDs for integrity
 		for id := range requiredIDs {
+			keepIDs[id] = struct{}{}
+		}
+
+		// Add excluded IDs (--without filter: keep messages that lack required attributes)
+		for id := range excludeIDs {
 			keepIDs[id] = struct{}{}
 		}
 
@@ -481,14 +562,18 @@ func createTombstone(prunedMessages []db.MessageJSONLRecord, home string) *db.Me
 }
 
 // collectRequiredMessageIDs gathers message IDs that must be preserved for data integrity.
-func collectRequiredMessageIDs(projectPath string) (map[string]struct{}, error) {
+// Returns:
+//   - required: IDs that must be kept (pins, anchors, question refs, surface refs, thread messages)
+//   - excluded: IDs that should NOT be pruned due to --without filter (messages lacking required attributes)
+func collectRequiredMessageIDs(projectPath string, opts pruneProtectionOpts) (map[string]struct{}, map[string]struct{}, error) {
 	required := make(map[string]struct{})
+	excluded := make(map[string]struct{})
 	frayDir := resolveFrayDir(projectPath)
 
-	// Read threads for anchor messages
+	// Read threads for anchor messages (always protected)
 	threads, _, _, err := db.ReadThreads(projectPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, thread := range threads {
 		if thread.AnchorMessageGUID != nil && *thread.AnchorMessageGUID != "" {
@@ -499,7 +584,7 @@ func collectRequiredMessageIDs(projectPath string) (map[string]struct{}, error) 
 	// Read fave events and track currently faved messages
 	faveEvents, err := db.ReadFaves(projectPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	favedMessages := make(map[string]struct{})
 	for _, event := range faveEvents {
@@ -512,25 +597,34 @@ func collectRequiredMessageIDs(projectPath string) (map[string]struct{}, error) 
 			delete(favedMessages, event.ItemGUID)
 		}
 	}
-	for id := range favedMessages {
-		required[id] = struct{}{}
+	// Only add to required if ProtectFaves is true
+	if opts.ProtectFaves {
+		for id := range favedMessages {
+			required[id] = struct{}{}
+		}
 	}
 
-	// Read reactions - any message with reactions is protected
+	// Read reactions - track which messages have reactions
 	reactions, err := db.ReadReactions(projectPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	messagesWithReactions := make(map[string]struct{})
 	for _, r := range reactions {
-		required[r.MessageGUID] = struct{}{}
+		messagesWithReactions[r.MessageGUID] = struct{}{}
+	}
+	// Only add to required if ProtectReacts is true
+	if opts.ProtectReacts {
+		for id := range messagesWithReactions {
+			required[id] = struct{}{}
+		}
 	}
 
-	// Read message pins
+	// Read message pins (always protected - cannot be pruned)
 	pinEvents, err := db.ReadMessagePins(projectPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// Track current pinned state
 	pinnedMessages := make(map[string]struct{})
 	for _, event := range pinEvents {
 		key := event.MessageGUID + "|" + event.ThreadGUID
@@ -547,10 +641,10 @@ func collectRequiredMessageIDs(projectPath string) (map[string]struct{}, error) 
 		}
 	}
 
-	// Read questions for message references
+	// Read questions for message references (always protected)
 	questions, err := db.ReadQuestions(projectPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, q := range questions {
 		if q.AskedIn != nil && *q.AskedIn != "" {
@@ -561,12 +655,21 @@ func collectRequiredMessageIDs(projectPath string) (map[string]struct{}, error) 
 		}
 	}
 
-	// Read messages for surface references
+	// Read messages for surface references and replies
 	messages, err := db.ReadMessages(projectPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// Collect all references targets and surface_message links
+
+	// Build set of messages that have replies (for ProtectReplies)
+	messagesWithReplies := make(map[string]struct{})
+	for _, msg := range messages {
+		if msg.ReplyTo != nil && *msg.ReplyTo != "" {
+			messagesWithReplies[*msg.ReplyTo] = struct{}{}
+		}
+	}
+
+	// Collect all references targets and surface_message links (always protected)
 	for _, msg := range messages {
 		if msg.References != nil && *msg.References != "" {
 			required[*msg.References] = struct{}{}
@@ -576,7 +679,14 @@ func collectRequiredMessageIDs(projectPath string) (map[string]struct{}, error) 
 		}
 	}
 
-	// Read thread_message events to preserve messages added to threads
+	// Only add replies to required if ProtectReplies is true
+	if opts.ProtectReplies {
+		for id := range messagesWithReplies {
+			required[id] = struct{}{}
+		}
+	}
+
+	// Read thread_message events to preserve messages added to threads (always protected)
 	threadsPath := filepath.Join(frayDir, "threads.jsonl")
 	if threadLines, err := readJSONLLines(threadsPath); err == nil {
 		threadMsgs := make(map[string]struct{})
@@ -600,7 +710,38 @@ func collectRequiredMessageIDs(projectPath string) (map[string]struct{}, error) 
 		}
 	}
 
-	return required, nil
+	// Handle --without filtering: keep messages that LACK the required attributes
+	// If --without faves is set, keep messages that don't have faves
+	// If --without reacts is set, keep messages that don't have reactions
+	// If --without replies is set, keep messages that don't have replies
+	if opts.RequireFaves || opts.RequireReacts || opts.RequireReplies {
+		for _, msg := range messages {
+			hasRequiredAttribute := true
+
+			if opts.RequireFaves {
+				if _, hasFave := favedMessages[msg.ID]; !hasFave {
+					hasRequiredAttribute = false
+				}
+			}
+			if opts.RequireReacts && hasRequiredAttribute {
+				if _, hasReact := messagesWithReactions[msg.ID]; !hasReact {
+					hasRequiredAttribute = false
+				}
+			}
+			if opts.RequireReplies && hasRequiredAttribute {
+				if _, hasReply := messagesWithReplies[msg.ID]; !hasReply {
+					hasRequiredAttribute = false
+				}
+			}
+
+			// If message lacks any required attribute, exclude it from pruning
+			if !hasRequiredAttribute {
+				excluded[msg.ID] = struct{}{}
+			}
+		}
+	}
+
+	return required, excluded, nil
 }
 
 // readJSONLLines reads all non-empty lines from a JSONL file.

@@ -80,24 +80,37 @@ func (m *Model) inputCursorPos() int {
 }
 
 func (m *Model) updateInputStyle() {
-	_, reactionMode := reactionInputText(m.input.Value())
-	// Edit mode takes precedence
+	value := m.input.Value()
+	_, reactionMode := reactionInputText(value)
+	replyMode := !reactionMode && replyPrefixRe.MatchString(value)
+
+	// Edit mode takes precedence - distinct background
 	if m.editingMessageID != "" {
 		m.reactionMode = false
+		m.replyMode = false
 		applyInputStylesWithBg(&m.input, textColor, blurText, editBg)
 		return
 	}
-	// Always apply styles if we were in edit mode (to reset the background)
-	if reactionMode == m.reactionMode {
-		// Still need to reset background if it might be set
-		applyInputStyles(&m.input, textColor, blurText)
+
+	// Check if mode changed
+	if reactionMode == m.reactionMode && replyMode == m.replyMode {
 		return
 	}
+
 	m.reactionMode = reactionMode
+	m.replyMode = replyMode
+
 	if reactionMode {
+		// Yellow text for reaction input
 		applyInputStyles(&m.input, reactionColor, reactionColor)
 		return
 	}
+	if replyMode {
+		// Blue text for reply input
+		applyInputStyles(&m.input, replyColor, replyColor)
+		return
+	}
+	// Normal text
 	applyInputStyles(&m.input, textColor, blurText)
 }
 

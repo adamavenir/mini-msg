@@ -56,10 +56,11 @@ var (
 	statusColor   = lipgloss.Color("241")
 	metaColor     = lipgloss.Color("242")
 	inputBg       = lipgloss.Color("236")
-	editBg        = lipgloss.Color("235") // subtle dark background for edit mode
-	peekBg        = lipgloss.Color("24") // blue background for peek mode statusline
+	editBg        = lipgloss.Color("58")  // olive/amber background for edit mode
+	peekBg        = lipgloss.Color("24")  // blue background for peek mode statusline
 	caretColor    = lipgloss.Color("243")
-	reactionColor = lipgloss.Color("220")
+	reactionColor = lipgloss.Color("220") // yellow for reaction input
+	replyColor    = lipgloss.Color("75")  // blue for reply input
 	textColor     = lipgloss.Color("255")
 	blurText      = lipgloss.Color("248")
 )
@@ -131,6 +132,7 @@ type Model struct {
 	suggestionStart     int
 	suggestionKind      suggestionKind
 	reactionMode        bool
+	replyMode           bool
 	editingMessageID    string // non-empty when in edit mode
 	lastInputValue      string
 	lastInputPos        int
