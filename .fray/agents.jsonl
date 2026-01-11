@@ -3787,3 +3787,12 @@
 {"type":"presence_event","agent_id":"opus","from":"idle","to":"spawning","reason":"spawn","source":"daemon","ts":1768164722}
 {"type":"session_start","agent_id":"opus","session_id":"bafa185d-5dda-4b8d-a45b-18447cf84f4d","triggered_by":"msg-ynl51tql","started_at":1768164724}
 {"type":"agent_update","agent_id":"opus","mention_watermark":"msg-ynl51tql"}
+{"type":"agent_update","agent_id":"opus","mention_watermark":"msg-xfhninz8"}
+{"type":"presence_event","agent_id":"opus","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768164884}
+{"type":"agent_update","agent_id":"opus","last_heartbeat":1768164888461}
+{"type":"session_end","agent_id":"opus","session_id":"bafa185d-5dda-4b8d-a45b-18447cf84f4d","exit_code":0,"duration_ms":168308,"ended_at":1768164891}
+{"type":"presence_event","agent_id":"opus","from":"idle","to":"idle","reason":"exit_ok","source":"daemon","ts":1768164891}
+{"type":"presence_event","agent_id":"opus","from":"idle","to":"spawning","reason":"spawn","source":"daemon","ts":1768164946}
+{"type":"session_start","agent_id":"opus","session_id":"bafa185d-5dda-4b8d-a45b-18447cf84f4d","triggered_by":"msg-6ksxszbm","started_at":1768164947}
+{"type":"agent_update","agent_id":"opus","mention_watermark":"msg-6ksxszbm"}
+{"type":"presence_event","agent_id":"opus","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768164977}
