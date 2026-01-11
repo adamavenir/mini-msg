@@ -77,11 +77,6 @@ func NewBackCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
-			// Ensure agent neo file exists (backfills for existing agents)
-			if err := ensureAgentNeo(ctx.Project.Root, agentID); err != nil {
-				return writeCommandError(cmd, err)
-			}
-
 			// Resume paused wake conditions (for persist-restore-on-back)
 			resumedWake, err := db.ResumeWakeConditions(ctx.DB, ctx.Project.DBPath, agentID)
 			if err != nil {

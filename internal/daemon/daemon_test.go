@@ -811,8 +811,9 @@ func TestSpawnFlow_DirectMention(t *testing.T) {
 	if !strings.Contains(spawn.Prompt, "You are @alice") {
 		t.Errorf("expected prompt to say 'You are @alice', got: %s", spawn.Prompt)
 	}
-	if !strings.Contains(spawn.Prompt, "fray get alice") {
-		t.Errorf("expected prompt to include 'fray get alice', got: %s", spawn.Prompt)
+	// Prompt should include trigger message reference
+	if !strings.Contains(spawn.Prompt, "Trigger messages") {
+		t.Errorf("expected prompt to include 'Trigger messages', got: %s", spawn.Prompt)
 	}
 
 	// Verify presence updated (may be spawning, active, or idle if process exited quickly)

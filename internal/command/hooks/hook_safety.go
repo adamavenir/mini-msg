@@ -241,29 +241,62 @@ func NewHookUninstallCmd() *cobra.Command {
 		Short: "Remove fray Claude Code hooks",
 		Long: `Remove fray Claude Code hooks.
 
+By default, removes integration hooks (SessionStart, UserPromptSubmit, etc).
+Use --safety to also/only remove safety guards.
+
 Examples:
-  fray hook-uninstall --safety          # Remove safety guards (project)
-  fray hook-uninstall --safety --global # Remove safety guards (global)`,
+  fray hook-uninstall                   # Remove integration hooks
+  fray hook-uninstall --safety          # Also remove safety guards
+  fray hook-uninstall --safety --global # Remove safety guards from all projects
+  fray hook-uninstall --precommit       # Also remove git pre-commit hook`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			safety, _ := cmd.Flags().GetBool("safety")
 			global, _ := cmd.Flags().GetBool("global")
+			precommit, _ := cmd.Flags().GetBool("precommit")
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
 
-			if !safety {
-				return fmt.Errorf("specify what to uninstall (e.g., --safety)")
-			}
-
-			projectDir, err := os.Getwd()
-			if err != nil {
-				return err
+			projectDir := os.Getenv("CLAUDE_PROJECT_DIR")
+			if projectDir == "" {
+				cwd, err := os.Getwd()
+				if err != nil {
+					return err
+				}
+				projectDir = cwd
 			}
 
 			out := cmd.OutOrStdout()
-			return uninstallSafetyHooks(projectDir, out, global)
+
+			// Handle --safety flag
+			if safety {
+				if err := uninstallSafetyHooks(projectDir, out, global); err != nil {
+					return err
+				}
+				if global {
+					fmt.Fprintln(out, "\nRestart Claude Code to apply changes.")
+					return nil
+				}
+			}
+
+			// Remove integration hooks (unless --global --safety only)
+			if !global || !safety {
+				if err := uninstallIntegrationHooks(projectDir, out, dryRun); err != nil {
+					return err
+				}
+			}
+
+			if precommit {
+				uninstallPrecommitHook(projectDir, dryRun, out)
+			}
+
+			fmt.Fprintln(out, "\nRestart Claude Code to apply changes.")
+			return nil
 		},
 	}
 
 	cmd.Flags().Bool("safety", false, "remove safety guards")
 	cmd.Flags().Bool("global", false, "remove from ~/.claude instead of .claude")
+	cmd.Flags().Bool("precommit", false, "also remove git pre-commit hook")
+	cmd.Flags().Bool("dry-run", false, "show what would be removed without removing")
 
 	return cmd
 }
@@ -472,3 +505,150 @@ func uninstallSafetyHooks(projectDir string, out io.Writer, global bool) error {
 
 	return nil
 }
+
+// uninstallIntegrationHooks removes fray integration hooks from settings.
+func uninstallIntegrationHooks(projectDir string, out io.Writer, dryRun bool) error {
+	claudeDir := filepath.Join(projectDir, ".claude")
+	settingsPath := filepath.Join(claudeDir, "settings.local.json")
+
+	// Check if settings file exists
+	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
+		fmt.Fprintln(out, "No integration hooks to uninstall (settings.local.json not found)")
+		return nil
+	}
+
+	// Read existing settings
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return fmt.Errorf("read settings: %w", err)
+	}
+
+	settings := hookSettings{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return fmt.Errorf("parse settings: %w", err)
+	}
+
+	if settings.Hooks == nil {
+		fmt.Fprintln(out, "No integration hooks to uninstall")
+		return nil
+	}
+
+	// Remove fray hooks - only remove if they contain fray commands
+	hooksToCheck := []string{"SessionStart", "UserPromptSubmit", "PreCompact", "SessionEnd"}
+	removed := 0
+	for _, hookName := range hooksToCheck {
+		if hookConfig, exists := settings.Hooks[hookName]; exists {
+			if isFrayHook(hookConfig) {
+				delete(settings.Hooks, hookName)
+				removed++
+			}
+		}
+	}
+
+	if removed == 0 {
+		fmt.Fprintln(out, "No fray integration hooks to uninstall")
+		return nil
+	}
+
+	if dryRun {
+		fmt.Fprintf(out, "Would remove %d hook(s) from: %s\n", removed, settingsPath)
+		return nil
+	}
+
+	// Write updated settings or delete if empty
+	if len(settings.Hooks) == 0 {
+		if err := os.Remove(settingsPath); err != nil {
+			return fmt.Errorf("remove settings file: %w", err)
+		}
+		fmt.Fprintf(out, "Removed %d hook(s) and deleted %s\n", removed, settingsPath)
+	} else {
+		updated, err := json.MarshalIndent(settings, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal settings: %w", err)
+		}
+		updated = append(updated, '\n')
+		if err := os.WriteFile(settingsPath, updated, 0o644); err != nil {
+			return fmt.Errorf("write settings: %w", err)
+		}
+		fmt.Fprintf(out, "Removed %d hook(s) from %s\n", removed, settingsPath)
+	}
+
+	fmt.Fprintln(out, "\nRemoved hooks:")
+	fmt.Fprintln(out, "  SessionStart, UserPromptSubmit, PreCompact, SessionEnd")
+
+	return nil
+}
+
+// isFrayHook checks if a hook configuration was installed by fray
+func isFrayHook(hook any) bool {
+	hookBytes, _ := json.Marshal(hook)
+	return strings.Contains(string(hookBytes), "fray hook-")
+}
+
+// uninstallPrecommitHook removes fray integration from git pre-commit hook
+func uninstallPrecommitHook(projectDir string, dryRun bool, out io.Writer) {
+	gitRoot, err := gitRootDir(projectDir)
+	if err != nil {
+		fmt.Fprintln(out, "\nWARNING: Not in a git repository, skipping pre-commit hook removal")
+		return
+	}
+
+	precommitPath := filepath.Join(gitRoot, ".git", "hooks", "pre-commit")
+
+	data, err := os.ReadFile(precommitPath)
+	if err != nil {
+		fmt.Fprintln(out, "\nNo pre-commit hook found")
+		return
+	}
+
+	hookContent := string(data)
+	if !strings.Contains(hookContent, "fray hook-precommit") {
+		fmt.Fprintln(out, "\nPre-commit hook does not contain fray integration")
+		return
+	}
+
+	// Check if it's our standalone hook or part of a larger hook
+	if strings.Contains(hookContent, "# fray pre-commit hook") && strings.Count(hookContent, "\n") < 10 {
+		// It's our standalone hook, delete the whole file
+		if dryRun {
+			fmt.Fprintf(out, "\nWould delete pre-commit hook: %s\n", precommitPath)
+			return
+		}
+		if err := os.Remove(precommitPath); err != nil {
+			fmt.Fprintf(out, "\nFailed to remove pre-commit hook: %v\n", err)
+			return
+		}
+		fmt.Fprintf(out, "\nRemoved pre-commit hook: %s\n", precommitPath)
+	} else {
+		// It's part of a larger hook, remove just our lines
+		lines := strings.Split(hookContent, "\n")
+		var newLines []string
+		skipNext := false
+		for _, line := range lines {
+			if skipNext {
+				skipNext = false
+				continue
+			}
+			if strings.Contains(line, "fray file claim conflict detection") {
+				skipNext = true // Skip the next line (the fray command)
+				continue
+			}
+			if strings.Contains(line, "fray hook-precommit") {
+				continue
+			}
+			newLines = append(newLines, line)
+		}
+		newContent := strings.Join(newLines, "\n")
+
+		if dryRun {
+			fmt.Fprintf(out, "\nWould remove fray lines from pre-commit hook: %s\n", precommitPath)
+			return
+		}
+		if err := os.WriteFile(precommitPath, []byte(newContent), 0o755); err != nil {
+			fmt.Fprintf(out, "\nFailed to update pre-commit hook: %v\n", err)
+			return
+		}
+		fmt.Fprintf(out, "\nRemoved fray integration from pre-commit hook: %s\n", precommitPath)
+	}
+}
+

@@ -60,6 +60,9 @@ var allCommands = []commandDef{
 	{Name: "/close", Desc: "Close questions for message", Usage: "<#msg-id>"},
 	{Name: "/run", Desc: "Run mlld script", Usage: "<script-name>"},
 	{Name: "/bye", Desc: "Send bye for agent", Usage: "@agent [message]"},
+	{Name: "/fly", Desc: "Spawn agent (fresh session)", Usage: "@agent [message]"},
+	{Name: "/hop", Desc: "Spawn agent (quick task, auto-bye)", Usage: "@agent [message]"},
+	{Name: "/land", Desc: "Ask agent to run /land closeout", Usage: "@agent"},
 }
 
 type suggestionItem struct {

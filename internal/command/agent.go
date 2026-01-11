@@ -120,10 +120,6 @@ func NewAgentCreateCmd() *cobra.Command {
 				if err := ensureAgentHierarchy(ctx, agentID); err != nil {
 					return writeCommandError(cmd, err)
 				}
-				// Ensure agent neo file exists (backfills for existing agents)
-				if err := ensureAgentNeo(ctx.Project.Root, agentID); err != nil {
-					return writeCommandError(cmd, err)
-				}
 			} else {
 				agentGUID, err := core.GenerateGUID("usr")
 				if err != nil {
@@ -146,10 +142,6 @@ func NewAgentCreateCmd() *cobra.Command {
 				}
 				// Create agent thread hierarchy for new agents
 				if err := ensureAgentHierarchy(ctx, agentID); err != nil {
-					return writeCommandError(cmd, err)
-				}
-				// Create agent neo file for context customization
-				if err := ensureAgentNeo(ctx.Project.Root, agentID); err != nil {
 					return writeCommandError(cmd, err)
 				}
 			}

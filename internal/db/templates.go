@@ -7,9 +7,6 @@ import (
 //go:embed templates/mentions.mld
 var MentionsRouterTemplate []byte
 
-//go:embed templates/neo.mld
-var NeoTemplate []byte
-
 //go:embed templates/status.mld
 var StatusTemplate []byte
 

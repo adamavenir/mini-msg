@@ -249,6 +249,26 @@ fray agent create alice --driver claude  # create managed agent
 fray agent list                # show agents with presence
 ```
 
+### Session Commands
+
+Control agent sessions from chat with `/fly`, `/hop`, and `/land`:
+
+```bash
+/fly @agent [message]     # spawn offline agent with fresh session
+/hop @agent [message]     # quick task - auto-terminates on idle
+/land @agent              # ask active agent to close out session
+```
+
+**State guards:**
+- `/fly` requires agent to be offline
+- `/hop` allows offline or idle agents
+- `/land` requires active/idle (running session)
+
+**Behavior:**
+- `/fly` spawns a full session with the /fly skill for orientation
+- `/hop` spawns a lightweight session that auto-terminates when idle
+- `/land` posts a message asking the agent to run the /land skill for standup + handoff
+
 ### Interrupt Syntax
 
 When you need immediate attention or an agent is stuck, use interrupt syntax to bypass cooldown and force actions:
@@ -353,6 +373,11 @@ fray clear @id                 clear all claims
 fray cursor set <id> <home> <msg>  set ghost cursor
 fray cursor show <id>              show ghost cursors
 fray cursor clear <id>             clear ghost cursors
+
+# Chat session commands (in fray chat)
+/fly @agent [message]          spawn offline agent (fresh session)
+/hop @agent [message]          quick task (auto-bye on idle)
+/land @agent                   ask agent to run /land closeout
 
 # Other
 fray chat                      interactive TUI (users)

@@ -149,6 +149,15 @@ func (m *Model) runSlashCommand(input string) (tea.Cmd, error) {
 	case "/bye":
 		// Send bye for a specific agent
 		return m.runByeCommand(fields[1:])
+	case "/fly":
+		// Spawn agent with /fly skill context
+		return m.runFlyCommand(fields[1:])
+	case "/hop":
+		// Spawn agent with /hop skill context (auto-bye on idle)
+		return m.runHopCommand(fields[1:])
+	case "/land":
+		// Ask active agent to run /land closeout
+		return m.runLandCommand(fields[1:])
 	}
 
 	return nil, fmt.Errorf("unknown command: %s", fields[0])
@@ -2104,5 +2113,242 @@ func (m *Model) runByeCommand(args []string) (tea.Cmd, error) {
 
 	m.status = strings.Join(parts, ", ")
 	m.input.SetValue("")
+	return nil, nil
+}
+
+// runFlyCommand spawns an offline agent with /fly skill context.
+// Syntax: /fly @agent [message]
+func (m *Model) runFlyCommand(args []string) (tea.Cmd, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("usage: /fly @agent [message]")
+	}
+
+	agentRef := args[0]
+	agentID := strings.TrimPrefix(agentRef, "@")
+	if agentID == "" {
+		return nil, fmt.Errorf("usage: /fly @agent [message]")
+	}
+
+	// Get agent from database
+	agent, err := db.GetAgent(m.db, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent: %w", err)
+	}
+	if agent == nil {
+		return nil, fmt.Errorf("agent not found: @%s", agentID)
+	}
+
+	// State guard: agent must be offline
+	if agent.Presence != types.PresenceOffline && agent.Presence != "" {
+		return nil, fmt.Errorf("@%s is %s - run /bye @%s first", agentID, agent.Presence, agentID)
+	}
+
+	// Build trigger message
+	now := time.Now().Unix()
+	userMessage := ""
+	if len(args) > 1 {
+		userMessage = strings.Join(args[1:], " ")
+	}
+
+	// Post the trigger message: "@agent /fly"
+	bases, err := db.GetAgentBases(m.db)
+	if err != nil {
+		return nil, err
+	}
+	triggerBody := fmt.Sprintf("@%s /fly", agentID)
+	mentions := core.ExtractMentions(triggerBody, bases)
+	mentions = core.ExpandAllMention(mentions, bases)
+
+	triggerMsg, err := db.CreateMessage(m.db, types.Message{
+		TS:        now,
+		FromAgent: m.username,
+		Body:      triggerBody,
+		Mentions:  mentions,
+		Type:      types.MessageTypeUser,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := db.AppendMessage(m.projectDBPath, triggerMsg); err != nil {
+		return nil, err
+	}
+
+	// Post optional user message as a separate message that can be replied to
+	if userMessage != "" {
+		userMsgMentions := core.ExtractMentions(userMessage, bases)
+		userMsgMentions = core.ExpandAllMention(userMsgMentions, bases)
+		userMsg, err := db.CreateMessage(m.db, types.Message{
+			TS:        now,
+			FromAgent: m.username,
+			Body:      userMessage,
+			Mentions:  userMsgMentions,
+			Type:      types.MessageTypeUser,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := db.AppendMessage(m.projectDBPath, userMsg); err != nil {
+			return nil, err
+		}
+	}
+
+	m.status = fmt.Sprintf("/fly @%s - daemon will spawn", agentID)
+	m.input.SetValue("")
+
+	// Reload messages to show the trigger
+	if err := m.reloadMessages(); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+// runHopCommand spawns an offline agent with /hop skill context (auto-bye on idle).
+// Syntax: /hop @agent [message]
+func (m *Model) runHopCommand(args []string) (tea.Cmd, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("usage: /hop @agent [message]")
+	}
+
+	agentRef := args[0]
+	agentID := strings.TrimPrefix(agentRef, "@")
+	if agentID == "" {
+		return nil, fmt.Errorf("usage: /hop @agent [message]")
+	}
+
+	// Get agent from database
+	agent, err := db.GetAgent(m.db, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent: %w", err)
+	}
+	if agent == nil {
+		return nil, fmt.Errorf("agent not found: @%s", agentID)
+	}
+
+	// State guard: agent must be offline or idle
+	if agent.Presence != types.PresenceOffline && agent.Presence != types.PresenceIdle && agent.Presence != "" {
+		return nil, fmt.Errorf("@%s is %s - run /bye @%s first", agentID, agent.Presence, agentID)
+	}
+
+	// Build trigger message
+	now := time.Now().Unix()
+	userMessage := ""
+	if len(args) > 1 {
+		userMessage = strings.Join(args[1:], " ")
+	}
+
+	// Post the trigger message: "@agent /hop"
+	bases, err := db.GetAgentBases(m.db)
+	if err != nil {
+		return nil, err
+	}
+	triggerBody := fmt.Sprintf("@%s /hop", agentID)
+	mentions := core.ExtractMentions(triggerBody, bases)
+	mentions = core.ExpandAllMention(mentions, bases)
+
+	triggerMsg, err := db.CreateMessage(m.db, types.Message{
+		TS:        now,
+		FromAgent: m.username,
+		Body:      triggerBody,
+		Mentions:  mentions,
+		Type:      types.MessageTypeUser,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := db.AppendMessage(m.projectDBPath, triggerMsg); err != nil {
+		return nil, err
+	}
+
+	// Post optional user message as a separate message that can be replied to
+	if userMessage != "" {
+		userMsgMentions := core.ExtractMentions(userMessage, bases)
+		userMsgMentions = core.ExpandAllMention(userMsgMentions, bases)
+		userMsg, err := db.CreateMessage(m.db, types.Message{
+			TS:        now,
+			FromAgent: m.username,
+			Body:      userMessage,
+			Mentions:  userMsgMentions,
+			Type:      types.MessageTypeUser,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := db.AppendMessage(m.projectDBPath, userMsg); err != nil {
+			return nil, err
+		}
+	}
+
+	m.status = fmt.Sprintf("/hop @%s - daemon will spawn (auto-bye on idle)", agentID)
+	m.input.SetValue("")
+
+	// Reload messages to show the trigger
+	if err := m.reloadMessages(); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+// runLandCommand asks an active/idle agent to run /land closeout.
+// Syntax: /land @agent
+func (m *Model) runLandCommand(args []string) (tea.Cmd, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("usage: /land @agent")
+	}
+
+	agentRef := args[0]
+	agentID := strings.TrimPrefix(agentRef, "@")
+	if agentID == "" {
+		return nil, fmt.Errorf("usage: /land @agent")
+	}
+
+	// Get agent from database
+	agent, err := db.GetAgent(m.db, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent: %w", err)
+	}
+	if agent == nil {
+		return nil, fmt.Errorf("agent not found: @%s", agentID)
+	}
+
+	// State guard: agent must be active or idle (has a running session)
+	if agent.Presence != types.PresenceActive && agent.Presence != types.PresenceIdle &&
+		agent.Presence != types.PresencePrompting && agent.Presence != types.PresencePrompted {
+		return nil, fmt.Errorf("@%s is %s - nothing to land", agentID, agent.Presence)
+	}
+
+	// Post the trigger message: "@agent /land"
+	now := time.Now().Unix()
+	bases, err := db.GetAgentBases(m.db)
+	if err != nil {
+		return nil, err
+	}
+	triggerBody := fmt.Sprintf("@%s /land", agentID)
+	mentions := core.ExtractMentions(triggerBody, bases)
+	mentions = core.ExpandAllMention(mentions, bases)
+
+	triggerMsg, err := db.CreateMessage(m.db, types.Message{
+		TS:        now,
+		FromAgent: m.username,
+		Body:      triggerBody,
+		Mentions:  mentions,
+		Type:      types.MessageTypeUser,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := db.AppendMessage(m.projectDBPath, triggerMsg); err != nil {
+		return nil, err
+	}
+
+	m.status = fmt.Sprintf("/land @%s - asked to run /land", agentID)
+	m.input.SetValue("")
+
+	// Reload messages to show the trigger
+	if err := m.reloadMessages(); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
