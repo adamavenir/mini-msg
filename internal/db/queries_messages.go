@@ -218,6 +218,54 @@ func GetMessages(db *sql.DB, options *types.MessageQueryOptions) ([]types.Messag
 		return scanMessagesWithReactions(db, rows)
 	}
 
+	// Special case for Before cursor with limit: get the most recent N messages
+	// before the cursor, then re-order ASC for display. Without this, we'd get
+	// the oldest N messages in the database that happen to be before the cursor.
+	if limit > 0 && beforeCursor != nil && sinceCursor == nil {
+		var conditions []string
+		var params []any
+
+		if !includeArchived {
+			conditions = append(conditions, "archived_at IS NULL")
+		}
+
+		if home != "" {
+			conditions = append(conditions, "home = ?")
+			params = append(params, home)
+		}
+
+		clause, args := buildCursorCondition("", "<", beforeCursor)
+		conditions = append(conditions, clause)
+		params = append(params, args...)
+
+		if filterClause, filterArgs := buildFilterCondition(filter); filterClause != "" {
+			conditions = append(conditions, filterClause)
+			params = append(params, filterArgs...)
+		}
+
+		whereClause := ""
+		if len(conditions) > 0 {
+			whereClause = " WHERE " + strings.Join(conditions, " AND ")
+		}
+
+		query := fmt.Sprintf(`
+			SELECT %s FROM (
+				SELECT %s FROM fray_messages%s
+				ORDER BY ts DESC, guid DESC
+				LIMIT ?
+			) ORDER BY ts ASC, guid ASC
+		`, messageColumns, messageColumns, whereClause)
+		params = append(params, limit)
+
+		rows, err := db.Query(query, params...)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		return scanMessagesWithReactions(db, rows)
+	}
+
 	query := "SELECT " + messageColumns + " FROM fray_messages"
 	var conditions []string
 	var params []any
