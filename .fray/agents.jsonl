@@ -3729,3 +3729,7 @@
 {"type":"agent_update","agent_id":"pm","mention_watermark":"msg-4lq4me93"}
 {"type":"presence_event","agent_id":"clank","from":"idle","to":"active","reason":"back","source":"command","ts":1768155049}
 {"type":"agent","id":"usr-bbdp5htq","name":"clank","global_name":"fray-clank","home_channel":"ch-xkzte3i1","created_at":"2026-01-10T07:14:17Z","active_status":"active","agent_id":"clank","registered_at":1768029257,"last_seen":1768155049,"left_at":null,"managed":true,"invoke":{"driver":"claude","prompt_delivery":"stdin","spawn_timeout_ms":30000,"idle_after_ms":5000},"presence":"active","mention_watermark":"msg-4pesumhl"}
+{"type":"presence_event","agent_id":"opus","from":"idle","to":"spawning","reason":"spawn","source":"daemon","ts":1768158047}
+{"type":"session_start","agent_id":"opus","session_id":"d0b64d3d-3ac3-44d2-aa61-914322d189cc","triggered_by":"msg-aogjofw3","started_at":1768158049}
+{"type":"agent_update","agent_id":"opus","mention_watermark":"msg-aogjofw3"}
+{"type":"presence_event","agent_id":"opus","from":"active","to":"idle","reason":"idle_timeout","source":"daemon","ts":1768158057}
