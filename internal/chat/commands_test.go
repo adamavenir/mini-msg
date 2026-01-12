@@ -39,7 +39,7 @@ func TestParseDeleteCommand(t *testing.T) {
 }
 
 func TestParsePruneArgs(t *testing.T) {
-	keep, all, target, withReact, err := parsePruneArgs(nil)
+	keep, all, target, withReact, _, _, err := parsePruneArgs(nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestParsePruneArgs(t *testing.T) {
 		t.Fatalf("default: got keep=%d all=%v target=%q withReact=%q", keep, all, target, withReact)
 	}
 
-	keep, all, target, withReact, err = parsePruneArgs([]string{"--keep", "50"})
+	keep, all, target, withReact, _, _, err = parsePruneArgs([]string{"--keep", "50"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestParsePruneArgs(t *testing.T) {
 		t.Fatalf("--keep: got keep=%d all=%v target=%q withReact=%q", keep, all, target, withReact)
 	}
 
-	keep, all, target, withReact, err = parsePruneArgs([]string{"25", "--all"})
+	keep, all, target, withReact, _, _, err = parsePruneArgs([]string{"25", "--all"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestParsePruneArgs(t *testing.T) {
 		t.Fatalf("args: got keep=%d all=%v target=%q withReact=%q", keep, all, target, withReact)
 	}
 
-	keep, all, target, withReact, err = parsePruneArgs([]string{"--keep=10", "--all"})
+	keep, all, target, withReact, _, _, err = parsePruneArgs([]string{"--keep=10", "--all"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -71,13 +71,13 @@ func TestParsePruneArgs(t *testing.T) {
 		t.Fatalf("--keep=: got keep=%d all=%v target=%q withReact=%q", keep, all, target, withReact)
 	}
 
-	_, _, _, _, err = parsePruneArgs([]string{"--keep"})
+	_, _, _, _, _, _, err = parsePruneArgs([]string{"--keep"})
 	if err == nil {
 		t.Fatalf("expected error for missing --keep value")
 	}
 
 	// Test target argument
-	keep, all, target, withReact, err = parsePruneArgs([]string{"my-thread", "--keep", "30"})
+	keep, all, target, withReact, _, _, err = parsePruneArgs([]string{"my-thread", "--keep", "30"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestParsePruneArgs(t *testing.T) {
 	}
 
 	// Test --with-react flag
-	keep, all, target, withReact, err = parsePruneArgs([]string{"--with-react", "📁"})
+	keep, all, target, withReact, _, _, err = parsePruneArgs([]string{"--with-react", "📁"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

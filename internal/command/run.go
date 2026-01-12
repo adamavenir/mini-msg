@@ -15,6 +15,7 @@ import (
 
 func NewRunCmd() *cobra.Command {
 	var inject []string
+	var asAgent string
 
 	cmd := &cobra.Command{
 		Use:   "run [script-name] [@agent] [message]",
@@ -79,13 +80,14 @@ Arguments after the script name are parsed as payload:
 			}
 
 			payload := buildPayload(args[1:], inject)
-			return runScriptWithPayload(cmd, scriptPath, scriptName, timeout, debug, payload)
+			return runScriptWithPayload(cmd, scriptPath, scriptName, timeout, debug, payload, asAgent)
 		},
 	}
 
 	cmd.Flags().Bool("debug", false, "show execution metrics")
 	cmd.Flags().Duration("timeout", 5*time.Minute, "script timeout")
 	cmd.Flags().StringArrayVar(&inject, "inject", nil, "inject key=value pairs into payload")
+	cmd.Flags().StringVar(&asAgent, "as", "", "agent running the script (for event attribution)")
 
 	return cmd
 }
@@ -137,10 +139,10 @@ func formatScriptList(scripts []string) string {
 }
 
 func runScript(cmd *cobra.Command, scriptPath, scriptName string, timeout time.Duration, debug bool) error {
-	return runScriptWithPayload(cmd, scriptPath, scriptName, timeout, debug, nil)
+	return runScriptWithPayload(cmd, scriptPath, scriptName, timeout, debug, nil, "")
 }
 
-func runScriptWithPayload(cmd *cobra.Command, scriptPath, scriptName string, timeout time.Duration, debug bool, payload map[string]any) error {
+func runScriptWithPayload(cmd *cobra.Command, scriptPath, scriptName string, timeout time.Duration, debug bool, payload map[string]any, asAgent string) error {
 	project, _ := core.DiscoverProject("")
 	frayDir := filepath.Join(project.Root, ".fray")
 
@@ -157,10 +159,20 @@ func runScriptWithPayload(cmd *cobra.Command, scriptPath, scriptName string, tim
 	output := extractCleanOutput(result)
 
 	// Print event and output (skip if just whitespace)
+	// Include agent who ran it: --as flag takes precedence, then FRAY_AGENT_ID env
+	agentID := asAgent
+	if agentID == "" {
+		agentID = os.Getenv("FRAY_AGENT_ID")
+	}
+	eventPrefix := fmt.Sprintf("[%s]", scriptName)
+	if agentID != "" {
+		eventPrefix = fmt.Sprintf("[%s @%s]", scriptName, agentID)
+	}
+
 	if output != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "[%s]\n%s\n", scriptName, output)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n%s\n", eventPrefix, output)
 	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "[%s] (no output)\n", scriptName)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s (no output)\n", eventPrefix)
 	}
 
 	// Log to .fray/log/

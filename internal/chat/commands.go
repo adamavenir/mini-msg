@@ -1940,8 +1940,8 @@ func (m *Model) runMlldScriptCommand(args []string) error {
 		return fmt.Errorf("script error: %v", err)
 	}
 
-	// Display output
-	output := strings.TrimSpace(result.Output)
+	// Display output - parse structured output like the CLI does
+	output := extractMlldCleanOutput(result)
 	if output != "" {
 		msg := newEventMessage(fmt.Sprintf("[%s]\n%s", scriptName, output))
 		m.messages = append(m.messages, msg)
@@ -1971,6 +1971,48 @@ func listMlldScripts(dir string) ([]string, error) {
 		}
 	}
 	return scripts, nil
+}
+
+// extractMlldCleanOutput parses the SDK result and returns clean output.
+// The mlld CLI outputs progress/errors to stdout before the JSON, so we may
+// need to extract the JSON portion and parse it.
+func extractMlldCleanOutput(result *mlld.ExecuteResult) string {
+	// If we have effects, extract content from them (structured output worked)
+	if len(result.Effects) > 0 {
+		var outputLines []string
+		for _, effect := range result.Effects {
+			content := strings.TrimSpace(effect.Content)
+			if content != "" {
+				outputLines = append(outputLines, content)
+			}
+		}
+
+		// Also include result.Output if meaningful and not duplicated
+		mainOutput := strings.TrimSpace(result.Output)
+		if mainOutput != "" {
+			joined := strings.Join(outputLines, "\n")
+			if !strings.Contains(joined, mainOutput) {
+				outputLines = append([]string{mainOutput}, outputLines...)
+			}
+		}
+
+		return strings.Join(outputLines, "\n")
+	}
+
+	// If result.Output contains mixed content (raw output with JSON at the end),
+	// try to extract just the meaningful parts
+	rawOutput := result.Output
+
+	// Try to find JSON at the end and extract the pre-JSON content
+	if jsonStart := strings.LastIndex(rawOutput, "\n{"); jsonStart != -1 {
+		preJSON := strings.TrimSpace(rawOutput[:jsonStart])
+		if preJSON != "" {
+			return preJSON
+		}
+	}
+
+	// Fall back to returning trimmed raw output
+	return strings.TrimSpace(rawOutput)
 }
 
 // runByeCommand sends bye for a specific agent.
