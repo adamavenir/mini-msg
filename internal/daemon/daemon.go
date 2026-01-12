@@ -34,6 +34,7 @@ type Daemon struct {
 	handled       map[string]bool     // agent_id -> true if exit already handled
 	cooldownUntil map[string]time.Time // agent_id -> when cooldown expires (after clean exit)
 	drivers       map[string]Driver    // driver name -> driver
+	lastSpawnTime time.Time            // rate-limit spawns to prevent resource exhaustion
 	stopCh        chan struct{}
 	cancelFunc    context.CancelFunc // cancels spawned process contexts
 	wg            sync.WaitGroup
@@ -1204,6 +1205,26 @@ func (d *Daemon) getMessagesAfter(watermark, agentID string) ([]types.Message, e
 // spawnAgent starts a new session for an agent.
 // Returns the last msgID included in the wake prompt (for watermark tracking).
 func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID string) (string, error) {
+	// Rate-limit spawns to prevent resource exhaustion when multiple agents
+	// need to spawn simultaneously. This adds a small delay between spawns
+	// to allow the OS to clean up file descriptors from previous spawns.
+	const minSpawnInterval = 500 * time.Millisecond
+	d.mu.Lock()
+	elapsed := time.Since(d.lastSpawnTime)
+	if elapsed < minSpawnInterval {
+		delay := minSpawnInterval - elapsed
+		d.mu.Unlock()
+		d.debugf("  rate-limiting spawn for @%s, waiting %v", agent.AgentID, delay)
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+		d.mu.Lock()
+	}
+	d.lastSpawnTime = time.Now()
+	d.mu.Unlock()
+
 	if agent.Invoke == nil || agent.Invoke.Driver == "" {
 		return "", fmt.Errorf("agent %s has no driver configured", agent.AgentID)
 	}
@@ -1356,6 +1377,24 @@ func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID
 // spawnBRBAgent spawns a fresh session for an agent that requested BRB.
 // Uses a continuation prompt instead of wake prompt since there are no trigger messages.
 func (d *Daemon) spawnBRBAgent(ctx context.Context, agent types.Agent) error {
+	// Rate-limit spawns (same as spawnAgent)
+	const minSpawnInterval = 500 * time.Millisecond
+	d.mu.Lock()
+	elapsed := time.Since(d.lastSpawnTime)
+	if elapsed < minSpawnInterval {
+		delay := minSpawnInterval - elapsed
+		d.mu.Unlock()
+		d.debugf("  rate-limiting BRB spawn for @%s, waiting %v", agent.AgentID, delay)
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		d.mu.Lock()
+	}
+	d.lastSpawnTime = time.Now()
+	d.mu.Unlock()
+
 	if agent.Invoke == nil || agent.Invoke.Driver == "" {
 		return fmt.Errorf("agent %s has no driver configured", agent.AgentID)
 	}
