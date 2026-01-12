@@ -2037,22 +2037,20 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 	}
 
 	// Status icon based on (debounced) presence
+	// Spawn cycle: △ ▲ animate slowly (1.5s cycle = 6 frames at 250ms each, 3 frames per icon)
+	spawnCycleIcons := []string{"△", "△", "△", "▲", "▲", "▲"}
 	icon := "▶"
 	switch displayPresence {
 	case types.PresenceActive:
 		icon = "▶"
-	case types.PresenceSpawning:
-		icon = "◎"
-	case types.PresencePrompting:
-		icon = "◐"
-	case types.PresencePrompted:
-		icon = "◉"
+	case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted:
+		icon = spawnCycleIcons[m.animationFrame%len(spawnCycleIcons)]
 	case types.PresenceIdle:
-		icon = "◇"
+		icon = "▷"
 	case types.PresenceError:
 		icon = "𝘅"
 	case types.PresenceOffline:
-		icon = "·"
+		icon = "▽"
 	}
 
 	// Build plain text content: " icon name status (unread)"
@@ -2097,10 +2095,11 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 	// Build the visible text content in parts for styling
 	// Icon part: " icon" (gets presence-based color)
 	iconPart := fmt.Sprintf(" %s", icon)
-	// Name part: " name#mode" (gets agent color, includes session mode suffix)
-	// SessionMode: "" (resumed - no suffix), "n" (new), or 3-char fork prefix
+	// Name part: " name" (gets agent color)
+	// Fork sessions still show #XXX suffix, but new sessions ("n") are indicated by icon color instead
 	namePart := fmt.Sprintf(" %s", name)
-	if agent.SessionMode != "" {
+	isForkSession := agent.SessionMode != "" && agent.SessionMode != "n"
+	if isForkSession {
 		namePart = fmt.Sprintf(" %s#%s", name, agent.SessionMode)
 	}
 	// Italic part: " status (unread)" + padding
@@ -2138,16 +2137,22 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 	agentColor := m.colorForAgent(agent.AgentID)
 
 	// Presence-based icon color (uses debounced display presence)
+	// New sessions (SessionMode == "n") show light blue during spawn, resumed show yellow
+	isNewSession := agent.SessionMode == "n"
 	var iconColor lipgloss.Color
 	switch displayPresence {
 	case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted:
-		iconColor = lipgloss.Color("231") // white - pre-active states
+		if isNewSession {
+			iconColor = lipgloss.Color("117") // light blue - new session spinning up
+		} else {
+			iconColor = lipgloss.Color("226") // bright yellow - resumed session spinning up
+		}
 	case types.PresenceActive:
-		iconColor = lipgloss.Color("46") // green - active
+		iconColor = lipgloss.Color("46") // bright green - active
 	case types.PresenceIdle:
-		iconColor = lipgloss.Color("226") // yellow - idle
+		iconColor = lipgloss.Color("250") // dim white - idle
 	case types.PresenceOffline:
-		iconColor = lipgloss.Color("240") // gray - offline
+		iconColor = lipgloss.Color("250") // dim white - offline
 	case types.PresenceError:
 		iconColor = lipgloss.Color("196") // red - error
 	default:
