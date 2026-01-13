@@ -3,18 +3,18 @@ package chat
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
+	"github.com/adamavenir/fray/internal/usage"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// tokenCache caches ccusage results to avoid repeated shell calls.
+// tokenCache caches usage results to avoid repeated file parsing.
 var tokenCache = struct {
 	sync.RWMutex
 	data map[string]tokenCacheEntry
@@ -27,8 +27,8 @@ type tokenCacheEntry struct {
 
 const tokenCacheTTL = 30 * time.Second
 
-// getTokenUsage fetches token usage for a session ID via ccusage.
-// Returns nil if ccusage is not installed or session not found.
+// getTokenUsage fetches token usage for a session ID using internal/usage package.
+// Returns nil if session not found or no usage data.
 func getTokenUsage(sessionID string) *TokenUsage {
 	if sessionID == "" {
 		return nil
@@ -44,31 +44,35 @@ func getTokenUsage(sessionID string) *TokenUsage {
 	}
 	tokenCache.RUnlock()
 
-	// Call ccusage
-	cmd := exec.Command("npx", "ccusage", "session", "--id", sessionID, "--json", "--offline")
-	output, err := cmd.Output()
-	if err != nil {
-		// Cache the miss to avoid repeated failed calls
+	// Use internal/usage package to get session usage
+	sessionUsage, err := usage.GetSessionUsage(sessionID)
+	if err != nil || sessionUsage == nil || sessionUsage.InputTokens == 0 {
+		// Cache the miss
 		tokenCache.Lock()
 		tokenCache.data[sessionID] = tokenCacheEntry{usage: nil, fetchedAt: time.Now()}
 		tokenCache.Unlock()
 		return nil
 	}
 
-	var usage TokenUsage
-	if err := json.Unmarshal(output, &usage); err != nil {
-		tokenCache.Lock()
-		tokenCache.data[sessionID] = tokenCacheEntry{usage: nil, fetchedAt: time.Now()}
-		tokenCache.Unlock()
-		return nil
+	// Convert to TokenUsage format expected by panels
+	tuiUsage := &TokenUsage{
+		SessionID:   sessionUsage.SessionID,
+		TotalTokens: sessionUsage.InputTokens + sessionUsage.OutputTokens,
+		Entries: []TokenUsageEntry{
+			{
+				InputTokens:     sessionUsage.InputTokens,
+				OutputTokens:    sessionUsage.OutputTokens,
+				CacheReadTokens: sessionUsage.CachedTokens,
+			},
+		},
 	}
 
 	// Cache the result
 	tokenCache.Lock()
-	tokenCache.data[sessionID] = tokenCacheEntry{usage: &usage, fetchedAt: time.Now()}
+	tokenCache.data[sessionID] = tokenCacheEntry{usage: tuiUsage, fetchedAt: time.Now()}
 	tokenCache.Unlock()
 
-	return &usage
+	return tuiUsage
 }
 
 // daemonLockInfo matches the daemon.lock file format.

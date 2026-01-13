@@ -727,9 +727,13 @@ type messageRow struct {
 
 func (row messageRow) toMessage() (types.Message, error) {
 	mentions := []string{}
-	if row.Mentions != "" {
+	if row.Mentions != "" && row.Mentions != "null" {
 		if err := json.Unmarshal([]byte(row.Mentions), &mentions); err != nil {
 			return types.Message{}, err
+		}
+		// Ensure we never return nil slice (happens if DB has literal "null")
+		if mentions == nil {
+			mentions = []string{}
 		}
 	}
 
@@ -743,7 +747,7 @@ func (row messageRow) toMessage() (types.Message, error) {
 	// Legacy reactions are stored as map[string][]string in the JSON column.
 	// Convert them to the new format with ReactionEntry (with timestamp=0 for legacy).
 	legacyReactions := map[string][]string{}
-	if row.Reactions != "" {
+	if row.Reactions != "" && row.Reactions != "null" {
 		if err := json.Unmarshal([]byte(row.Reactions), &legacyReactions); err != nil {
 			return types.Message{}, err
 		}

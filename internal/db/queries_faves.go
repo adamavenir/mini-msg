@@ -7,10 +7,10 @@ import (
 
 // Fave represents a faved item.
 type Fave struct {
-	AgentID  string
-	ItemType string // "thread" | "message"
-	ItemGUID string
-	FavedAt  int64
+	AgentID  string `json:"agent_id"`
+	ItemType string `json:"item_type"` // "thread" | "message"
+	ItemGUID string `json:"item_guid"`
+	FavedAt  int64  `json:"faved_at"`
 }
 
 // AddFave adds a fave for an agent.
