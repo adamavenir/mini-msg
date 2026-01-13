@@ -2,7 +2,7 @@ VERSION ?= dev
 LD_FLAGS := -X github.com/adamavenir/fray/internal/command.Version=$(VERSION)
 LD_FLAGS_MCP := -X github.com/adamavenir/fray/cmd/fray-mcp.Version=$(VERSION)
 
-.PHONY: build install test clean
+.PHONY: build install test clean dylib
 
 build:
 	mkdir -p bin
@@ -17,4 +17,8 @@ test:
 	go test ./...
 
 clean:
-	rm -rf bin
+	rm -rf bin build
+
+dylib:
+	mkdir -p build
+	CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=14.0 go build -buildmode=c-shared -o build/libfray.dylib ./cmd/libfray
