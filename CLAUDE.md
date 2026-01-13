@@ -136,6 +136,46 @@ Agents can be daemon-managed, enabling automatic spawning on @mentions.
 - `agent_update` - partial updates (status, presence, watermark)
 - `session_start`, `session_end`, `session_heartbeat` - session lifecycle
 
+## Jobs (Parallel Agent Coordination)
+
+Jobs enable parallel execution of multiple agent workers on a single task. Workers are ephemeral agents with bracket-notation IDs like `dev[abc1-0]`.
+
+**Worker ID format:** `base[suffix-idx]`
+- `base` - the base agent type (e.g., `dev`, `reconciler`)
+- `suffix` - first 4 chars after "job-" prefix (e.g., job-abc12345 → `abc1`)
+- `idx` - worker index (0-based, auto-assigned or explicit)
+
+Example: `dev[abc1-0]`, `pm.frontend[xyz9-3]`
+
+**Job commands:**
+```bash
+fray job create "task name" --as pm                    # Create job, returns job-xxx GUID
+fray job create "task" --context '{"issues":["id"]}'   # With context (issues/threads/messages)
+fray job join job-abc12345 --as dev                    # Join (auto-index)
+fray job join job-abc12345 --as dev --idx 2            # Join (explicit index)
+```
+
+**Job lifecycle:**
+1. Create job: generates GUID, creates associated thread (thread name = job GUID)
+2. Workers join: creates ephemeral agent with JobID/JobIdx fields
+3. Workers do work (post to job thread or room)
+4. Workers leave: `fray bye` (ephemeral agent stays but goes offline)
+5. Close job: `fray job close <job-id>` (default: completed; use --status for cancelled/failed)
+
+**Database fields (types.Agent):**
+- `job_id` - FK to fray_jobs.guid (nil for regular agents)
+- `job_idx` - worker index within job (0-based)
+- `is_ephemeral` - true for job workers
+
+**Ambiguous mention handling:**
+- `db.IsAmbiguousMention(db, "dev")` returns true if dev has active job workers
+- When ambiguous, bare `@dev` mentions should be blocked or warn
+- Daemon skips spawning base agents with active workers
+- Use specific worker IDs (`@dev[abc1-0]`) to target workers
+
+**External orchestration:**
+Jobs are designed for external coordination via mlld scripts. The daemon tracks presence but doesn't manage job worker spawning.
+
 ## Claims System
 
 Claims prevent agents from accidentally working on the same files, issues, or beads tickets. When an agent claims a resource, other agents see a warning if they try to commit files matching those patterns.
@@ -416,6 +456,17 @@ fray wake clear --as pm            # Clear all wake conditions for agent
 # Agent status (for LLM polling)
 fray agent status                  # JSON output: agents with presence, status, idle_seconds
 fray agent status --managed        # Only show managed agents
+
+# Jobs (parallel agent workers)
+fray job create "name" --as pm     # Create job, returns job-xxx GUID
+fray job create "name" --as pm --context '{"issues":["id"]}'  # With context JSON
+fray job join job-abc12345 --as dev           # Join, auto-index (dev[abc1-0])
+fray job join job-abc12345 --as dev --idx 2   # Join, explicit index (dev[abc1-2])
+fray job close job-abc12345                   # Close job (default: completed)
+fray job close job-abc12345 --status cancelled  # Close with status
+fray job leave job-abc12345 --as dev          # Leave as worker
+fray job list                                 # List all jobs
+fray job status job-abc12345                  # Show job details + workers
 
 # Ghost cursors (session handoffs)
 fray cursor set <agent> <home> <msg>       # Set ghost cursor for handoff

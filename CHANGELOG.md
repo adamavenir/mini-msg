@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Job system for parallel agent coordination
+  - `fray job create "name" --as pm`: create job, returns job-xxx GUID
+  - `fray job create "name" --as pm --context '{"issues":["id"]}'`: with context JSON
+  - `fray job join job-xxx --as dev`: register as ephemeral worker (auto-index)
+  - `fray job join job-xxx --as dev --idx N`: explicit worker index
+  - Worker ID format: `base[suffix-idx]` (e.g., `dev[abc1-0]` from job-abc12345)
+  - Auto-creates thread with job GUID as name for coordination
+  - Ephemeral workers have `job_id`, `job_idx`, `is_ephemeral` fields
+- Ambiguous mention handling for jobs
+  - `db.IsAmbiguousMention()` detects when base agent has active workers
+  - Bare `@agent` mentions should warn or block when ambiguous
+  - Daemon skips spawning base agents with active workers
+  - Use specific worker IDs (`@dev[abc1-0]`) to address workers
+- Agent ID parser supports job worker bracket suffix: `@dev[abc1-0]`
+  - `core.ParseJobWorkerName()` extracts base, suffix, index from worker ID
 - `fray prune --with`: remove default protections (allow pruning faved/reacted/replied messages)
 - `fray prune --without`: filter to only prune messages lacking specified attributes
 - Reaction routing: reactions now go through haiku before waking agents
