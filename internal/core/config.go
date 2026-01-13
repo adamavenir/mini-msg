@@ -118,3 +118,12 @@ func FindChannelByRef(ref string, config *GlobalConfig) (string, GlobalChannelRe
 	}
 	return "", GlobalChannelRef{}, false
 }
+
+// AAPConfigDir returns the path to the AAP config directory (~/.config/aap/).
+func AAPConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", "aap"), nil
+}

@@ -7,14 +7,17 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/adamavenir/fray/internal/aap"
 	"github.com/adamavenir/fray/internal/command/hooks"
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
@@ -37,6 +40,8 @@ func NewNewCmd() *cobra.Command {
 
 			statusOpt, _ := cmd.Flags().GetString("status")
 			purposeOpt, _ := cmd.Flags().GetString("purpose")
+			noAAPOpt, _ := cmd.Flags().GetBool("no-aap")
+			withKeyOpt, _ := cmd.Flags().GetBool("with-key")
 
 			var name string
 			var message string
@@ -168,9 +173,22 @@ func NewNewCmd() *cobra.Command {
 				// Assign avatar based on agent name
 				avatar := core.AssignAvatar(agentID, usedAvatars)
 
+				// Create AAP identity if not disabled
+				var aapGUID *string
+				if !noAAPOpt {
+					aapIdentity, err := createAAPIdentity(agentID, withKeyOpt)
+					if err != nil {
+						// AAP creation is non-fatal - log and continue
+						fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to create AAP identity: %v\n", err)
+					} else if aapIdentity != nil {
+						aapGUID = &aapIdentity.Record.GUID
+					}
+				}
+
 				agent := types.Agent{
 					GUID:         agentGUID,
 					AgentID:      agentID,
+					AAPGUID:      aapGUID,
 					Status:       optionalString(statusOpt),
 					Purpose:      optionalString(purposeOpt),
 					Avatar:       &avatar,
@@ -313,6 +331,9 @@ func NewNewCmd() *cobra.Command {
 				if dmThread != nil {
 					payload["dm_thread"] = dmThread.GUID
 				}
+				if agentRecord.AAPGUID != nil {
+					payload["aap_guid"] = *agentRecord.AAPGUID
+				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 			}
 
@@ -334,6 +355,9 @@ func NewNewCmd() *cobra.Command {
 			if dmThread != nil {
 				fmt.Fprintf(out, "  DM thread: %s (%s)\n", dmThread.Name, dmThread.GUID)
 			}
+			if agentRecord.AAPGUID != nil {
+				fmt.Fprintf(out, "  AAP identity: %s\n", *agentRecord.AAPGUID)
+			}
 			if wroteEnv {
 				fmt.Fprintln(out, "  Registered with Claude hooks")
 			} else {
@@ -346,6 +370,8 @@ func NewNewCmd() *cobra.Command {
 
 	cmd.Flags().String("status", "", "current task/focus")
 	cmd.Flags().String("purpose", "", "agent role/identity")
+	cmd.Flags().Bool("no-aap", false, "skip AAP identity creation")
+	cmd.Flags().Bool("with-key", false, "generate keypair for AAP identity (prompts for passphrase)")
 
 	return cmd
 }
@@ -548,4 +574,56 @@ func ensureAgentHierarchy(ctx *CommandContext, agentID string) error {
 	}
 
 	return nil
+}
+
+// aapConfigDir returns the path to the AAP configuration directory.
+func aapConfigDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "aap", "agents")
+}
+
+// createAAPIdentity creates an AAP identity for the given agent.
+// If withKey is true, prompts for passphrase and generates keypair.
+func createAAPIdentity(agentID string, withKey bool) (*aap.Identity, error) {
+	registry, err := aap.NewFileRegistry(aapConfigDir())
+	if err != nil {
+		return nil, fmt.Errorf("create AAP registry: %w", err)
+	}
+
+	// Check if identity already exists
+	if existing, err := registry.Get(agentID); err == nil {
+		return existing, nil
+	}
+
+	opts := aap.RegisterOpts{
+		GenerateKey: withKey,
+		Metadata: map[string]string{
+			"created_by": "fray",
+		},
+	}
+
+	if withKey {
+		passphrase, err := promptPassphrase("Enter passphrase for AAP key: ")
+		if err != nil {
+			return nil, fmt.Errorf("read passphrase: %w", err)
+		}
+		opts.Passphrase = passphrase
+	}
+
+	return registry.Register(agentID, opts)
+}
+
+// promptPassphrase prompts for a passphrase from the terminal.
+func promptPassphrase(prompt string) ([]byte, error) {
+	if !isTTY(os.Stdin) {
+		return nil, fmt.Errorf("passphrase required but no TTY available")
+	}
+
+	fmt.Fprint(os.Stderr, prompt)
+	passphrase, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr) // newline after password entry
+	if err != nil {
+		return nil, err
+	}
+	return passphrase, nil
 }

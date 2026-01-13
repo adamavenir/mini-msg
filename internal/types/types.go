@@ -51,6 +51,7 @@ type InvokeConfig struct {
 type Agent struct {
 	GUID             string         `json:"guid"`
 	AgentID          string         `json:"agent_id"`
+	AAPGUID          *string        `json:"aap_guid,omitempty"` // Link to AAP identity
 	Status           *string        `json:"status,omitempty"`
 	Purpose          *string        `json:"purpose,omitempty"`
 	Avatar           *string        `json:"avatar,omitempty"`            // single-char avatar for display
