@@ -447,6 +447,16 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 			continue
 		}
 
+		// Check if base agent has active job workers - skip spawn to avoid ambiguity
+		// Job workers use bracket notation: dev[abc-1], not dot notation
+		if isJobAmbiguous, err := db.IsAmbiguousMention(d.database, agent.AgentID); err == nil && isJobAmbiguous {
+			d.debugf("    %s: skip (base agent has active job workers - ambiguous)", msg.ID)
+			if !hasQueued && !spawned {
+				lastProcessedID = msg.ID
+			}
+			continue
+		}
+
 		// Ambiguous mention: not direct address and not reply to agent
 		// Route through Haiku to decide if agent should be woken
 		// Interrupts (!@agent) are explicit spawn requests, skip router check

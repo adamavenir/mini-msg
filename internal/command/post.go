@@ -75,6 +75,16 @@ Paths:
 				return writeCommandError(cmd, err)
 			}
 
+			// Check for ambiguous mention (base agent has active job workers)
+			parsed, parseErr := core.ParseAgentID(agentID)
+			if parseErr == nil {
+				isAmbiguous, ambigErr := db.IsAmbiguousMention(ctx.DB, parsed.Base)
+				if ambigErr == nil && isAmbiguous && agent != nil && !agent.IsEphemeral {
+					// User is posting as base agent but workers exist
+					return writeCommandError(cmd, fmt.Errorf("ambiguous identity: @%s has active job workers. Use specific worker ID (e.g., @%s[job-idx]) or the base agent is busy", agentID, parsed.Base))
+				}
+			}
+
 			// Check if this is the stored human username
 			isHumanUser := false
 			if agent == nil {
