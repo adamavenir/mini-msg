@@ -85,6 +85,8 @@ type Process struct {
 	TempFiles        []string      // Temp files to clean up after process exits
 	BaselineInput    int64         // Baseline input tokens at spawn (for resumed sessions)
 	BaselineOutput   int64         // Baseline output tokens at spawn (for resumed sessions)
+	LastOutputTokens int64         // Last observed output token count (for idle detection)
+	LastTokenCheck   time.Time     // When we last saw token activity (for idle detection)
 	StdoutBuffer     *StdoutBuffer // Ring buffer capturing last ~4KB of stdout
 	StderrBuffer     *StdoutBuffer // Ring buffer capturing last ~4KB of stderr
 	SpawnMode        SpawnMode     // How this session was spawned (fly, hop, land, or normal)

@@ -1907,36 +1907,28 @@ func (d *Daemon) updatePresence() {
 				if newOutput > 0 {
 					// Agent is generating response (new output tokens)
 					if agent.Presence != types.PresencePrompted {
-						d.debugf("  @%s: prompting→prompted (new output tokens: %d)", agentID, newOutput)
-						// Note: Not auditing prompting→prompted as it's a high-frequency internal transition
+						d.debugf("  @%s: %s→prompted (new output tokens: %d)", agentID, agent.Presence, newOutput)
 						db.UpdateAgentPresence(d.database, agentID, types.PresencePrompted)
 					}
+					// Initialize token tracking for active state idle detection
+					proc.LastOutputTokens = ccState.TotalOutput
+					proc.LastTokenCheck = time.Now()
 				} else if newInput > 0 {
 					// Context being sent to API (new input tokens)
 					if agent.Presence == types.PresenceSpawning {
 						d.debugf("  @%s: spawning→prompting (new input tokens: %d)", agentID, newInput)
-						// Note: Not auditing spawning→prompting as it's a high-frequency internal transition
 						db.UpdateAgentPresence(d.database, agentID, types.PresencePrompting)
 					}
 				}
 			}
 
-			// Fallback 1: if agent has posted to fray since spawn, transition to active.
+			// Fallback: if agent has posted to fray since spawn, transition to active.
 			// This handles cases where ccusage is unavailable or slow.
 			lastPostTs, _ := db.GetAgentLastPostTime(d.database, agentID)
 			if lastPostTs > proc.StartedAt.UnixMilli() {
 				d.debugf("  @%s: %s→active (fray post detected)", agentID, agent.Presence)
 				db.UpdateAgentPresence(d.database, agentID, types.PresenceActive)
-				continue // Skip spawn timeout check since agent is clearly working
-			}
-
-			// Fallback 2 (experimental): if process shows stdout/stderr activity, transition to active.
-			// Only check after 10s of spawning to give ccusage time to detect token activity first.
-			// This catches cases where agent is working but ccusage is unavailable.
-			// Note: May be overly sensitive to any stdout. Monitoring for false positives.
-			if elapsed > 10000 && proc.Cmd.Process != nil && d.detector.IsActive(proc.Cmd.Process.Pid) {
-				d.debugf("  @%s: %s→active (process activity detected after 10s, experimental)", agentID, agent.Presence)
-				db.UpdateAgentPresence(d.database, agentID, types.PresenceActive)
+				proc.LastTokenCheck = time.Now() // Reset idle timer
 				continue // Skip spawn timeout check since agent is clearly working
 			}
 
@@ -1946,11 +1938,32 @@ func (d *Daemon) updatePresence() {
 			}
 
 		case types.PresenceActive:
-			// Check for idle transition based on fray activity
-			pid := proc.Cmd.Process.Pid
-			lastActivity := d.detector.LastActivityTime(pid)
-			if time.Since(lastActivity).Milliseconds() > idleAfter {
-				db.UpdateAgentPresenceWithAudit(d.database, d.project.DBPath, agentID, agent.Presence, types.PresenceIdle, "idle_timeout", "daemon", agent.Status)
+			// Poll ccusage for idle detection - if output tokens stop increasing, go idle
+			ccState := GetCCUsageStateForDriver(agent.Invoke.Driver, proc.SessionID)
+			if ccState != nil {
+				currentOutput := ccState.TotalOutput
+				if currentOutput > proc.LastOutputTokens {
+					// Still generating output - update tracking
+					proc.LastOutputTokens = currentOutput
+					proc.LastTokenCheck = time.Now()
+				} else if time.Since(proc.LastTokenCheck).Milliseconds() > idleAfter {
+					// No new output tokens for idle_after_ms → idle
+					d.debugf("  @%s: active→idle (no new output tokens for %dms)", agentID, idleAfter)
+					db.UpdateAgentPresenceWithAudit(d.database, d.project.DBPath, agentID, agent.Presence, types.PresenceIdle, "idle_timeout", "daemon", agent.Status)
+				}
+			} else {
+				// ccusage unavailable - fall back to stdout activity detection
+				pid := proc.Cmd.Process.Pid
+				lastActivity := d.detector.LastActivityTime(pid)
+				if time.Since(lastActivity).Milliseconds() > idleAfter {
+					db.UpdateAgentPresenceWithAudit(d.database, d.project.DBPath, agentID, agent.Presence, types.PresenceIdle, "idle_timeout", "daemon", agent.Status)
+				}
+			}
+
+			// Fray post resets idle timer (agent is clearly working)
+			lastPostTs, _ := db.GetAgentLastPostTime(d.database, agentID)
+			if lastPostTs > proc.LastTokenCheck.UnixMilli() {
+				proc.LastTokenCheck = time.Now()
 			}
 
 		case types.PresenceIdle:

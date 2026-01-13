@@ -1454,8 +1454,8 @@ func TestSpawnFlow_MultipleAgentsMentionedAllSpawn(t *testing.T) {
 		t.Fatalf("start daemon: %v", err)
 	}
 
-	// Wait for poll cycles (may need multiple to spawn both)
-	time.Sleep(300 * time.Millisecond)
+	// Wait for poll cycles - spawn rate-limiting adds 500ms between spawns
+	time.Sleep(700 * time.Millisecond)
 
 	// Both should spawn
 	if h.mockDriver.SpawnCount() != 2 {
