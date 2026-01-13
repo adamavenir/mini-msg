@@ -13,10 +13,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/adamavenir/fray/internal/aap"
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/router"
 	"github.com/adamavenir/fray/internal/types"
+	"github.com/adamavenir/fray/internal/usage"
 	mlld "github.com/mlld-lang/mlld/sdk/go"
 )
 
@@ -29,6 +31,7 @@ type Daemon struct {
 	detector      ActivityDetector
 	router        *router.Router      // mlld-based routing for mention interpretation
 	mlldClient    *mlld.Client        // mlld client for prompt template execution
+	usageWatcher  *usage.Watcher      // monitors transcript files for token usage
 	processes     map[string]*Process // agent_id -> process
 	spawning      map[string]bool     // agent_id -> true if spawn in progress (prevents races)
 	handled       map[string]bool     // agent_id -> true if exit already handled
@@ -111,6 +114,17 @@ func (d *Daemon) Start(ctx context.Context) error {
 	// Clean up stale presence states from previous daemon runs
 	d.cleanupStalePresence()
 
+	// Create usage watcher for monitoring transcript files
+	usageWatcher, err := usage.NewWatcher()
+	if err != nil {
+		d.debugf("failed to create usage watcher: %v", err)
+		// Non-fatal - daemon can run without usage watching
+	} else {
+		d.usageWatcher = usageWatcher
+		d.wg.Add(1)
+		go d.usageWatchLoop()
+	}
+
 	// Create cancellable context for spawned processes
 	procCtx, cancel := context.WithCancel(ctx)
 	d.cancelFunc = cancel
@@ -132,7 +146,12 @@ func (d *Daemon) Stop() error {
 		d.cancelFunc()
 	}
 
-	// Wait for all goroutines (watchLoop and monitorProcess) to finish
+	// Close usage watcher
+	if d.usageWatcher != nil {
+		d.usageWatcher.Close()
+	}
+
+	// Wait for all goroutines (watchLoop, usageWatchLoop, and monitorProcess) to finish
 	d.wg.Wait()
 
 	// Cleanup any remaining resources
@@ -192,6 +211,79 @@ func (d *Daemon) debugf(format string, args ...any) {
 	if d.debug {
 		fmt.Fprintf(os.Stderr, "[daemon] "+format+"\n", args...)
 	}
+}
+
+// usageWatchLoop handles usage watcher events.
+func (d *Daemon) usageWatchLoop() {
+	defer d.wg.Done()
+
+	for {
+		select {
+		case <-d.stopCh:
+			return
+
+		case event, ok := <-d.usageWatcher.Events():
+			if !ok {
+				return
+			}
+			d.handleUsageEvent(event)
+
+		case err, ok := <-d.usageWatcher.Errors():
+			if !ok {
+				return
+			}
+			d.debugf("usage watcher error: %v", err)
+		}
+	}
+}
+
+// handleUsageEvent processes a usage change event.
+func (d *Daemon) handleUsageEvent(event usage.UsageEvent) {
+	d.debugf("usage event: session=%s tokens=%d delta=%d",
+		event.SessionID, event.Usage.InputTokens, event.TokensDelta)
+
+	// Find the agent with this session ID
+	d.mu.RLock()
+	var agentID string
+	for id, proc := range d.processes {
+		if proc.SessionID == event.SessionID {
+			agentID = id
+			break
+		}
+	}
+	d.mu.RUnlock()
+
+	if agentID == "" {
+		return
+	}
+
+	// Update agent's usage in the database (could be used for status reporting)
+	// For now, just log it. Future: emit to a channel or update DB.
+	d.debugf("agent %s: context at %d%% (%d/%d tokens)",
+		agentID,
+		event.Usage.ContextPercent,
+		event.Usage.InputTokens,
+		event.Usage.ContextLimit)
+}
+
+// watchSessionUsage starts watching a session's transcript for usage updates.
+func (d *Daemon) watchSessionUsage(sessionID, driver string) {
+	if d.usageWatcher == nil {
+		return
+	}
+
+	if err := d.usageWatcher.WatchSession(sessionID, driver); err != nil {
+		d.debugf("failed to watch session %s: %v", sessionID, err)
+	}
+}
+
+// unwatchSessionUsage stops watching a session's transcript.
+func (d *Daemon) unwatchSessionUsage(sessionID string) {
+	if d.usageWatcher == nil {
+		return
+	}
+
+	d.usageWatcher.UnwatchSession(sessionID)
 }
 
 // truncate shortens a string for debug output.
@@ -1246,6 +1338,30 @@ func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID
 
 	d.debugf("  spawning @%s with driver %s", agent.AgentID, agent.Invoke.Driver)
 
+	// Check AAP identity for security logging
+	if agent.AAPGUID == nil {
+		d.debugf("  warning: agent @%s has no AAP identity", agent.AgentID)
+	} else {
+		// Optionally verify identity via resolver
+		aapDir, err := core.AAPConfigDir()
+		if err == nil {
+			frayDir := filepath.Dir(d.project.DBPath)
+			resolver, err := aap.NewResolver(aap.ResolverOpts{
+				GlobalRegistry: aapDir,
+				FrayCompat:     true,
+				FrayPath:       frayDir,
+			})
+			if err == nil {
+				res, err := resolver.Resolve("@" + agent.AgentID)
+				if err != nil {
+					d.debugf("  warning: failed to resolve AAP identity for @%s: %v", agent.AgentID, err)
+				} else {
+					d.debugf("  AAP identity verified: %s (trust: %s)", res.Identity.Record.GUID, res.TrustLevel)
+				}
+			}
+		}
+	}
+
 	// Determine session mode: fork (#XXX), new (#n), or resumed (empty)
 	// Check for fork spawn first: was this agent mentioned with @agent#sessid syntax?
 	var sessionMode string
@@ -1367,6 +1483,11 @@ func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID
 	}
 	db.AppendSessionStart(d.project.DBPath, sessionStart)
 
+	// Start watching session's transcript for usage updates
+	if proc.SessionID != "" {
+		d.watchSessionUsage(proc.SessionID, agent.Invoke.Driver)
+	}
+
 	// Initialize activity record
 	if proc.Cmd.Process != nil {
 		d.detector.RecordActivity(proc.Cmd.Process.Pid)
@@ -1468,6 +1589,11 @@ func (d *Daemon) spawnBRBAgent(ctx context.Context, agent types.Agent) error {
 		// TriggeredBy is nil for BRB spawns
 	}
 	db.AppendSessionStart(d.project.DBPath, sessionStart)
+
+	// Start watching session's transcript for usage updates
+	if proc.SessionID != "" {
+		d.watchSessionUsage(proc.SessionID, agent.Invoke.Driver)
+	}
 
 	// Initialize activity record
 	if proc.Cmd.Process != nil {
@@ -2072,6 +2198,11 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) bool {
 
 	db.AppendSessionEnd(d.project.DBPath, sessionEnd)
 
+	// Stop watching session's transcript for usage updates
+	if proc.SessionID != "" {
+		d.unwatchSessionUsage(proc.SessionID)
+	}
+
 	// Session ID is now stored at spawn time (we generate it ourselves with --session-id)
 	// No need to detect it from Claude's files anymore - see fix for fray-8ld6
 
@@ -2213,6 +2344,35 @@ func (d *Daemon) getDriver(agentID string) Driver {
 		return nil
 	}
 	return d.drivers[agent.Invoke.Driver]
+}
+
+// getAgentResolution resolves an agent address using AAP.
+// Returns nil if resolution fails (e.g., agent has no AAP identity).
+func (d *Daemon) getAgentResolution(agentID string) *aap.Resolution {
+	aapDir, err := core.AAPConfigDir()
+	if err != nil {
+		return nil
+	}
+
+	frayDir := filepath.Dir(d.project.DBPath)
+	projectAAPDir := filepath.Join(d.project.Root, ".aap")
+
+	resolver, err := aap.NewResolver(aap.ResolverOpts{
+		GlobalRegistry:  aapDir,
+		ProjectRegistry: projectAAPDir,
+		FrayCompat:      true,
+		FrayPath:        frayDir,
+	})
+	if err != nil {
+		return nil
+	}
+
+	res, err := resolver.Resolve("@" + agentID)
+	if err != nil {
+		return nil
+	}
+
+	return res
 }
 
 // getInterruptInfo extracts interrupt info for an agent from a message body.
