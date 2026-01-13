@@ -130,9 +130,24 @@ func NewAgentCreateCmd() *cobra.Command {
 				if err != nil {
 					return writeCommandError(cmd, err)
 				}
+
+				// Create AAP identity (without key by default for daemon agents)
+				var aapGUID *string
+				noAAP, _ := cmd.Flags().GetBool("no-aap")
+				if !noAAP {
+					identity, err := createAAPIdentity(agentID, false)
+					if err != nil {
+						// Non-fatal - continue without AAP identity
+						fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to create AAP identity: %v\n", err)
+					} else if identity != nil {
+						aapGUID = &identity.Record.GUID
+					}
+				}
+
 				agent := types.Agent{
 					GUID:         agentGUID,
 					AgentID:      agentID,
+					AAPGUID:      aapGUID,
 					RegisteredAt: now,
 					LastSeen:     now,
 					Managed:      true,
@@ -172,6 +187,7 @@ func NewAgentCreateCmd() *cobra.Command {
 	cmd.Flags().Int64("idle-after", 5000, "time since activity before 'idle' (ms)")
 	cmd.Flags().Int64("min-checkin", 0, "done-detection: idle + no fray posts = kill (ms, 0 = disabled)")
 	cmd.Flags().Int64("max-runtime", 0, "zombie safety net: forced termination (ms, 0 = unlimited)")
+	cmd.Flags().Bool("no-aap", false, "skip AAP identity creation")
 
 	return cmd
 }
