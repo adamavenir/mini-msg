@@ -8,6 +8,7 @@ final class AgentsViewModel {
     private var refreshTimer: Timer?
 
     private(set) var agents: [FrayAgent] = []
+    private(set) var agentUsage: [String: AgentUsage] = [:]
     private(set) var isLoading: Bool = false
     private(set) var error: String?
 
@@ -72,9 +73,34 @@ final class AgentsViewModel {
         do {
             agents = try bridge.getAgents(managedOnly: managedOnly)
             error = nil
+
+            // Load usage for active agents
+            await loadUsageForActiveAgents()
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    private func loadUsageForActiveAgents() async {
+        for agent in activeAgents {
+            guard let presence = agent.presence,
+                  presence == .active || presence == .idle || presence == .prompting || presence == .prompted else {
+                continue
+            }
+
+            do {
+                let usage = try bridge.getAgentUsage(agentId: agent.agentId)
+                if usage.inputTokens > 0 {
+                    agentUsage[agent.agentId] = usage
+                }
+            } catch {
+                // Usage fetch failures are non-fatal, just skip
+            }
+        }
+    }
+
+    func usage(for agentId: String) -> AgentUsage? {
+        agentUsage[agentId]
     }
 
     func agent(byId agentId: String) -> FrayAgent? {

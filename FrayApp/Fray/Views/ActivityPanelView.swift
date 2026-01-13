@@ -14,7 +14,7 @@ struct ActivityPanelView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: FraySpacing.xs) {
                     ForEach(agentsVM.activeAgents) { agent in
-                        AgentActivityRow(agent: agent)
+                        AgentActivityRow(agent: agent, usage: agentsVM.usage(for: agent.agentId))
                             .padding(.horizontal, FraySpacing.sm)
                     }
 

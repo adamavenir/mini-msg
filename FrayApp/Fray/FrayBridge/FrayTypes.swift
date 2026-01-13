@@ -21,7 +21,7 @@ struct FFIResponse<T: Decodable>: Decodable {
 // MARK: - Message Types
 
 /// Message type - matches internal/types/types.go:86
-struct FrayMessage: Codable, Identifiable, Equatable {
+struct FrayMessage: Identifiable, Equatable {
     let id: String
     let ts: Int64
     let channelId: String?
@@ -46,6 +46,39 @@ struct FrayMessage: Codable, Identifiable, Equatable {
 
     enum MessageType: String, Codable {
         case agent, user, event, surface, tombstone
+    }
+}
+
+extension FrayMessage: Codable {
+    enum CodingKeys: String, CodingKey {
+        case id, ts, channelId, home, fromAgent, sessionId, body, mentions
+        case forkSessions, reactions, type, references, surfaceMessage
+        case replyTo, quoteMessageGuid, editedAt, edited, editCount, archivedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        ts = try container.decode(Int64.self, forKey: .ts)
+        channelId = try container.decodeIfPresent(String.self, forKey: .channelId)
+        home = try container.decodeIfPresent(String.self, forKey: .home)
+        fromAgent = try container.decode(String.self, forKey: .fromAgent)
+        sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
+        body = try container.decode(String.self, forKey: .body)
+        // Handle null mentions as empty array
+        mentions = (try? container.decodeIfPresent([String].self, forKey: .mentions)) ?? []
+        forkSessions = try container.decodeIfPresent([String: String].self, forKey: .forkSessions)
+        // Handle null reactions as empty dictionary
+        reactions = (try? container.decodeIfPresent([String: [ReactionEntry]].self, forKey: .reactions)) ?? [:]
+        type = try container.decode(MessageType.self, forKey: .type)
+        references = try container.decodeIfPresent(String.self, forKey: .references)
+        surfaceMessage = try container.decodeIfPresent(String.self, forKey: .surfaceMessage)
+        replyTo = try container.decodeIfPresent(String.self, forKey: .replyTo)
+        quoteMessageGuid = try container.decodeIfPresent(String.self, forKey: .quoteMessageGuid)
+        editedAt = try container.decodeIfPresent(Int64.self, forKey: .editedAt)
+        edited = try container.decodeIfPresent(Bool.self, forKey: .edited)
+        editCount = try container.decodeIfPresent(Int.self, forKey: .editCount)
+        archivedAt = try container.decodeIfPresent(Int64.self, forKey: .archivedAt)
     }
 }
 
@@ -97,6 +130,20 @@ struct InvokeConfig: Codable, Equatable {
     let idleAfterMs: Int64?
     let minCheckinMs: Int64?
     let maxRuntimeMs: Int64?
+}
+
+// MARK: - Usage Types
+
+/// Agent session token usage - matches internal/usage.SessionUsage
+struct AgentUsage: Codable, Equatable {
+    let sessionId: String
+    let driver: String?
+    let model: String?
+    let inputTokens: Int64
+    let outputTokens: Int64
+    let cachedTokens: Int64?
+    let contextLimit: Int64
+    let contextPercent: Int
 }
 
 // MARK: - Thread Types
@@ -163,6 +210,25 @@ struct MessageCursor: Codable, Equatable {
 struct MessagePage: Codable {
     let messages: [FrayMessage]
     let cursor: MessageCursor?
+}
+
+// MARK: - Channel Types
+
+/// Channel info from global config
+struct FrayChannel: Codable, Identifiable, Equatable, Hashable {
+    let id: String
+    let name: String
+    let path: String
+}
+
+// MARK: - Fave Types
+
+/// Fave entry - matches internal/db/queries_faves.go:Fave
+struct FrayFave: Codable, Equatable {
+    let agentId: String
+    let itemType: String
+    let itemGuid: String
+    let favedAt: Int64
 }
 
 // MARK: - JSON Value (for arbitrary nested structures)

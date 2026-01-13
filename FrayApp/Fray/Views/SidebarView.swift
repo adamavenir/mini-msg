@@ -2,88 +2,178 @@ import SwiftUI
 
 struct SidebarView: View {
     @Binding var selectedThread: FrayThread?
+    @Binding var currentChannel: FrayChannel?
+    let currentAgentId: String?
+
     @Environment(FrayBridge.self) private var bridge
 
     @State private var threads: [FrayThread] = []
-    @AppStorage("pinnedThreadIds") private var pinnedThreadIdsData: Data = Data()
+    @State private var channels: [FrayChannel] = []
+    @State private var favedThreadGuids: Set<String> = []
 
-    var pinnedThreadIds: Set<String> {
-        get {
-            (try? JSONDecoder().decode(Set<String>.self, from: pinnedThreadIdsData)) ?? []
-        }
-        nonmutating set {
-            pinnedThreadIdsData = (try? JSONEncoder().encode(newValue)) ?? Data()
-        }
+    var favedThreads: [FrayThread] {
+        threads.filter { favedThreadGuids.contains($0.guid) }
     }
 
-    var pinnedThreads: [FrayThread] {
-        threads.filter { pinnedThreadIds.contains($0.guid) }
-    }
-
-    var unpinnedRootThreads: [FrayThread] {
-        threads.filter { $0.parentThread == nil && !pinnedThreadIds.contains($0.guid) }
+    var unfavedRootThreads: [FrayThread] {
+        threads.filter { $0.parentThread == nil && !favedThreadGuids.contains($0.guid) }
     }
 
     var body: some View {
         List(selection: $selectedThread) {
-            Section("Room") {
-                Label("Main", systemImage: "bubble.left.and.bubble.right")
-                    .tag(nil as FrayThread?)
-            }
+            channelPickerSection
+            roomSection
+            favedThreadsSection
+            unfavedThreadsSection
+        }
+        .listStyle(.sidebar)
+        .navigationTitle(currentChannel?.name ?? "Fray")
+        .task {
+            await loadData()
+        }
+        .onChange(of: bridge.projectPath) { _, _ in
+            // Reload when bridge connects to a different project
+            Task { await loadThreadsAndFaves() }
+        }
+    }
 
-            if !pinnedThreads.isEmpty {
-                Section("Pinned") {
-                    ForEach(pinnedThreads) { thread in
-                        PinnedThreadRow(
-                            thread: thread,
-                            selectedThread: $selectedThread,
-                            onUnpin: { unpinThread(thread.guid) }
-                        )
-                    }
+    @ViewBuilder
+    private var channelPickerSection: some View {
+        if channels.count > 1 {
+            Picker("Channel", selection: $currentChannel) {
+                ForEach(channels) { channel in
+                    Text(channel.name)
+                        .tag(channel as FrayChannel?)
                 }
             }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .padding(.bottom, FraySpacing.sm)
+        }
+    }
 
-            Section("Threads") {
-                ThreadListSection(
-                    threads: threads,
-                    pinnedIds: pinnedThreadIds,
+    @ViewBuilder
+    private var roomSection: some View {
+        HStack(spacing: FraySpacing.md) {
+            Image(systemName: "bubble.left.and.bubble.right")
+            Text(currentChannel?.name ?? "Room")
+                .fontWeight(.semibold)
+                .lineLimit(1)
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedThread = nil
+        }
+        .listRowBackground(selectedThread == nil ? Color.accentColor.opacity(0.15) : nil)
+    }
+
+    @ViewBuilder
+    private var favedThreadsSection: some View {
+        if !favedThreads.isEmpty {
+            ForEach(favedThreads) { thread in
+                FavedThreadRow(
+                    thread: thread,
                     selectedThread: $selectedThread,
-                    onPin: { pinThread($0) }
+                    onUnfave: { unfaveThread(thread.guid) }
                 )
             }
         }
-        .listStyle(.sidebar)
-        .navigationTitle("Fray")
-        .task {
-            await loadData()
+    }
+
+    @ViewBuilder
+    private var unfavedThreadsSection: some View {
+        ForEach(unfavedRootThreads) { thread in
+            ThreadListItem(
+                thread: thread,
+                allThreads: threads,
+                favedIds: favedThreadGuids,
+                selectedThread: $selectedThread,
+                onFave: { faveThread($0) }
+            )
         }
     }
 
     private func loadData() async {
+        // Load channels
+        do {
+            channels = try FrayBridge.listChannels()
+            // If no current channel but we have channels, select first
+            if currentChannel == nil, let first = channels.first {
+                currentChannel = first
+            }
+        } catch {
+            print("Failed to load channels: \(error)")
+        }
+
+        // Load threads
         do {
             threads = try bridge.getThreads()
         } catch {
-            print("Failed to load sidebar data: \(error)")
+            print("Failed to load threads: \(error)")
+        }
+
+        // Load faves from fray
+        await loadFaves()
+    }
+
+    private func loadThreadsAndFaves() async {
+        // Load threads for current channel
+        do {
+            threads = try bridge.getThreads()
+        } catch {
+            print("Failed to load threads: \(error)")
+            threads = []
+        }
+
+        // Load faves
+        await loadFaves()
+    }
+
+    private func loadFaves() async {
+        guard let agentId = currentAgentId else {
+            favedThreadGuids = []
+            return
+        }
+
+        do {
+            let faves = try bridge.getFaves(agentId: agentId, itemType: "thread")
+            favedThreadGuids = Set(faves.map { $0.itemGuid })
+        } catch {
+            print("Failed to load faves: \(error)")
+            favedThreadGuids = []
         }
     }
 
-    private func pinThread(_ guid: String) {
-        var ids = pinnedThreadIds
-        ids.insert(guid)
-        pinnedThreadIds = ids
+    private func faveThread(_ guid: String) {
+        guard let agentId = currentAgentId else { return }
+        Task {
+            do {
+                try bridge.faveItem(itemGuid: guid, agentId: agentId)
+                favedThreadGuids.insert(guid)
+            } catch {
+                print("Failed to fave thread: \(error)")
+            }
+        }
     }
 
-    private func unpinThread(_ guid: String) {
-        var ids = pinnedThreadIds
-        ids.remove(guid)
-        pinnedThreadIds = ids
+    private func unfaveThread(_ guid: String) {
+        guard let agentId = currentAgentId else { return }
+        Task {
+            do {
+                try bridge.unfaveItem(itemGuid: guid, agentId: agentId)
+                favedThreadGuids.remove(guid)
+            } catch {
+                print("Failed to unfave thread: \(error)")
+            }
+        }
     }
 }
 
-struct PinnedThreadRow: View {
+struct FavedThreadRow: View {
     let thread: FrayThread
     @Binding var selectedThread: FrayThread?
-    let onUnpin: () -> Void
+    let onUnfave: () -> Void
 
     @State private var isHovering = false
 
@@ -99,12 +189,12 @@ struct PinnedThreadRow: View {
             Spacer()
 
             if isHovering {
-                Button(action: onUnpin) {
+                Button(action: onUnfave) {
                     Image(systemName: "star.slash")
                         .font(.caption)
                 }
                 .buttonStyle(.borderless)
-                .help("Unpin")
+                .help("Remove from favorites")
             }
         }
         .contentShape(Rectangle())
@@ -194,41 +284,18 @@ struct PresenceIndicator: View {
     }
 }
 
-struct ThreadListSection: View {
-    let threads: [FrayThread]
-    let pinnedIds: Set<String>
-    @Binding var selectedThread: FrayThread?
-    let onPin: (String) -> Void
-
-    var rootThreads: [FrayThread] {
-        threads.filter { $0.parentThread == nil && !pinnedIds.contains($0.guid) }
-    }
-
-    var body: some View {
-        ForEach(rootThreads) { thread in
-            ThreadListItem(
-                thread: thread,
-                allThreads: threads,
-                pinnedIds: pinnedIds,
-                selectedThread: $selectedThread,
-                onPin: onPin
-            )
-        }
-    }
-}
-
 struct ThreadListItem: View {
     let thread: FrayThread
     let allThreads: [FrayThread]
-    let pinnedIds: Set<String>
+    let favedIds: Set<String>
     @Binding var selectedThread: FrayThread?
-    let onPin: (String) -> Void
+    let onFave: (String) -> Void
 
     @State private var isExpanded = false
     @State private var isHovering = false
 
     var childThreads: [FrayThread] {
-        allThreads.filter { $0.parentThread == thread.guid && !pinnedIds.contains($0.guid) }
+        allThreads.filter { $0.parentThread == thread.guid && !favedIds.contains($0.guid) }
     }
 
     var hasChildren: Bool {
@@ -242,9 +309,9 @@ struct ThreadListItem: View {
                     ThreadListItem(
                         thread: child,
                         allThreads: allThreads,
-                        pinnedIds: pinnedIds,
+                        favedIds: favedIds,
                         selectedThread: $selectedThread,
-                        onPin: onPin
+                        onFave: onFave
                     )
                 }
             } label: {
@@ -266,12 +333,12 @@ struct ThreadListItem: View {
             Spacer()
 
             if isHovering {
-                Button(action: { onPin(thread.guid) }) {
+                Button(action: { onFave(thread.guid) }) {
                     Image(systemName: "star")
                         .font(.caption)
                 }
                 .buttonStyle(.borderless)
-                .help("Pin thread")
+                .help("Add to favorites")
             }
 
             if thread.type == .knowledge {
@@ -306,7 +373,11 @@ struct ThreadListItem: View {
 }
 
 #Preview {
-    SidebarView(selectedThread: .constant(nil))
-        .environment(FrayBridge())
-        .frame(width: 280)
+    SidebarView(
+        selectedThread: .constant(nil),
+        currentChannel: .constant(nil),
+        currentAgentId: "preview-user"
+    )
+    .environment(FrayBridge())
+    .frame(width: 280)
 }

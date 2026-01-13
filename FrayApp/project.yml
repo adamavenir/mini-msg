@@ -52,7 +52,7 @@ targets:
           fi
           export PATH="/opt/homebrew/bin:/usr/local/go/bin:$PATH"
           cd "${PROJECT_DIR}/.."
-          CGO_ENABLED=1 go build -buildmode=c-shared -o build/libfray.dylib ./cmd/libfray
+          CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=14.0 go build -buildmode=c-shared -o build/libfray.dylib ./cmd/libfray
         inputFiles:
           - $(PROJECT_DIR)/../cmd/libfray/main.go
         outputFiles:
@@ -109,7 +109,7 @@ targets:
           fi
           export PATH="/opt/homebrew/bin:/usr/local/go/bin:$PATH"
           cd "${PROJECT_DIR}/.."
-          CGO_ENABLED=1 go build -buildmode=c-shared -o build/libfray.dylib ./cmd/libfray
+          CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=14.0 go build -buildmode=c-shared -o build/libfray.dylib ./cmd/libfray
         inputFiles:
           - $(PROJECT_DIR)/../cmd/libfray/main.go
         outputFiles:

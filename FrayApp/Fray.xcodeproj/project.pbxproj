@@ -1,0 +1,697 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00B688D1B3C1AE9F0B41636D /* IdentityPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C91BF96742D103E169C0EDD /* IdentityPromptView.swift */; };
+		0FCF6025E75BD2A39D0A6634 /* FrayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D15D6699915EB8E5C84FDC4 /* FrayApp.swift */; };
+		1A143BB710A124F2F0BE6EF8 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8191B94821EA3F0891724C11 /* MessageBubble.swift */; };
+		1AD89167F42D5BC1A8A7717C /* MessagesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A98FA7AB851593C228B354D /* MessagesViewModel.swift */; };
+		24A5209944021CBFB2310E11 /* FrayTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069050FFE05FFBD5DB4F6479 /* FrayTypes.swift */; };
+		301B8603B005C8E61094006D /* FrayTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069050FFE05FFBD5DB4F6479 /* FrayTypes.swift */; };
+		33AD414AFB0C6D91E8DD7D6B /* ThreadBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2ECC4D8CD22868988BA7063 /* ThreadBreadcrumb.swift */; };
+		35491ED8FC7F6014B3A89251 /* FrayMenuBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9053C13DD0F2FB0BB09B579A /* FrayMenuBarApp.swift */; };
+		3E37FE87922D12ADDD389432 /* CodeBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B551B5ECE8888369B8E3DC88 /* CodeBlockView.swift */; };
+		4598CCFA43A83DDB36C8E894 /* MessageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BF3175A7C30599CC29B715D /* MessageListView.swift */; };
+		474CB9EB8A82CE8142C9E1B4 /* FrayColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A5B5E10CF307FF67906C4A /* FrayColors.swift */; };
+		4B333115FC7169FD572411B2 /* KeyboardNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B44FC2A3F205E9AE3B2FE4 /* KeyboardNavigation.swift */; };
+		530E07FEB0D3D680790ABDC1 /* ActivityPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549828A57E29342FCE603B73 /* ActivityPanelView.swift */; };
+		5B2F0332AFC6DD7BB6AE876A /* AccessibilityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 442CF14E55750A6C156FB773 /* AccessibilityService.swift */; };
+		64259AB733F7974B287F655B /* libfray.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = C9DEFFE2C84F8D327A4FD72F /* libfray.dylib */; };
+		66E5CED9D73DC1317C729112 /* WindowStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F5E7F0DD00CC821C86FE9B /* WindowStateService.swift */; };
+		6707F6541B9908A130AE7968 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BEA7FFD7060ACD5525C9120 /* AppState.swift */; };
+		6D89FAA77059F208F3430DE7 /* FrayBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB51FF30B64E5B6E2FD24564 /* FrayBridge.swift */; };
+		7E053F5CB4B8E159D1610A3C /* FrayColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A5B5E10CF307FF67906C4A /* FrayColors.swift */; };
+		80519F5D5B2A2A032713ADC9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F186A9C3B8C7397574EEAA /* ContentView.swift */; };
+		8C183F691CE17A1436C66B58 /* MessageInputArea.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E567D4763B7F3A03D30815 /* MessageInputArea.swift */; };
+		96886B92D6E9476BBE01D4B6 /* libfray.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = C9DEFFE2C84F8D327A4FD72F /* libfray.dylib */; };
+		9D093E0691ABE35619144614 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F48B1AC13C09667373EE61 /* NotificationService.swift */; };
+		AC5D86F0DBAF7BB4A980FB26 /* FrayError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF658F76427169B3A79075F2 /* FrayError.swift */; };
+		B9E07F145BD127C35B787C30 /* FrayTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3311D2A8DB9303A0DA2793FC /* FrayTypography.swift */; };
+		BA50B795B93BBCE40BF23264 /* FrayBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB51FF30B64E5B6E2FD24564 /* FrayBridge.swift */; };
+		C3E6130CD573666B2DECAD4C /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46EF83370F0547E8A39B9AA9 /* SidebarView.swift */; };
+		C5FB75941FB8695A5066E408 /* ThreadsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18183B775C4F23F9A08E910F /* ThreadsViewModel.swift */; };
+		CB276E7E08A021194C33F9FE /* AgentActivityRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A986D1CDEF22E2FE18A623C /* AgentActivityRow.swift */; };
+		E081A143479486028E7E2A93 /* FrayAccessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C11E48B7BF77A56F94360CA /* FrayAccessibility.swift */; };
+		E827C20B718D37D11ED51682 /* FraySpacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C3ABB7825B65F7A6F56F914 /* FraySpacing.swift */; };
+		EB16A4B0621C60C7F9186859 /* CommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CFC93EA0985AF9C1747895 /* CommandPalette.swift */; };
+		EBE54DFEA3B60EEC9B6AFF4B /* FrayError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF658F76427169B3A79075F2 /* FrayError.swift */; };
+		F5B9F2E5016ADA1F01C01F9B /* AgentsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E9589707D2E40A116B072E /* AgentsViewModel.swift */; };
+		F60CBFB5664981FCB44CAB15 /* MenuBarContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 500C9E595208F5683BEA231F /* MenuBarContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		00B464C5CEB8E7BB03106B2D /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				96886B92D6E9476BBE01D4B6 /* libfray.dylib in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F12E99BA1D48E8E7C986DEDB /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				64259AB733F7974B287F655B /* libfray.dylib in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		04CFC93EA0985AF9C1747895 /* CommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette.swift; sourceTree = "<group>"; };
+		069050FFE05FFBD5DB4F6479 /* FrayTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayTypes.swift; sourceTree = "<group>"; };
+		08741B3AC72B292B61A4C1F3 /* Fray.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fray.entitlements; sourceTree = "<group>"; };
+		08E9589707D2E40A116B072E /* AgentsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsViewModel.swift; sourceTree = "<group>"; };
+		0BF3175A7C30599CC29B715D /* MessageListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageListView.swift; sourceTree = "<group>"; };
+		18183B775C4F23F9A08E910F /* ThreadsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadsViewModel.swift; sourceTree = "<group>"; };
+		28CA1D44E7F46AA3D158399E /* FrayMenuBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FrayMenuBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3311D2A8DB9303A0DA2793FC /* FrayTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayTypography.swift; sourceTree = "<group>"; };
+		3A98FA7AB851593C228B354D /* MessagesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesViewModel.swift; sourceTree = "<group>"; };
+		442CF14E55750A6C156FB773 /* AccessibilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityService.swift; sourceTree = "<group>"; };
+		46EF83370F0547E8A39B9AA9 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		4A986D1CDEF22E2FE18A623C /* AgentActivityRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentActivityRow.swift; sourceTree = "<group>"; };
+		4C3ABB7825B65F7A6F56F914 /* FraySpacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FraySpacing.swift; sourceTree = "<group>"; };
+		4D15D6699915EB8E5C84FDC4 /* FrayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayApp.swift; sourceTree = "<group>"; };
+		500C9E595208F5683BEA231F /* MenuBarContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContentView.swift; sourceTree = "<group>"; };
+		549828A57E29342FCE603B73 /* ActivityPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityPanelView.swift; sourceTree = "<group>"; };
+		6BEA7FFD7060ACD5525C9120 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		6C11E48B7BF77A56F94360CA /* FrayAccessibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayAccessibility.swift; sourceTree = "<group>"; };
+		7C91BF96742D103E169C0EDD /* IdentityPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityPromptView.swift; sourceTree = "<group>"; };
+		8191B94821EA3F0891724C11 /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
+		9053C13DD0F2FB0BB09B579A /* FrayMenuBarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayMenuBarApp.swift; sourceTree = "<group>"; };
+		96F48B1AC13C09667373EE61 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		A0E567D4763B7F3A03D30815 /* MessageInputArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageInputArea.swift; sourceTree = "<group>"; };
+		AF658F76427169B3A79075F2 /* FrayError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayError.swift; sourceTree = "<group>"; };
+		B551B5ECE8888369B8E3DC88 /* CodeBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeBlockView.swift; sourceTree = "<group>"; };
+		B9B44FC2A3F205E9AE3B2FE4 /* KeyboardNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardNavigation.swift; sourceTree = "<group>"; };
+		BB51FF30B64E5B6E2FD24564 /* FrayBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayBridge.swift; sourceTree = "<group>"; };
+		C9DEFFE2C84F8D327A4FD72F /* libfray.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libfray.dylib; sourceTree = "<group>"; };
+		D2ECC4D8CD22868988BA7063 /* ThreadBreadcrumb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadBreadcrumb.swift; sourceTree = "<group>"; };
+		E1F186A9C3B8C7397574EEAA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		E5A5B5E10CF307FF67906C4A /* FrayColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayColors.swift; sourceTree = "<group>"; };
+		E5F5E7F0DD00CC821C86FE9B /* WindowStateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowStateService.swift; sourceTree = "<group>"; };
+		F44C27AF86BD06D969A6BBC6 /* Fray.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fray.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0758236CFD71C16F50945DC2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F44C27AF86BD06D969A6BBC6 /* Fray.app */,
+				28CA1D44E7F46AA3D158399E /* FrayMenuBar.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0E7D082E53F9116DAE7C8FE2 /* build */ = {
+			isa = PBXGroup;
+			children = (
+				C9DEFFE2C84F8D327A4FD72F /* libfray.dylib */,
+			);
+			name = build;
+			path = ../build;
+			sourceTree = "<group>";
+		};
+		502F860036F131F523CCCE3C /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				442CF14E55750A6C156FB773 /* AccessibilityService.swift */,
+				96F48B1AC13C09667373EE61 /* NotificationService.swift */,
+				E5F5E7F0DD00CC821C86FE9B /* WindowStateService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		60219BAC06CA439A99EF8D84 /* FrayMenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				9053C13DD0F2FB0BB09B579A /* FrayMenuBarApp.swift */,
+				500C9E595208F5683BEA231F /* MenuBarContentView.swift */,
+			);
+			path = FrayMenuBar;
+			sourceTree = "<group>";
+		};
+		7F07FA84EFF59F429DA45788 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				08E9589707D2E40A116B072E /* AgentsViewModel.swift */,
+				6BEA7FFD7060ACD5525C9120 /* AppState.swift */,
+				3A98FA7AB851593C228B354D /* MessagesViewModel.swift */,
+				18183B775C4F23F9A08E910F /* ThreadsViewModel.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		8198ABD2486D18F7C5A83B00 /* Fray */ = {
+			isa = PBXGroup;
+			children = (
+				E1F186A9C3B8C7397574EEAA /* ContentView.swift */,
+				08741B3AC72B292B61A4C1F3 /* Fray.entitlements */,
+				4D15D6699915EB8E5C84FDC4 /* FrayApp.swift */,
+				D9B8AC0CB421A14098BBF965 /* FrayBridge */,
+				7F07FA84EFF59F429DA45788 /* Models */,
+				502F860036F131F523CCCE3C /* Services */,
+				8414B286232B265A3A058ACD /* Styles */,
+				FA6CC3207C14AD811C19BCFB /* Views */,
+			);
+			path = Fray;
+			sourceTree = "<group>";
+		};
+		8414B286232B265A3A058ACD /* Styles */ = {
+			isa = PBXGroup;
+			children = (
+				6C11E48B7BF77A56F94360CA /* FrayAccessibility.swift */,
+				E5A5B5E10CF307FF67906C4A /* FrayColors.swift */,
+				4C3ABB7825B65F7A6F56F914 /* FraySpacing.swift */,
+				3311D2A8DB9303A0DA2793FC /* FrayTypography.swift */,
+			);
+			path = Styles;
+			sourceTree = "<group>";
+		};
+		C27D126A9D9DBF043455FD30 = {
+			isa = PBXGroup;
+			children = (
+				0E7D082E53F9116DAE7C8FE2 /* build */,
+				8198ABD2486D18F7C5A83B00 /* Fray */,
+				60219BAC06CA439A99EF8D84 /* FrayMenuBar */,
+				0758236CFD71C16F50945DC2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D9B8AC0CB421A14098BBF965 /* FrayBridge */ = {
+			isa = PBXGroup;
+			children = (
+				BB51FF30B64E5B6E2FD24564 /* FrayBridge.swift */,
+				AF658F76427169B3A79075F2 /* FrayError.swift */,
+				069050FFE05FFBD5DB4F6479 /* FrayTypes.swift */,
+			);
+			path = FrayBridge;
+			sourceTree = "<group>";
+		};
+		FA6CC3207C14AD811C19BCFB /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				549828A57E29342FCE603B73 /* ActivityPanelView.swift */,
+				4A986D1CDEF22E2FE18A623C /* AgentActivityRow.swift */,
+				B551B5ECE8888369B8E3DC88 /* CodeBlockView.swift */,
+				04CFC93EA0985AF9C1747895 /* CommandPalette.swift */,
+				7C91BF96742D103E169C0EDD /* IdentityPromptView.swift */,
+				B9B44FC2A3F205E9AE3B2FE4 /* KeyboardNavigation.swift */,
+				8191B94821EA3F0891724C11 /* MessageBubble.swift */,
+				A0E567D4763B7F3A03D30815 /* MessageInputArea.swift */,
+				0BF3175A7C30599CC29B715D /* MessageListView.swift */,
+				46EF83370F0547E8A39B9AA9 /* SidebarView.swift */,
+				D2ECC4D8CD22868988BA7063 /* ThreadBreadcrumb.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		061FFE839D43F00BC107C3A1 /* Fray */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D8614FEB3A3CDE10CE319EAF /* Build configuration list for PBXNativeTarget "Fray" */;
+			buildPhases = (
+				E0E8556D0D30AB95F226B8FE /* Build libfray.dylib */,
+				568BD22F19B93BF244C6E70B /* Sources */,
+				F12E99BA1D48E8E7C986DEDB /* CopyFiles */,
+				CD2853DA38217DF0F358DDDC /* Fix libfray install name */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Fray;
+			packageProductDependencies = (
+			);
+			productName = Fray;
+			productReference = F44C27AF86BD06D969A6BBC6 /* Fray.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D0262370A8B6E4B5D933C055 /* FrayMenuBar */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1F4E7154EF790E4428E6C905 /* Build configuration list for PBXNativeTarget "FrayMenuBar" */;
+			buildPhases = (
+				30F58330E00318503E340ED2 /* Build libfray.dylib */,
+				6D5807FC04FDEC03F14F813A /* Sources */,
+				00B464C5CEB8E7BB03106B2D /* CopyFiles */,
+				26326C6202A6912CB30849F5 /* Fix libfray install name */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FrayMenuBar;
+			packageProductDependencies = (
+			);
+			productName = FrayMenuBar;
+			productReference = 28CA1D44E7F46AA3D158399E /* FrayMenuBar.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		909FB67985DC58D24C105CAE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = 401E4966F37494B2EB7A5DF7 /* Build configuration list for PBXProject "Fray" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = C27D126A9D9DBF043455FD30;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				061FFE839D43F00BC107C3A1 /* Fray */,
+				D0262370A8B6E4B5D933C055 /* FrayMenuBar */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		26326C6202A6912CB30849F5 /* Fix libfray install name */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Fix libfray install name";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Change install name to @rpath so the app can find it at runtime\ninstall_name_tool -id @rpath/libfray.dylib \"$BUILT_PRODUCTS_DIR/$FRAMEWORKS_FOLDER_PATH/libfray.dylib\"\n# Fix the reference in all binaries that link to it\nfor binary in \"$BUILT_PRODUCTS_DIR/$EXECUTABLE_FOLDER_PATH\"/*.dylib \"$BUILT_PRODUCTS_DIR/$EXECUTABLE_PATH\"; do\n  if [ -f \"$binary\" ]; then\n    install_name_tool -change libfray.dylib @rpath/libfray.dylib \"$binary\" 2>/dev/null || true\n  fi\ndone\n";
+		};
+		30F58330E00318503E340ED2 /* Build libfray.dylib */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/../cmd/libfray/main.go",
+			);
+			name = "Build libfray.dylib";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(PROJECT_DIR)/../build/libfray.dylib",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Skip build if dylib already exists\nif [ -f \"${PROJECT_DIR}/../build/libfray.dylib\" ]; then\n  echo \"libfray.dylib already exists, skipping build\"\n  exit 0\nfi\nexport PATH=\"/opt/homebrew/bin:/usr/local/go/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\nCGO_ENABLED=1 go build -buildmode=c-shared -o build/libfray.dylib ./cmd/libfray\n";
+		};
+		CD2853DA38217DF0F358DDDC /* Fix libfray install name */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Fix libfray install name";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Change install name to @rpath so the app can find it at runtime\ninstall_name_tool -id @rpath/libfray.dylib \"$BUILT_PRODUCTS_DIR/$FRAMEWORKS_FOLDER_PATH/libfray.dylib\"\n# Fix the reference in all binaries that link to it\nfor binary in \"$BUILT_PRODUCTS_DIR/$EXECUTABLE_FOLDER_PATH\"/*.dylib \"$BUILT_PRODUCTS_DIR/$EXECUTABLE_PATH\"; do\n  if [ -f \"$binary\" ]; then\n    install_name_tool -change libfray.dylib @rpath/libfray.dylib \"$binary\" 2>/dev/null || true\n  fi\ndone\n";
+		};
+		E0E8556D0D30AB95F226B8FE /* Build libfray.dylib */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/../cmd/libfray/main.go",
+			);
+			name = "Build libfray.dylib";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(PROJECT_DIR)/../build/libfray.dylib",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Skip build if dylib already exists\nif [ -f \"${PROJECT_DIR}/../build/libfray.dylib\" ]; then\n  echo \"libfray.dylib already exists, skipping build\"\n  exit 0\nfi\nexport PATH=\"/opt/homebrew/bin:/usr/local/go/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\nCGO_ENABLED=1 go build -buildmode=c-shared -o build/libfray.dylib ./cmd/libfray\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		568BD22F19B93BF244C6E70B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B2F0332AFC6DD7BB6AE876A /* AccessibilityService.swift in Sources */,
+				530E07FEB0D3D680790ABDC1 /* ActivityPanelView.swift in Sources */,
+				CB276E7E08A021194C33F9FE /* AgentActivityRow.swift in Sources */,
+				F5B9F2E5016ADA1F01C01F9B /* AgentsViewModel.swift in Sources */,
+				6707F6541B9908A130AE7968 /* AppState.swift in Sources */,
+				3E37FE87922D12ADDD389432 /* CodeBlockView.swift in Sources */,
+				EB16A4B0621C60C7F9186859 /* CommandPalette.swift in Sources */,
+				80519F5D5B2A2A032713ADC9 /* ContentView.swift in Sources */,
+				E081A143479486028E7E2A93 /* FrayAccessibility.swift in Sources */,
+				0FCF6025E75BD2A39D0A6634 /* FrayApp.swift in Sources */,
+				6D89FAA77059F208F3430DE7 /* FrayBridge.swift in Sources */,
+				474CB9EB8A82CE8142C9E1B4 /* FrayColors.swift in Sources */,
+				EBE54DFEA3B60EEC9B6AFF4B /* FrayError.swift in Sources */,
+				E827C20B718D37D11ED51682 /* FraySpacing.swift in Sources */,
+				24A5209944021CBFB2310E11 /* FrayTypes.swift in Sources */,
+				B9E07F145BD127C35B787C30 /* FrayTypography.swift in Sources */,
+				00B688D1B3C1AE9F0B41636D /* IdentityPromptView.swift in Sources */,
+				4B333115FC7169FD572411B2 /* KeyboardNavigation.swift in Sources */,
+				1A143BB710A124F2F0BE6EF8 /* MessageBubble.swift in Sources */,
+				8C183F691CE17A1436C66B58 /* MessageInputArea.swift in Sources */,
+				4598CCFA43A83DDB36C8E894 /* MessageListView.swift in Sources */,
+				1AD89167F42D5BC1A8A7717C /* MessagesViewModel.swift in Sources */,
+				9D093E0691ABE35619144614 /* NotificationService.swift in Sources */,
+				C3E6130CD573666B2DECAD4C /* SidebarView.swift in Sources */,
+				33AD414AFB0C6D91E8DD7D6B /* ThreadBreadcrumb.swift in Sources */,
+				C5FB75941FB8695A5066E408 /* ThreadsViewModel.swift in Sources */,
+				66E5CED9D73DC1317C729112 /* WindowStateService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6D5807FC04FDEC03F14F813A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BA50B795B93BBCE40BF23264 /* FrayBridge.swift in Sources */,
+				7E053F5CB4B8E159D1610A3C /* FrayColors.swift in Sources */,
+				AC5D86F0DBAF7BB4A980FB26 /* FrayError.swift in Sources */,
+				35491ED8FC7F6014B3A89251 /* FrayMenuBarApp.swift in Sources */,
+				301B8603B005C8E61094006D /* FrayTypes.swift in Sources */,
+				F60CBFB5664981FCB44CAB15 /* MenuBarContentView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		011F24099CE21E97DA17309A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		1C507512C617904519800064 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		1FB4D9A6CEF97D3EAFD13EB3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Fray/Fray.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Fray/FrayBridge",
+				);
+				INFOPLIST_KEY_CFBundleDisplayName = Fray;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../build",
+				);
+				OTHER_LDFLAGS = (
+					"-lfray",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"-import-objc-header",
+					"$(PROJECT_DIR)/Fray/FrayBridge/libfray.h",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fray.app;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		453E4A248EBA56A941089705 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Fray/FrayBridge",
+				);
+				INFOPLIST_KEY_LSUIElement = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../build",
+				);
+				OTHER_LDFLAGS = (
+					"-lfray",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"-import-objc-header",
+					"$(PROJECT_DIR)/Fray/FrayBridge/libfray.h",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fray.menubar;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		78CEB46A6A3C63C9F1A1B1D3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Fray/Fray.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Fray/FrayBridge",
+				);
+				INFOPLIST_KEY_CFBundleDisplayName = Fray;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../build",
+				);
+				OTHER_LDFLAGS = (
+					"-lfray",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"-import-objc-header",
+					"$(PROJECT_DIR)/Fray/FrayBridge/libfray.h",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fray.app;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		A4FE1F165301E441B8EB7983 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Fray/FrayBridge",
+				);
+				INFOPLIST_KEY_LSUIElement = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../build",
+				);
+				OTHER_LDFLAGS = (
+					"-lfray",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"-import-objc-header",
+					"$(PROJECT_DIR)/Fray/FrayBridge/libfray.h",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fray.menubar;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1F4E7154EF790E4428E6C905 /* Build configuration list for PBXNativeTarget "FrayMenuBar" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A4FE1F165301E441B8EB7983 /* Debug */,
+				453E4A248EBA56A941089705 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		401E4966F37494B2EB7A5DF7 /* Build configuration list for PBXProject "Fray" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				011F24099CE21E97DA17309A /* Debug */,
+				1C507512C617904519800064 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D8614FEB3A3CDE10CE319EAF /* Build configuration list for PBXNativeTarget "Fray" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				78CEB46A6A3C63C9F1A1B1D3 /* Debug */,
+				1FB4D9A6CEF97D3EAFD13EB3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 909FB67985DC58D24C105CAE /* Project object */;
+}

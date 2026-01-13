@@ -98,6 +98,10 @@ extern char* FraySetReadTo(unsigned long long handle, char* agentID, char* home,
 extern char* FrayRegisterAgent(unsigned long long handle, char* agentID);
 extern char* FrayGetConfig(unsigned long long handle, char* key);
 extern char* FraySetConfig(unsigned long long handle, char* key, char* value);
+extern char* FrayListChannels(void);
+extern char* FrayGetFaves(unsigned long long handle, char* agentID, char* itemType);
+extern char* FrayUnfaveItem(unsigned long long handle, char* itemGUID, char* agentID);
+extern char* FrayGetAgentUsage(unsigned long long handle, char* agentID);
 extern void FrayFreeString(char* ptr);
 
 #ifdef __cplusplus

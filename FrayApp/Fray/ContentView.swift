@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedThread: FrayThread?
+    @State private var currentChannel: FrayChannel?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showActivityPanel = false
     @State private var showCommandPalette = false
@@ -17,12 +18,17 @@ struct ContentView: View {
     @SceneStorage("sidebarWidth") private var sidebarWidth: Double = 280
     @SceneStorage("selectedThreadId") private var selectedThreadId: String = ""
     @SceneStorage("activityPanelVisible") private var activityPanelVisible: Bool = false
+    @SceneStorage("currentChannelId") private var currentChannelId: String = ""
 
     var body: some View {
         ZStack {
             NavigationSplitView(columnVisibility: $columnVisibility) {
-                SidebarView(selectedThread: $selectedThread)
-                    .navigationSplitViewColumnWidth(min: 200, ideal: FraySpacing.sidebarWidth)
+                SidebarView(
+                    selectedThread: $selectedThread,
+                    currentChannel: $currentChannel,
+                    currentAgentId: currentAgentId
+                )
+                .navigationSplitViewColumnWidth(min: 200, ideal: FraySpacing.sidebarWidth)
             } content: {
                 VStack(spacing: 0) {
                     if selectedThread != nil {
@@ -34,9 +40,18 @@ struct ContentView: View {
                     }
 
                     if let thread = selectedThread {
-                        MessageListView(thread: thread, currentAgentId: currentAgentId)
+                        MessageListView(
+                            thread: thread,
+                            currentAgentId: currentAgentId,
+                            channelName: currentChannel?.name
+                        )
+                        .id(thread.guid)
                     } else {
-                        RoomView(currentAgentId: currentAgentId)
+                        RoomView(
+                            currentAgentId: currentAgentId,
+                            channelName: currentChannel?.name
+                        )
+                        .id("room-\(currentChannel?.id ?? "default")")
                     }
                 }
             } detail: {
@@ -47,6 +62,9 @@ struct ContentView: View {
                             min: 150,
                             ideal: FraySpacing.activityPanelWidth
                         )
+                } else {
+                    EmptyView()
+                        .navigationSplitViewColumnWidth(0)
                 }
             }
             .task {
@@ -61,6 +79,15 @@ struct ContentView: View {
             }
             .onChange(of: showActivityPanel) { _, newValue in
                 activityPanelVisible = newValue
+            }
+            .onChange(of: currentChannel?.id) { _, newId in
+                currentChannelId = newId ?? ""
+                // Reconnect to new channel
+                if let channel = currentChannel {
+                    Task {
+                        await reconnectToChannel(channel)
+                    }
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigation) {
@@ -93,7 +120,7 @@ struct ContentView: View {
 
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { showActivityPanel.toggle() }) {
-                        Image(systemName: "sidebar.right")
+                        Image(systemName: showActivityPanel ? "sidebar.right.fill" : "sidebar.right")
                     }
                     .help("Toggle Activity Panel (⌘I)")
                     .keyboardShortcut("i", modifiers: [.command])
@@ -154,7 +181,7 @@ struct ContentView: View {
             FileManager.default.currentDirectoryPath,
             ProcessInfo.processInfo.environment["FRAY_PROJECT_PATH"],
             FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("dev/fray").path,
-            "/Users/adam/dev/fray"  // Fallback for development
+            "/Users/adam/dev/fray"
         ].compactMap { $0 }
 
         for startPath in searchPaths {
@@ -172,9 +199,34 @@ struct ContentView: View {
         print("No fray project found. Searched: \(searchPaths)")
     }
 
+    private func reconnectToChannel(_ channel: FrayChannel) async {
+        bridge.disconnect()
+        do {
+            try bridge.connect(projectPath: channel.path)
+            print("Switched to channel: \(channel.name) at \(channel.path)")
+            selectedThread = nil
+            await loadThreads()
+        } catch {
+            print("Failed to connect to channel \(channel.name): \(error)")
+        }
+    }
+
     private func restoreState() {
         showActivityPanel = activityPanelVisible
 
+        // Restore channel
+        if !currentChannelId.isEmpty {
+            do {
+                let channels = try FrayBridge.listChannels()
+                if let channel = channels.first(where: { $0.id == currentChannelId }) {
+                    currentChannel = channel
+                }
+            } catch {
+                print("Failed to restore channel: \(error)")
+            }
+        }
+
+        // Restore thread
         if !selectedThreadId.isEmpty,
            let thread = allThreads.first(where: { $0.guid == selectedThreadId }) {
             selectedThread = thread

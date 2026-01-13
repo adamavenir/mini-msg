@@ -215,6 +215,18 @@ final class FrayBridge {
         return response.data ?? nil
     }
 
+    /// Get token usage for an agent's current session
+    func getAgentUsage(agentId: String) throws -> AgentUsage {
+        try ensureConnected()
+
+        let result = agentId.withCString { cAgentId in
+            callFFI {
+                FrayGetAgentUsage(handle, UnsafeMutablePointer(mutating: cAgentId))
+            }
+        }
+        return try decode(AgentUsage.self, from: result)
+    }
+
     // MARK: - Threads
 
     /// Get threads with optional parent filter
@@ -373,6 +385,66 @@ final class FrayBridge {
         return try decode(FrayAgent.self, from: result)
     }
 
+    // MARK: - Channels
+
+    /// List all registered channels (reads from global config, no handle needed)
+    static func listChannels() throws -> [FrayChannel] {
+        let result = callFFI { FrayListChannels() }
+        guard let data = result.data(using: .utf8) else {
+            throw FrayError.decodingFailed("Invalid UTF-8 response")
+        }
+        let response = try JSONDecoder.fray.decode(FFIResponse<[FrayChannel]>.self, from: data)
+        guard response.ok, let channels = response.data else {
+            throw FrayError.ffi(response.error ?? "unknown error")
+        }
+        return channels
+    }
+
+    // MARK: - Faves
+
+    /// Get faves for an agent
+    func getFaves(agentId: String, itemType: String? = nil) throws -> [FrayFave] {
+        try ensureConnected()
+
+        let result = agentId.withCString { cAgentId in
+            withOptionalCString(itemType) { cItemType in
+                callFFI {
+                    FrayGetFaves(
+                        handle,
+                        UnsafeMutablePointer(mutating: cAgentId),
+                        cItemType
+                    )
+                }
+            }
+        }
+        return try decode([FrayFave].self, from: result)
+    }
+
+    /// Unfave an item (message or thread)
+    func unfaveItem(itemGuid: String, agentId: String) throws {
+        try ensureConnected()
+
+        let result = itemGuid.withCString { cItemGuid in
+            agentId.withCString { cAgentId in
+                callFFI {
+                    FrayUnfaveItem(
+                        handle,
+                        UnsafeMutablePointer(mutating: cItemGuid),
+                        UnsafeMutablePointer(mutating: cAgentId)
+                    )
+                }
+            }
+        }
+
+        let response = try JSONDecoder.fray.decode(
+            FFIResponse<EmptyData>.self,
+            from: result.data(using: .utf8)!
+        )
+        if !response.ok {
+            throw FrayError.ffi(response.error ?? "unknown error")
+        }
+    }
+
     // MARK: - Config
 
     /// Get a config value
@@ -443,6 +515,11 @@ final class FrayBridge {
 
     /// Call FFI function and convert result to String
     private func callFFI(_ call: () -> UnsafeMutablePointer<CChar>?) -> String {
+        Self.callFFI(call)
+    }
+
+    /// Static version of callFFI for use with handle-less FFI functions
+    private static func callFFI(_ call: () -> UnsafeMutablePointer<CChar>?) -> String {
         guard let ptr = call() else {
             return #"{"ok":false,"error":"null response"}"#
         }
