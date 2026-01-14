@@ -263,6 +263,7 @@ Legacy (deprecated):
 				}
 
 				var roomMessages []types.Message
+				roomCap := parseOptionalInt(room, 10)
 				if last != "" {
 					// Explicit --last flag: use that limit
 					roomLimit, err := strconv.Atoi(last)
@@ -271,9 +272,10 @@ Legacy (deprecated):
 					}
 					roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
 				} else if watermark != nil {
-					// Has watermark: get only unread messages (since watermark)
+					// Has watermark: get only unread messages (since watermark), capped
 					roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{
 						Since:           &types.MessageCursor{GUID: watermark.MessageGUID, TS: watermark.MessageTS},
+						Limit:           roomCap,
 						Filter:          filter,
 						IncludeArchived: archived,
 					})
@@ -285,14 +287,16 @@ Legacy (deprecated):
 						if msgErr == nil && msg != nil {
 							roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{
 								Since:           &types.MessageCursor{GUID: msg.ID, TS: msg.TS},
+								Limit:           roomCap,
 								Filter:          filter,
 								IncludeArchived: archived,
 							})
+							// Auto-clear ghost cursor after first use (one-time handoff)
+							_ = db.DeleteGhostCursor(ctx.DB, agentBase, "room")
 						}
 					}
 					if roomMessages == nil {
-						roomLimit := parseOptionalInt(room, 10)
-						roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomLimit, Filter: filter, IncludeArchived: archived})
+						roomMessages, err = db.GetMessages(ctx.DB, &types.MessageQueryOptions{Limit: roomCap, Filter: filter, IncludeArchived: archived})
 					}
 				}
 				if err != nil {
@@ -304,13 +308,6 @@ Legacy (deprecated):
 				}
 				if hideEvents {
 					roomMessages = filterEventMessages(roomMessages)
-				}
-
-				// Hard cap room messages to prevent token bloat
-				// Only applies when no explicit --last flag was provided
-				roomCap := parseOptionalInt(room, 10)
-				if last == "" && len(roomMessages) > roomCap {
-					roomMessages = roomMessages[len(roomMessages)-roomCap:]
 				}
 
 				// Check ghost cursor for session-aware unread logic

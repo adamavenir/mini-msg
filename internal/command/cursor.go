@@ -3,6 +3,7 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/adamavenir/fray/internal/db"
@@ -29,6 +30,7 @@ Ghost cursor = msg-50. Next agent gets msg-50→current.`,
 
 	cmd.AddCommand(
 		newCursorSetCmd(),
+		newCursorStageCmd(),
 		newCursorShowCmd(),
 		newCursorClearCmd(),
 	)
@@ -111,6 +113,93 @@ rather than just showing a hint like "3 new in design-thread".`,
 				mustReadStr = " (must-read)"
 			}
 			fmt.Fprintf(out, "Ghost cursor set for @%s in %s: %s%s\n", agentID, home, messageGUID, mustReadStr)
+			return nil
+		},
+	}
+
+	cmd.Flags().Bool("must-read", false, "inject full content vs hint only")
+
+	return cmd
+}
+
+func newCursorStageCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "stage <home> <message>",
+		Short: "Stage a ghost cursor for commit on bye/brb",
+		Long: `Stage a ghost cursor to be committed when agent exits.
+
+Staged cursors are temporary and only become official ghost cursors when:
+- Agent runs 'fray bye' or 'fray brb'
+- All staged cursors are committed at exit time
+
+This allows agents to set multiple handoff points during a session without
+committing them immediately. Uses FRAY_AGENT_ID for agent identity.
+
+Arguments:
+  home     "room" or thread GUID/name
+  message  Message GUID to start reading from
+
+Use --must-read to mark that content should be injected fully in neo.`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, err := GetContext(cmd)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+			defer ctx.DB.Close()
+
+			agentID := os.Getenv("FRAY_AGENT_ID")
+			if agentID == "" {
+				return writeCommandError(cmd, fmt.Errorf("FRAY_AGENT_ID not set (required for staging cursors)"))
+			}
+
+			home := args[0]
+			if home != "room" {
+				// Try to resolve as thread
+				thread, err := resolveThreadRef(ctx.DB, home)
+				if err != nil {
+					return writeCommandError(cmd, fmt.Errorf("invalid home: %s (must be 'room' or thread reference)", home))
+				}
+				home = thread.GUID
+			}
+
+			message, err := resolveMessageRef(ctx.DB, args[1])
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+			messageGUID := message.ID
+
+			mustRead, _ := cmd.Flags().GetBool("must-read")
+
+			cursor := types.GhostCursor{
+				AgentID:     agentID,
+				Home:        home,
+				MessageGUID: messageGUID,
+				MustRead:    mustRead,
+				SetAt:       time.Now().UnixMilli(),
+			}
+
+			if err := db.SetStagedCursor(ctx.DB, cursor); err != nil {
+				return writeCommandError(cmd, err)
+			}
+
+			if ctx.JSONMode {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{
+					"agent_id":     agentID,
+					"home":         home,
+					"message_guid": messageGUID,
+					"must_read":    mustRead,
+					"staged":       true,
+				})
+			}
+
+			out := cmd.OutOrStdout()
+			mustReadStr := ""
+			if mustRead {
+				mustReadStr = " (must-read)"
+			}
+			fmt.Fprintf(out, "Staged cursor for @%s in %s: %s%s\n", agentID, home, messageGUID, mustReadStr)
+			fmt.Fprintln(out, "Will be committed on 'fray bye' or 'fray brb'")
 			return nil
 		},
 	}

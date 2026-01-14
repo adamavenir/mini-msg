@@ -150,3 +150,84 @@ func ClearGhostCursorSessionAcks(db *sql.DB, agentID string) error {
 	`, agentID)
 	return err
 }
+
+// Staged cursor functions (session-temporary, not persisted to JSONL)
+
+// SetStagedCursor sets or updates a staged cursor for an agent in a specific home.
+func SetStagedCursor(db *sql.DB, cursor types.GhostCursor) error {
+	mustRead := 0
+	if cursor.MustRead {
+		mustRead = 1
+	}
+	_, err := db.Exec(`
+		INSERT OR REPLACE INTO fray_staged_cursors (agent_id, home, message_guid, must_read, set_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, cursor.AgentID, cursor.Home, cursor.MessageGUID, mustRead, cursor.SetAt)
+	return err
+}
+
+// GetStagedCursors retrieves all staged cursors for an agent.
+func GetStagedCursors(db *sql.DB, agentID string) ([]types.GhostCursor, error) {
+	rows, err := db.Query(`
+		SELECT agent_id, home, message_guid, must_read, set_at
+		FROM fray_staged_cursors
+		WHERE agent_id = ?
+		ORDER BY home
+	`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var cursors []types.GhostCursor
+	for rows.Next() {
+		var cursor types.GhostCursor
+		var mustRead int
+		if err := rows.Scan(&cursor.AgentID, &cursor.Home, &cursor.MessageGUID, &mustRead, &cursor.SetAt); err != nil {
+			return nil, err
+		}
+		cursor.MustRead = mustRead != 0
+		cursors = append(cursors, cursor)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return cursors, nil
+}
+
+// CommitStagedCursors moves all staged cursors to official ghost cursors.
+// Returns the number of cursors committed.
+func CommitStagedCursors(db *sql.DB, agentID string) (int, error) {
+	// Insert staged cursors as ghost cursors
+	result, err := db.Exec(`
+		INSERT OR REPLACE INTO fray_ghost_cursors (agent_id, home, message_guid, must_read, set_at, session_ack_at)
+		SELECT agent_id, home, message_guid, must_read, set_at, NULL
+		FROM fray_staged_cursors
+		WHERE agent_id = ?
+	`, agentID)
+	if err != nil {
+		return 0, err
+	}
+
+	count, _ := result.RowsAffected()
+
+	// Clear staged cursors
+	_, err = db.Exec(`
+		DELETE FROM fray_staged_cursors
+		WHERE agent_id = ?
+	`, agentID)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
+// DeleteAllStagedCursors removes all staged cursors for an agent.
+func DeleteAllStagedCursors(db *sql.DB, agentID string) error {
+	_, err := db.Exec(`
+		DELETE FROM fray_staged_cursors
+		WHERE agent_id = ?
+	`, agentID)
+	return err
+}

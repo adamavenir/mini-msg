@@ -215,6 +215,17 @@ CREATE TABLE IF NOT EXISTS fray_ghost_cursors (
 
 CREATE INDEX IF NOT EXISTS idx_fray_ghost_cursors_agent ON fray_ghost_cursors(agent_id);
 
+-- Staged cursors (temporary, not persisted to JSONL)
+-- Agents set these during a session, committed on bye/brb
+CREATE TABLE IF NOT EXISTS fray_staged_cursors (
+  agent_id TEXT NOT NULL,
+  home TEXT NOT NULL,            -- "room" or thread GUID
+  message_guid TEXT NOT NULL,    -- start reading from here
+  must_read INTEGER NOT NULL DEFAULT 0,
+  set_at INTEGER NOT NULL,
+  PRIMARY KEY (agent_id, home)
+);
+
 -- Resource claims for collision prevention
 CREATE TABLE IF NOT EXISTS fray_claims (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

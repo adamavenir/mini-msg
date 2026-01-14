@@ -93,16 +93,28 @@ func fetchHookMessages(dbConn *sql.DB, agentID string, roomLimit, mentionLimit i
 	// Check for ghost cursor to determine starting point
 	ghostCursor, _ := db.GetGhostCursor(dbConn, agentBase, "room")
 
+	// Check for watermark to determine starting point
+	watermark, _ := db.GetReadTo(dbConn, agentBase, "room")
+
 	var roomMessages []types.Message
 	var err error
+	var usedGhostCursor bool
 	if ghostCursor != nil {
-		// Ghost cursor set: get messages from that point forward
+		// Ghost cursor set: get messages from that point forward, capped at limit
 		msg, msgErr := db.GetMessage(dbConn, ghostCursor.MessageGUID)
 		if msgErr == nil && msg != nil {
 			roomMessages, err = db.GetMessages(dbConn, &types.MessageQueryOptions{
 				Since: &types.MessageCursor{GUID: msg.ID, TS: msg.TS},
+				Limit: roomLimit,
 			})
+			usedGhostCursor = true
 		}
+	} else if watermark != nil {
+		// Has watermark but no ghost cursor: get unread messages (capped)
+		roomMessages, err = db.GetMessages(dbConn, &types.MessageQueryOptions{
+			Since: &types.MessageCursor{GUID: watermark.MessageGUID, TS: watermark.MessageTS},
+			Limit: roomLimit,
+		})
 	}
 	if roomMessages == nil {
 		// No ghost cursor or error: fall back to last N
@@ -112,7 +124,26 @@ func fetchHookMessages(dbConn *sql.DB, agentID string, roomLimit, mentionLimit i
 		roomMessages = nil
 	}
 
-	mentionMessages, err := db.GetMessagesWithMention(dbConn, agentBase, &types.MessageQueryOptions{Limit: roomLimit + mentionLimit})
+	// Get @mentions using watermark-based filtering
+	mentionWatermark, _ := db.GetReadTo(dbConn, agentBase, "mentions")
+	allHomes := ""
+	mentionOpts := &types.MessageQueryOptions{
+		Limit:                 roomLimit + mentionLimit,
+		IncludeRepliesToAgent: agentBase,
+		AgentPrefix:           agentBase,
+		Home:                  &allHomes,
+	}
+	if mentionWatermark != nil {
+		mentionOpts.Since = &types.MessageCursor{GUID: mentionWatermark.MessageGUID, TS: mentionWatermark.MessageTS}
+	} else if ghostCursor != nil && ghostCursor.SessionAckAt == nil {
+		// Use ghost cursor for mentions if not yet acked
+		msg, msgErr := db.GetMessage(dbConn, ghostCursor.MessageGUID)
+		if msgErr == nil && msg != nil {
+			mentionOpts.Since = &types.MessageCursor{GUID: msg.ID, TS: msg.TS}
+		}
+	}
+
+	mentionMessages, err := db.GetMessagesWithMention(dbConn, agentBase, mentionOpts)
 	if err != nil {
 		mentionMessages = nil
 	}
@@ -131,6 +162,11 @@ func fetchHookMessages(dbConn *sql.DB, agentID string, roomLimit, mentionLimit i
 		if len(filteredMentions) == mentionLimit {
 			break
 		}
+	}
+
+	// Auto-clear ghost cursor after first use (one-time handoff)
+	if usedGhostCursor {
+		_ = db.DeleteGhostCursor(dbConn, agentBase, "room")
 	}
 
 	return roomMessages, filteredMentions, agentBase

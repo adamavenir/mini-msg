@@ -76,6 +76,25 @@ func NewByeCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
+			// Commit staged cursors to official ghost cursors
+			committedCursors, err := db.CommitStagedCursors(ctx.DB, agentID)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
+
+			// Append committed cursors to JSONL
+			if committedCursors > 0 {
+				cursors, err := db.GetGhostCursors(ctx.DB, agentID)
+				if err != nil {
+					return writeCommandError(cmd, err)
+				}
+				for _, cursor := range cursors {
+					if err := db.AppendGhostCursor(ctx.Project.DBPath, cursor); err != nil {
+						return writeCommandError(cmd, err)
+					}
+				}
+			}
+
 			var posted *types.Message
 			if message != "" {
 				bases, err := db.GetAgentBases(ctx.DB)
@@ -143,13 +162,14 @@ func NewByeCmd() *cobra.Command {
 
 			if ctx.JSONMode {
 				payload := map[string]any{
-					"agent_id":              agentID,
-					"status":                "left",
-					"message_id":            nil,
-					"claims_cleared":        clearedClaims,
-					"roles_cleared":         clearedRoles,
+					"agent_id":                agentID,
+					"status":                  "left",
+					"message_id":              nil,
+					"claims_cleared":          clearedClaims,
+					"roles_cleared":           clearedRoles,
 					"wake_conditions_cleared": clearedWake,
 					"wake_conditions_paused":  pausedWake,
+					"cursors_committed":       committedCursors,
 				}
 				if posted != nil {
 					payload["message_id"] = posted.ID
@@ -189,6 +209,13 @@ func NewByeCmd() *cobra.Command {
 					plural = ""
 				}
 				fmt.Fprintf(out, "  Paused %d wake condition%s (will restore on back)\n", pausedWake, plural)
+			}
+			if committedCursors > 0 {
+				plural := "s"
+				if committedCursors == 1 {
+					plural = ""
+				}
+				fmt.Fprintf(out, "  Committed %d ghost cursor%s\n", committedCursors, plural)
 			}
 			return nil
 		},
