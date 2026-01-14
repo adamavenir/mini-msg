@@ -271,6 +271,72 @@ type Question struct {
 	CreatedAt  int64            `json:"created_at"`
 }
 
+// PermissionStatus represents permission request lifecycle state.
+type PermissionStatus string
+
+const (
+	PermissionStatusPending  PermissionStatus = "pending"
+	PermissionStatusApproved PermissionStatus = "approved"
+	PermissionStatusDenied   PermissionStatus = "denied"
+	PermissionStatusExpired  PermissionStatus = "expired"
+)
+
+// PermissionScope determines how long an approval lasts.
+type PermissionScope string
+
+const (
+	PermissionScopeOnce    PermissionScope = "once"    // Just this invocation
+	PermissionScopeSession PermissionScope = "session" // This agent's session
+	PermissionScopeProject PermissionScope = "project" // Persists in settings, all agents
+)
+
+// PermissionOption represents a selectable approval option.
+type PermissionOption struct {
+	Label    string          `json:"label"`
+	Patterns []string        `json:"patterns"`          // Permission patterns to grant
+	Scope    PermissionScope `json:"scope"`             // How long approval lasts
+	Note     string          `json:"note,omitempty"`    // Why this is safe
+	Warning  string          `json:"warning,omitempty"` // If this includes risky operations
+}
+
+// PermissionRequest represents a pending permission approval request.
+type PermissionRequest struct {
+	GUID        string             `json:"guid"`
+	FromAgent   string             `json:"from_agent"`
+	SessionID   string             `json:"session_id,omitempty"`
+	Tool        string             `json:"tool"`                   // e.g., "Bash", "mcp__github"
+	Action      string             `json:"action"`                 // e.g., "rm -rf node_modules"
+	Rationale   string             `json:"rationale"`              // Why the agent needs this
+	Options     []PermissionOption `json:"options"`                // Available approval choices
+	Status      PermissionStatus   `json:"status"`                 // pending, approved, denied, expired
+	ChosenIndex *int               `json:"chosen_index,omitempty"` // Which option was chosen
+	RespondedBy *string            `json:"responded_by,omitempty"` // Who approved/denied
+	CreatedAt   int64              `json:"created_at"`
+	RespondedAt *int64             `json:"responded_at,omitempty"`
+}
+
+// InteractiveAction represents a clickable action in an event message.
+// This enables reusable interactive UI patterns for permissions, questions, etc.
+type InteractiveAction struct {
+	ID      string `json:"id"`                // Unique action ID (e.g., "approve-1", "deny")
+	Label   string `json:"label"`             // Display text (e.g., "[1] Allow once")
+	Command string `json:"command"`           // CLI command to execute (e.g., "fray approve perm-abc 1")
+	Style   string `json:"style,omitempty"`   // Style hint: "primary", "danger", "muted"
+	Confirm bool   `json:"confirm,omitempty"` // Require confirmation before executing
+}
+
+// InteractiveEvent wraps event metadata with clickable actions.
+// Messages with Type=event can embed this for interactive rendering.
+type InteractiveEvent struct {
+	Kind       string              `json:"kind"`                  // Event type: "permission", "question", "approval"
+	TargetGUID string              `json:"target_guid"`           // GUID of related entity (permission, question, etc.)
+	Title      string              `json:"title"`                 // Event title
+	Body       string              `json:"body"`                  // Event body/description
+	Actions    []InteractiveAction `json:"actions"`               // Clickable action buttons
+	Status     string              `json:"status,omitempty"`      // Current status: "pending", "resolved"
+	ResolvedBy *string             `json:"resolved_by,omitempty"` // Who resolved it
+}
+
 // ThreadStatus represents thread lifecycle state.
 type ThreadStatus string
 
