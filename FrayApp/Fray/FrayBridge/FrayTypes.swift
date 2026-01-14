@@ -231,6 +231,41 @@ struct FrayFave: Codable, Equatable {
     let favedAt: Int64
 }
 
+// MARK: - Interactive Event Types
+
+/// Interactive action - matches internal/types/types.go:320
+struct InteractiveAction: Codable, Equatable {
+    let id: String
+    let label: String
+    let command: String
+    let style: String?
+    let confirm: Bool?
+}
+
+/// Interactive event - matches internal/types/types.go:328
+struct InteractiveEvent: Codable, Equatable {
+    let kind: String
+    let targetGuid: String
+    let title: String
+    let body: String
+    let actions: [InteractiveAction]
+    let status: String?
+    let resolvedBy: String?
+}
+
+/// Parse interactive event from message body.
+/// Looks for <!--interactive:{...}--> marker.
+func parseInteractiveEvent(from body: String) -> InteractiveEvent? {
+    guard let startRange = body.range(of: "<!--interactive:") else { return nil }
+    let afterStart = body[startRange.upperBound...]
+    guard let endRange = afterStart.range(of: "-->") else { return nil }
+
+    let jsonStr = String(afterStart[..<endRange.lowerBound])
+    guard let jsonData = jsonStr.data(using: .utf8) else { return nil }
+
+    return try? JSONDecoder.fray.decode(InteractiveEvent.self, from: jsonData)
+}
+
 // MARK: - JSON Value (for arbitrary nested structures)
 
 /// Recursive JSON value wrapper for arbitrary config structures

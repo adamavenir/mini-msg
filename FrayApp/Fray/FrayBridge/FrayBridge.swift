@@ -8,6 +8,27 @@ final class FrayBridge {
     private(set) var projectPath: String?
     private(set) var isConnected: Bool = false
 
+    /// Path to the fray binary (discovered on access)
+    var frayPath: String {
+        // Try common locations
+        let candidates = [
+            "/opt/homebrew/bin/fray",
+            "/usr/local/bin/fray",
+            NSHomeDirectory() + "/go/bin/fray"
+        ]
+        for path in candidates {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        return "fray" // Fall back to PATH
+    }
+
+    /// Project root directory (for running commands)
+    var projectRoot: String {
+        projectPath ?? FileManager.default.currentDirectoryPath
+    }
+
     // MARK: - Connection
 
     /// Discover a Fray project by walking up from the given directory

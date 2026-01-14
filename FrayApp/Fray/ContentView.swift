@@ -35,6 +35,7 @@ struct ContentView: View {
                         ThreadBreadcrumb(
                             thread: selectedThread,
                             allThreads: allThreads,
+                            channelName: currentChannel?.name,
                             onNavigate: { selectedThread = $0 }
                         )
                     }
@@ -91,14 +92,6 @@ struct ContentView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigation) {
-                    if let agentId = currentAgentId {
-                        Text("@\(agentId)")
-                            .font(FrayTypography.agentName)
-                            .foregroundStyle(FrayColors.colorForAgent(agentId))
-                    }
-                }
-
-                ToolbarItem(placement: .navigation) {
                     Button(action: {
                         withAnimation {
                             columnVisibility = columnVisibility == .all ? .detailOnly : .all
@@ -120,7 +113,7 @@ struct ContentView: View {
 
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { showActivityPanel.toggle() }) {
-                        Image(systemName: showActivityPanel ? "sidebar.right.fill" : "sidebar.right")
+                        Image(systemName: showActivityPanel ? "sidebar.trailing.fill" : "sidebar.trailing")
                     }
                     .help("Toggle Activity Panel (⌘I)")
                     .keyboardShortcut("i", modifiers: [.command])
