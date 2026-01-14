@@ -145,3 +145,60 @@ func truncateNotification(s string, maxLen int) string {
 	}
 	return s[:maxLen-1] + "…"
 }
+
+// SendInteractiveNotification sends a notification with action buttons.
+// Uses terminal-notifier's -actions flag for macOS, falls back to basic notification.
+func SendInteractiveNotification(event types.InteractiveEvent, projectName string) error {
+	title := event.Title
+	if projectName != "" {
+		title = projectName + " · " + title
+	}
+	body := truncateNotification(event.Body, 100)
+
+	// On macOS with Fray-Notifier.app, use actions
+	if notifier := getNotifierPath(); notifier != "" {
+		// Build action labels
+		var actionLabels []string
+		var actionCommands []string
+		for _, action := range event.Actions {
+			actionLabels = append(actionLabels, action.Label)
+			actionCommands = append(actionCommands, action.Command)
+		}
+
+		args := []string{
+			"-title", title,
+			"-message", body,
+			"-group", "fray-" + event.TargetGUID,
+		}
+
+		// Add actions dropdown if we have any
+		if len(actionLabels) > 0 {
+			args = append(args, "-actions", strings.Join(actionLabels, ","))
+		}
+
+		// Execute and capture the selected action
+		cmd := exec.Command(notifier, args...)
+		output, err := cmd.Output()
+		if err != nil {
+			return err
+		}
+
+		// If user selected an action, execute the corresponding command
+		selectedAction := strings.TrimSpace(string(output))
+		for i, label := range actionLabels {
+			if selectedAction == label && i < len(actionCommands) {
+				// Execute the action command
+				parts := strings.Fields(actionCommands[i])
+				if len(parts) >= 1 {
+					actionCmd := exec.Command(parts[0], parts[1:]...)
+					_ = actionCmd.Start() // Fire and forget
+				}
+				break
+			}
+		}
+		return nil
+	}
+
+	// Fallback to basic notification
+	return beeep.Notify(title, body, "")
+}
