@@ -502,4 +502,8 @@ fray hook-install              # Install integration hooks (session, prompt, pre
 fray hook-install --safety     # Also install safety guards (protect .fray/)
 fray hook-install --safety --global  # Install safety guards for all projects
 fray hook-uninstall --safety   # Remove safety guards
+
+# Permission requests (interactive approval flow)
+fray approve <perm-id> <1|2|3> # Approve permission (1=once, 2=session, 3=project)
+fray deny <perm-id> [reason]   # Deny permission request
 ```
