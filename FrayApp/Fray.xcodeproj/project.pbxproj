@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -38,6 +38,7 @@
 		CB276E7E08A021194C33F9FE /* AgentActivityRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A986D1CDEF22E2FE18A623C /* AgentActivityRow.swift */; };
 		E081A143479486028E7E2A93 /* FrayAccessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C11E48B7BF77A56F94360CA /* FrayAccessibility.swift */; };
 		E827C20B718D37D11ED51682 /* FraySpacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C3ABB7825B65F7A6F56F914 /* FraySpacing.swift */; };
+		E8B3F4A1D2E5678901234DEF /* PermissionRequestBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7A1E2B9C8F1234567890ABC /* PermissionRequestBubble.swift */; };
 		EB16A4B0621C60C7F9186859 /* CommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CFC93EA0985AF9C1747895 /* CommandPalette.swift */; };
 		EBE54DFEA3B60EEC9B6AFF4B /* FrayError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF658F76427169B3A79075F2 /* FrayError.swift */; };
 		F5B9F2E5016ADA1F01C01F9B /* AgentsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E9589707D2E40A116B072E /* AgentsViewModel.swift */; };
@@ -84,6 +85,7 @@
 		4D15D6699915EB8E5C84FDC4 /* FrayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayApp.swift; sourceTree = "<group>"; };
 		500C9E595208F5683BEA231F /* MenuBarContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContentView.swift; sourceTree = "<group>"; };
 		549828A57E29342FCE603B73 /* ActivityPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityPanelView.swift; sourceTree = "<group>"; };
+		66E7AAB62F176C2B00C83226 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6BEA7FFD7060ACD5525C9120 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		6C11E48B7BF77A56F94360CA /* FrayAccessibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayAccessibility.swift; sourceTree = "<group>"; };
 		7C91BF96742D103E169C0EDD /* IdentityPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityPromptView.swift; sourceTree = "<group>"; };
@@ -97,6 +99,7 @@
 		BB51FF30B64E5B6E2FD24564 /* FrayBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayBridge.swift; sourceTree = "<group>"; };
 		C9DEFFE2C84F8D327A4FD72F /* libfray.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libfray.dylib; sourceTree = "<group>"; };
 		D2ECC4D8CD22868988BA7063 /* ThreadBreadcrumb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadBreadcrumb.swift; sourceTree = "<group>"; };
+		D7A1E2B9C8F1234567890ABC /* PermissionRequestBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionRequestBubble.swift; sourceTree = "<group>"; };
 		E1F186A9C3B8C7397574EEAA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E5A5B5E10CF307FF67906C4A /* FrayColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrayColors.swift; sourceTree = "<group>"; };
 		E5F5E7F0DD00CC821C86FE9B /* WindowStateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowStateService.swift; sourceTree = "<group>"; };
@@ -181,6 +184,7 @@
 		C27D126A9D9DBF043455FD30 = {
 			isa = PBXGroup;
 			children = (
+				66E7AAB62F176C2B00C83226 /* Assets.xcassets */,
 				0E7D082E53F9116DAE7C8FE2 /* build */,
 				8198ABD2486D18F7C5A83B00 /* Fray */,
 				60219BAC06CA439A99EF8D84 /* FrayMenuBar */,
@@ -209,6 +213,7 @@
 				B9B44FC2A3F205E9AE3B2FE4 /* KeyboardNavigation.swift */,
 				8191B94821EA3F0891724C11 /* MessageBubble.swift */,
 				A0E567D4763B7F3A03D30815 /* MessageInputArea.swift */,
+				D7A1E2B9C8F1234567890ABC /* PermissionRequestBubble.swift */,
 				0BF3175A7C30599CC29B715D /* MessageListView.swift */,
 				46EF83370F0547E8A39B9AA9 /* SidebarView.swift */,
 				D2ECC4D8CD22868988BA7063 /* ThreadBreadcrumb.swift */,
@@ -278,7 +283,6 @@
 			);
 			mainGroup = C27D126A9D9DBF043455FD30;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -392,6 +396,7 @@
 				4B333115FC7169FD572411B2 /* KeyboardNavigation.swift in Sources */,
 				1A143BB710A124F2F0BE6EF8 /* MessageBubble.swift in Sources */,
 				8C183F691CE17A1436C66B58 /* MessageInputArea.swift in Sources */,
+				E8B3F4A1D2E5678901234DEF /* PermissionRequestBubble.swift in Sources */,
 				4598CCFA43A83DDB36C8E894 /* MessageListView.swift in Sources */,
 				1AD89167F42D5BC1A8A7717C /* MessagesViewModel.swift in Sources */,
 				9D093E0691ABE35619144614 /* NotificationService.swift in Sources */,
@@ -541,30 +546,26 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Fray/Fray.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 8LEK92EWPM;
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Fray/FrayBridge",
-				);
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Fray/FrayBridge";
 				INFOPLIST_KEY_CFBundleDisplayName = Fray;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/../build",
-				);
-				OTHER_LDFLAGS = (
-					"-lfray",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"-import-objc-header",
-					"$(PROJECT_DIR)/Fray/FrayBridge/libfray.h",
-				);
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../build";
+				OTHER_LDFLAGS = "-lfray";
+				OTHER_SWIFT_FLAGS = "-import-objc-header $(PROJECT_DIR)/Fray/FrayBridge/libfray.h";
 				PRODUCT_BUNDLE_IDENTIFIER = com.fray.app;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -576,24 +577,15 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Fray/FrayBridge",
-				);
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Fray/FrayBridge";
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/../build",
-				);
-				OTHER_LDFLAGS = (
-					"-lfray",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"-import-objc-header",
-					"$(PROJECT_DIR)/Fray/FrayBridge/libfray.h",
-				);
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../build";
+				OTHER_LDFLAGS = "-lfray";
+				OTHER_SWIFT_FLAGS = "-import-objc-header $(PROJECT_DIR)/Fray/FrayBridge/libfray.h";
 				PRODUCT_BUNDLE_IDENTIFIER = com.fray.menubar;
 				SDKROOT = macosx;
 			};
@@ -603,30 +595,26 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Fray/Fray.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 8LEK92EWPM;
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Fray/FrayBridge",
-				);
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Fray/FrayBridge";
 				INFOPLIST_KEY_CFBundleDisplayName = Fray;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/../build",
-				);
-				OTHER_LDFLAGS = (
-					"-lfray",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"-import-objc-header",
-					"$(PROJECT_DIR)/Fray/FrayBridge/libfray.h",
-				);
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../build";
+				OTHER_LDFLAGS = "-lfray";
+				OTHER_SWIFT_FLAGS = "-import-objc-header $(PROJECT_DIR)/Fray/FrayBridge/libfray.h";
 				PRODUCT_BUNDLE_IDENTIFIER = com.fray.app;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -638,24 +626,15 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Fray/FrayBridge",
-				);
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Fray/FrayBridge";
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/../build",
-				);
-				OTHER_LDFLAGS = (
-					"-lfray",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"-import-objc-header",
-					"$(PROJECT_DIR)/Fray/FrayBridge/libfray.h",
-				);
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../build";
+				OTHER_LDFLAGS = "-lfray";
+				OTHER_SWIFT_FLAGS = "-import-objc-header $(PROJECT_DIR)/Fray/FrayBridge/libfray.h";
 				PRODUCT_BUNDLE_IDENTIFIER = com.fray.menubar;
 				SDKROOT = macosx;
 			};
