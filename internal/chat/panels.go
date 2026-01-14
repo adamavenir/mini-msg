@@ -83,7 +83,12 @@ func (m *Model) renderSidebar() string {
 		}
 	}
 
-	lines := []string{headerStyle.Render(header), ""} // space after header
+	// Add blank lines at top to match pinned permissions height (keeps panels aligned with main)
+	var lines []string
+	for i := 0; i < m.pinnedPermissionsHeight(); i++ {
+		lines = append(lines, "")
+	}
+	lines = append(lines, headerStyle.Render(header), "") // space after header
 
 	indices := m.sidebarMatches
 	if !m.sidebarFilterActive {
@@ -93,13 +98,16 @@ func (m *Model) renderSidebar() string {
 		}
 	}
 
+	// Use panelHeight to account for pinned content at top
+	panelH := m.panelHeight()
+
 	if len(m.channels) == 0 {
 		lines = append(lines, itemStyle.Render(" (none)"))
 	} else if len(indices) == 0 {
 		lines = append(lines, itemStyle.Render(" (no matches)"))
 	} else {
 		// Virtual scrolling: calculate visible range
-		visibleHeight := m.height - 4 // header(1) + space(1) + footer(1) + padding(1)
+		visibleHeight := panelH - 4 // header(1) + space(1) + footer(1) + padding(1)
 		if visibleHeight < 1 {
 			visibleHeight = 1
 		}
@@ -144,6 +152,7 @@ func (m *Model) renderSidebar() string {
 		}
 	}
 
+	// Pad to full height (m.height) since we added top padding for pinned content
 	if m.height > 0 {
 		for len(lines) < m.height-1 {
 			lines = append(lines, "")
@@ -283,6 +292,13 @@ func channelMatchesFilter(entry channelEntry, term string) bool {
 }
 
 func (m *Model) sidebarIndexAtLine(line int) int {
+	// Account for top padding for pinned permissions
+	pinnedHeight := m.pinnedPermissionsHeight()
+	if line < pinnedHeight {
+		return -1
+	}
+	line -= pinnedHeight
+
 	// Sidebar has: header(1) + blank(1) = 2 lines before content
 	headerLines := 2
 	if line < headerLines {
@@ -909,7 +925,13 @@ func (m *Model) renderThreadPanel() string {
 
 	// Only show header when filtering or drilled in
 	filterHintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // dim grey
+
+	// Add blank lines at top to match pinned permissions height (keeps panels aligned with main)
 	var lines []string
+	for i := 0; i < m.pinnedPermissionsHeight(); i++ {
+		lines = append(lines, "")
+	}
+
 	showHeader := m.threadFilterActive || m.drillDepth() > 0
 	if showHeader {
 		header := ""
@@ -940,10 +962,10 @@ func (m *Model) renderThreadPanel() string {
 			}
 			header = fmt.Sprintf(" %s %s ", chevrons, path)
 		}
-		lines = []string{headerStyle.Render(header), ""} // space after header
+		lines = append(lines, headerStyle.Render(header), "") // space after header
 	} else {
 		// Show filter hint at top (dim grey, indented), then blank line
-		lines = []string{filterHintStyle.Render("   <space> to filter"), ""}
+		lines = append(lines, filterHintStyle.Render("   <space> to filter"), "")
 	}
 
 	entries := m.threadEntries()
@@ -963,11 +985,14 @@ func (m *Model) renderThreadPanel() string {
 	// Calculate activity section height (for reserving space at bottom)
 	activityLines, activityHeight := m.renderActivitySection(width)
 
+	// Use panelHeight to account for pinned content at top
+	panelH := m.panelHeight()
+
 	// Virtual scrolling: calculate visible range
 	// Header is always 2 lines: either header+blank or filter-hint+blank
 	headerLines := 2
 	// Reserve space: header lines + footer(1) + padding(1) + activity section
-	visibleHeight := m.height - headerLines - 2 - activityHeight
+	visibleHeight := panelH - headerLines - 2 - activityHeight
 	if visibleHeight < 1 {
 		visibleHeight = 1
 	}
@@ -1105,6 +1130,7 @@ func (m *Model) renderThreadPanel() string {
 	}
 
 	// Pad to fill space before activity section
+	// Use m.height since we added top padding for pinned content
 	targetHeight := m.height - activityHeight
 	if targetHeight > 0 {
 		for len(lines) < targetHeight {
@@ -1347,6 +1373,13 @@ func threadEntryMatchesFilter(entry threadEntry, term string) bool {
 }
 
 func (m *Model) threadIndexAtLine(line int) int {
+	// Account for top padding for pinned permissions
+	pinnedHeight := m.pinnedPermissionsHeight()
+	if line < pinnedHeight {
+		return -1
+	}
+	line -= pinnedHeight
+
 	// Thread panel always has 2 header lines:
 	// - When filtering or drilled: header(1) + blank(1) = 2 lines
 	// - When at top level: filter hint(1) + blank(1) = 2 lines

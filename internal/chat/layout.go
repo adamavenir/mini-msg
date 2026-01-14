@@ -156,8 +156,11 @@ func (m *Model) resize() {
 		peekTopHeight = 1 // only the top statusline is extra; bottom replaces margin
 	}
 
+	// Account for pinned permissions at top
+	pinnedHeight := m.pinnedPermissionsHeight()
+
 	m.viewport.Width = width
-	m.viewport.Height = m.height - inputHeight - statusHeight - suggestionHeight - marginHeight - peekTopHeight
+	m.viewport.Height = m.height - inputHeight - statusHeight - suggestionHeight - marginHeight - peekTopHeight - pinnedHeight
 	if m.viewport.Height < 1 {
 		m.viewport.Height = 1
 	}
@@ -167,4 +170,14 @@ func (m *Model) resize() {
 		return
 	}
 	m.refreshViewport(false)
+}
+
+// panelHeight returns the usable height for side panels (sidebar, thread panel).
+// This accounts for pinned content at the top that reduces the panel area.
+func (m *Model) panelHeight() int {
+	h := m.height - m.pinnedPermissionsHeight()
+	if h < 1 {
+		h = 1
+	}
+	return h
 }

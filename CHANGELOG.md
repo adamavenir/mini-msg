@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `fray approve <perm-id> <1|2|3>`: approve permission requests
+- `fray deny <perm-id>`: deny permission requests
+- `fray hook-permission`: PermissionRequest hook handler for Claude Code
 - Job system for parallel agent coordination
   - `fray job create "name" --as pm`: create job, returns job-xxx GUID
   - `fray job create "name" --as pm --context '{"issues":["id"]}'`: with context JSON

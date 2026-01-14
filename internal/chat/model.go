@@ -880,6 +880,10 @@ func (m *Model) View() string {
 	statusLine := lipgloss.NewStyle().Foreground(statusColor).Render(m.statusLine())
 
 	var lines []string
+	// Add pinned permission requests at top
+	if pinnedPerms := m.renderPinnedPermissions(); pinnedPerms != "" {
+		lines = append(lines, pinnedPerms)
+	}
 	// Add peek statusline at top if peeking
 	if peekTop := m.renderPeekStatusline(); peekTop != "" {
 		lines = append(lines, peekTop)
@@ -1234,6 +1238,25 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 		return true, nil
 	}
 
+	// Check for pinned permission request button clicks (at top of screen)
+	for _, message := range m.messages {
+		if event := parseInteractiveEvent(message); event != nil {
+			if event.Kind == "permission" && (event.Status == "" || event.Status == "pending") {
+				for _, action := range event.Actions {
+					zoneID := fmt.Sprintf("pinned-action-%s-%s", message.ID, action.ID)
+					if m.zoneManager.Get(zoneID).InBounds(msg) {
+						debugLog(fmt.Sprintf("handleMouseClick: pinned button clicked: %s", zoneID))
+						if action.Command != "" {
+							go m.executeActionCommand(action.Command)
+							m.status = fmt.Sprintf("Executing: %s", action.Label)
+						}
+						return true, nil
+					}
+				}
+			}
+		}
+	}
+
 	threadWidth := 0
 	if m.threadPanelOpen {
 		threadWidth = m.threadPanelWidth()
@@ -1285,8 +1308,9 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 					}
 					return true, nil
 				}
-				// Click on header (line 0) when drilled in -> drill out
-				if msg.Y == 0 && m.drillDepth() > 0 {
+				// Click on header when drilled in -> drill out
+				// Header is at Y = pinnedPermissionsHeight (first line after top padding)
+				if msg.Y == m.pinnedPermissionsHeight() && m.drillDepth() > 0 {
 					m.drillOutAction()
 					return true, nil
 				}
@@ -1327,12 +1351,13 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 	m.sidebarFocus = false
 	m.updateInputFocus()
 
-	// Account for peek statusline at top when calculating viewport Y
-	peekOffset := 0
+	// Account for peek statusline and pinned permissions at top when calculating viewport Y
+	topOffset := 0
 	if m.isPeeking() {
-		peekOffset = 1 // peek statusline takes 1 row
+		topOffset = 1 // peek statusline takes 1 row
 	}
-	viewportY := msg.Y - peekOffset
+	topOffset += m.pinnedPermissionsHeight()
+	viewportY := msg.Y - topOffset
 
 	if viewportY < 0 || viewportY >= m.viewport.Height {
 		// Clicking outside viewport (peek statusline or textarea area) - just focus input, keep peek state
@@ -1356,6 +1381,24 @@ func (m *Model) handleMouseClick(msg tea.MouseMsg) (bool, tea.Cmd) {
 	message, ok := m.messageAtLine(line)
 	if !ok || message == nil {
 		return ok, nil
+	}
+
+	// Check for interactive action button clicks first
+	if event := parseInteractiveEvent(*message); event != nil {
+		debugLog(fmt.Sprintf("handleMouseClick: message %s is interactive event with %d actions", message.ID, len(event.Actions)))
+		for _, action := range event.Actions {
+			zoneID := fmt.Sprintf("action-%s-%s", message.ID, action.ID)
+			zone := m.zoneManager.Get(zoneID)
+			debugLog(fmt.Sprintf("handleMouseClick: checking zone %s, InBounds=%v", zoneID, zone.InBounds(msg)))
+			if zone.InBounds(msg) {
+				if action.Command != "" {
+					debugLog(fmt.Sprintf("handleMouseClick: executing command: %s", action.Command))
+					go m.executeActionCommand(action.Command)
+					m.status = fmt.Sprintf("Executing: %s", action.Label)
+				}
+				return true, nil
+			}
+		}
 	}
 
 	now := time.Now()
@@ -1949,4 +1992,29 @@ func (m *Model) checkGotoFile() {
 
 	// TODO: scroll to specific message if messageID is provided
 	_ = messageID
+}
+
+// getPendingPermissionGUIDs returns a map of permission GUIDs that are truly pending
+// (not yet approved/denied in permissions.jsonl).
+func (m *Model) getPendingPermissionGUIDs() map[string]bool {
+	pending := make(map[string]bool)
+	perms, err := db.ReadPermissions(m.projectRoot)
+	if err != nil {
+		return pending
+	}
+	for _, perm := range perms {
+		if perm.Status == types.PermissionStatusPending || perm.Status == "" {
+			pending[perm.GUID] = true
+		}
+	}
+	return pending
+}
+
+// pinnedPermissionsHeight returns the number of lines used by pinned permission requests.
+// Currently disabled - returns 0 to avoid layout complexity.
+// Permission requests are shown inline in the viewport instead.
+func (m *Model) pinnedPermissionsHeight() int {
+	// DISABLED: Pinned permissions cause layout complexity.
+	// Permission requests are still shown inline in the viewport.
+	return 0
 }
