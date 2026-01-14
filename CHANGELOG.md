@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `fray cursor stage <home> <msg>`: stage ghost cursor for commit on bye/brb
+  - Uses FRAY_AGENT_ID, supports multiple homes (room + threads)
+  - Staged cursors commit automatically on session exit
+- Ghost cursors auto-expire after first read (one-time handoff semantics)
 - `fray approve <perm-id> <1|2|3>`: approve permission requests
 - `fray deny <perm-id>`: deny permission requests
 - `fray hook-permission`: PermissionRequest hook handler for Claude Code
