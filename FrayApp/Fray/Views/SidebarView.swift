@@ -123,14 +123,14 @@ struct SidebarView: View {
     private var favedThreadsSection: some View {
         if !favedThreads.isEmpty {
             ForEach(favedThreads) { thread in
-                SidebarRow(
-                    icon: nil,
-                    title: thread.name,
-                    isChannel: false,
-                    isSelected: selectedThread?.guid == thread.guid,
-                    isFaved: true,
-                    onSelect: { selectedThread = thread },
-                    onFaveToggle: { unfaveThread(thread.guid) }
+                FavedThreadListItem(
+                    thread: thread,
+                    allThreads: threads,
+                    favedIds: favedThreadGuids,
+                    selectedThread: $selectedThread,
+                    expandedThreads: $expandedThreadGuids,
+                    onUnfave: { unfaveThread($0) },
+                    onFave: { faveThread($0) }
                 )
             }
             // Divider under faved section
@@ -395,6 +395,148 @@ struct PresenceIndicator: View {
         case .offline: return "Offline"
         case .brb: return "Be right back"
         }
+    }
+}
+
+/// A faved thread item that shows with a filled star and can show children
+struct FavedThreadListItem: View {
+    let thread: FrayThread
+    let allThreads: [FrayThread]
+    let favedIds: Set<String>
+    @Binding var selectedThread: FrayThread?
+    @Binding var expandedThreads: Set<String>
+    let onUnfave: (String) -> Void
+    let onFave: (String) -> Void
+
+    @State private var isHovering = false
+    @State private var hoverWorkItem: DispatchWorkItem?
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isExpanded: Bool {
+        expandedThreads.contains(thread.guid)
+    }
+
+    private func toggleExpanded() {
+        if isExpanded {
+            expandedThreads.remove(thread.guid)
+        } else {
+            expandedThreads.insert(thread.guid)
+        }
+    }
+
+    /// Children of faved threads - includes ALL children (not excluding other faved ones)
+    /// since we want to show the full subtree under a faved thread
+    var childThreads: [FrayThread] {
+        allThreads.filter { $0.parentThread == thread.guid && !favedIds.contains($0.guid) }
+    }
+
+    var hasChildren: Bool {
+        !childThreads.isEmpty
+    }
+
+    var isSelected: Bool {
+        selectedThread?.guid == thread.guid
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            threadRow
+
+            if hasChildren && isExpanded {
+                ForEach(childThreads) { child in
+                    ThreadListItem(
+                        thread: child,
+                        allThreads: allThreads,
+                        favedIds: favedIds,
+                        selectedThread: $selectedThread,
+                        expandedThreads: $expandedThreads,
+                        onFave: onFave
+                    )
+                    .padding(.leading, FraySpacing.md)
+                }
+            }
+        }
+    }
+
+    private var threadRow: some View {
+        HStack(spacing: FraySpacing.sm) {
+            // Expand/collapse chevron for threads with children
+            if hasChildren {
+                Button(action: {
+                    if reduceMotion {
+                        toggleExpanded()
+                    } else {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            toggleExpanded()
+                        }
+                    }
+                }) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tertiary))
+                }
+                .buttonStyle(.borderless)
+                .frame(width: 16)
+            }
+
+            Text(thread.name)
+                .font(FrayTypography.sidebarThread)
+                .lineLimit(1)
+                .foregroundStyle(isSelected ? .white : (thread.status == .archived ? .secondary : .primary))
+
+            Spacer()
+
+            if thread.type == .knowledge {
+                Image(systemName: "brain")
+                    .font(.caption)
+                    .foregroundStyle(isSelected ? .white.opacity(0.7) : .secondary)
+            }
+
+            // Filled star for faved threads
+            Button(action: { onUnfave(thread.guid) }) {
+                Image(systemName: "star.fill")
+                    .font(.caption)
+                    .foregroundStyle(isSelected ? .white : .yellow)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Remove from favorites")
+        }
+        .padding(.horizontal, FraySpacing.sm)
+        .padding(.vertical, FraySpacing.xs)
+        .background {
+            RoundedRectangle(cornerRadius: FraySpacing.smallCornerRadius)
+                .fill(isSelected ? Color.accentColor : (isHovering ? FrayColors.hoverFill.resolve(for: colorScheme) : Color.clear))
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { selectedThread = thread }
+        .onHover { hovering in
+            hoverWorkItem?.cancel()
+            if hovering {
+                isHovering = true
+            } else {
+                let workItem = DispatchWorkItem { isHovering = false }
+                hoverWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + FraySpacing.hoverGracePeriod, execute: workItem)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(threadAccessibilityLabel)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var threadAccessibilityLabel: String {
+        var parts = ["Favorited thread", thread.name]
+        if thread.status == .archived {
+            parts.append("archived")
+        }
+        if thread.type == .knowledge {
+            parts.append("knowledge type")
+        }
+        if hasChildren {
+            parts.append("\(childThreads.count) sub-threads")
+        }
+        return parts.joined(separator: ", ")
     }
 }
 
