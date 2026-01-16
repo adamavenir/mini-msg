@@ -6761,3 +6761,5 @@
 {"type":"agent_update","agent_id":"pm","mention_watermark":"msg-u127bw0t"}
 {"type":"agent_update","agent_id":"architect","mention_watermark":"msg-drjrwqmy"}
 {"type":"agent_update","agent_id":"architect","mention_watermark":"msg-9k98ydvm"}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-u127bw0t"}
+{"type":"agent_update","agent_id":"reviewer","mention_watermark":"msg-u127bw0t"}
