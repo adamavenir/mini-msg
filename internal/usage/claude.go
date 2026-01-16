@@ -22,6 +22,17 @@ type claudeUsageEntry struct {
 	} `json:"message"`
 }
 
+// effectiveInputTokens returns the total context size, including cached tokens.
+// The API reports cached tokens separately, but they count toward context usage.
+func (e *claudeUsageEntry) effectiveInputTokens() int64 {
+	if e.Message == nil || e.Message.Usage == nil {
+		return 0
+	}
+	u := e.Message.Usage
+	// Total context = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+	return u.InputTokens + u.CacheCreationTokens + u.CacheReadTokens
+}
+
 // getClaudePaths returns directories where Claude Code stores transcripts
 func getClaudePaths() []string {
 	home, err := os.UserHomeDir()
@@ -70,8 +81,8 @@ func findClaudeTranscript(sessionID string) string {
 }
 
 // parseClaudeTranscript reads a Claude Code transcript and gets token usage.
-// For context tracking, we use the LAST entry's input_tokens (current context size),
-// not the sum of all entries (which would incorrectly accumulate).
+// For context tracking, we use the LAST entry's effective input tokens (current context size),
+// which includes both fresh and cached tokens.
 func parseClaudeTranscript(sessionID, transcriptPath string) (*SessionUsage, error) {
 	file, err := os.Open(transcriptPath)
 	if err != nil {
@@ -92,11 +103,11 @@ func parseClaudeTranscript(sessionID, transcriptPath string) (*SessionUsage, err
 		}
 
 		if entry.Message != nil && entry.Message.Usage != nil {
-			// Use LAST input tokens (represents current context size)
-			lastInputTokens = entry.Message.Usage.InputTokens
+			// Use effective input tokens (includes cached tokens in context calculation)
+			lastInputTokens = entry.effectiveInputTokens()
 			// Sum output tokens (cumulative generation)
 			totalOutputTokens += entry.Message.Usage.OutputTokens
-			// Use last cached tokens
+			// Track cache read tokens separately for display
 			lastCachedTokens = entry.Message.Usage.CacheReadTokens
 			if entry.Message.Model != "" {
 				model = entry.Message.Model

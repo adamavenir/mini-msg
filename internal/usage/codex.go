@@ -19,9 +19,10 @@ type codexEvent struct {
 type codexTokenPayload struct {
 	Type string `json:"type"`
 	Info *struct {
-		Model           string `json:"model"`
-		ModelName       string `json:"model_name"`
-		TotalTokenUsage *struct {
+		Model              string `json:"model"`
+		ModelName          string `json:"model_name"`
+		ModelContextWindow int64  `json:"model_context_window"`
+		TotalTokenUsage    *struct {
 			InputTokens           int64 `json:"input_tokens"`
 			CachedInputTokens     int64 `json:"cached_input_tokens"`
 			CacheReadInputTokens  int64 `json:"cache_read_input_tokens"`
@@ -41,6 +42,11 @@ type codexTokenPayload struct {
 			Model string `json:"model"`
 		} `json:"metadata"`
 	} `json:"info"`
+}
+
+// codexTurnContextPayload represents turn_context events that contain model info
+type codexTurnContextPayload struct {
+	Model string `json:"model"`
 }
 
 // getCodexPaths returns directories where Codex stores sessions
@@ -79,11 +85,15 @@ func getCodexPaths() []string {
 	return paths
 }
 
-// findCodexTranscript searches Codex directories for a session's transcript
+// findCodexTranscript searches Codex directories for a session's transcript.
+// Codex filenames are: rollout-YYYY-MM-DDTHH-MM-SS-{session-id}.jsonl
+// where session-id is a UUID like 3e37c2ff-c596-4cab-8346-a5d4e6b81514
 func findCodexTranscript(sessionID string) string {
 	for _, basePath := range getCodexPaths() {
-		// Codex sessions can be in subdirectories (project-based)
-		err := filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
+		var foundPath string
+
+		// Codex sessions are in date subdirectories: sessions/YYYY/MM/DD/
+		filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil // Skip errors
 			}
@@ -91,35 +101,22 @@ func findCodexTranscript(sessionID string) string {
 				return nil
 			}
 
-			// Check if this file matches the session ID
+			// Check if this file contains the session ID
+			// Filenames are: rollout-YYYY-MM-DDTHH-MM-SS-{session-id}.jsonl
 			fileName := filepath.Base(path)
-			if strings.HasPrefix(fileName, sessionID) && strings.HasSuffix(fileName, ".jsonl") {
-				return filepath.SkipAll // Signal we found it
+			if strings.Contains(fileName, sessionID) && strings.HasSuffix(fileName, ".jsonl") {
+				foundPath = path
+				return filepath.SkipAll // Stop walking
 			}
 
 			return nil
 		})
 
-		// If we found it via SkipAll, search again to get the path
-		if err == filepath.SkipAll {
-			var foundPath string
-			filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
-				if err != nil || d.IsDir() {
-					return nil
-				}
-				fileName := filepath.Base(path)
-				if strings.HasPrefix(fileName, sessionID) && strings.HasSuffix(fileName, ".jsonl") {
-					foundPath = path
-					return filepath.SkipAll
-				}
-				return nil
-			})
-			if foundPath != "" {
-				return foundPath
-			}
+		if foundPath != "" {
+			return foundPath
 		}
 
-		// Also check flat structure
+		// Also check flat structure (fallback for older format)
 		transcriptPath := filepath.Join(basePath, sessionID+".jsonl")
 		if _, err := os.Stat(transcriptPath); err == nil {
 			return transcriptPath
@@ -139,6 +136,7 @@ func parseCodexTranscript(sessionID, transcriptPath string) (*SessionUsage, erro
 
 	var inputTokens, outputTokens, cachedTokens int64
 	var model string
+	var contextWindow int64
 
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
@@ -149,7 +147,16 @@ func parseCodexTranscript(sessionID, transcriptPath string) (*SessionUsage, erro
 			continue
 		}
 
-		// Only process event_msg types with token_count payloads
+		// Check turn_context events for model info
+		if event.Type == "turn_context" {
+			var turnCtx codexTurnContextPayload
+			if json.Unmarshal(event.Payload, &turnCtx) == nil && turnCtx.Model != "" {
+				model = turnCtx.Model
+			}
+			continue
+		}
+
+		// Process event_msg types with token_count payloads
 		if event.Type != "event_msg" {
 			continue
 		}
@@ -167,13 +174,18 @@ func parseCodexTranscript(sessionID, transcriptPath string) (*SessionUsage, erro
 			continue
 		}
 
-		// Extract model
+		// Extract model from token_count info
 		if payload.Info.Model != "" {
 			model = payload.Info.Model
 		} else if payload.Info.ModelName != "" {
 			model = payload.Info.ModelName
 		} else if payload.Info.Metadata != nil && payload.Info.Metadata.Model != "" {
 			model = payload.Info.Metadata.Model
+		}
+
+		// Use model_context_window from the transcript if available
+		if payload.Info.ModelContextWindow > 0 {
+			contextWindow = payload.Info.ModelContextWindow
 		}
 
 		// Use total_token_usage for cumulative counts (last entry will have final totals)
@@ -188,7 +200,12 @@ func parseCodexTranscript(sessionID, transcriptPath string) (*SessionUsage, erro
 		}
 	}
 
-	contextLimit := getCodexContextLimit(model)
+	// Use context window from transcript if available, otherwise fall back to model-based lookup
+	contextLimit := contextWindow
+	if contextLimit == 0 {
+		contextLimit = getCodexContextLimit(model)
+	}
+
 	contextPercent := 0
 	if contextLimit > 0 {
 		contextPercent = int((inputTokens * 100) / contextLimit)

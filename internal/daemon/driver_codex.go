@@ -25,6 +25,12 @@ func (d *CodexDriver) Name() string {
 type codexEvent struct {
 	Type     string `json:"type"`
 	ThreadID string `json:"thread_id,omitempty"`
+	ID       string `json:"id,omitempty"` // Session ID in session_meta events
+}
+
+// codexSessionMetaPayload represents the payload of session_meta events
+type codexSessionMetaPayload struct {
+	ID string `json:"id"`
 }
 
 // Spawn starts a Codex session with the given prompt.
@@ -110,12 +116,37 @@ func (d *CodexDriver) Spawn(ctx context.Context, agent types.Agent, prompt strin
 				break
 			}
 
-			// Parse events to capture thread_id from thread.started
+			// Parse events to capture session ID
+			// Check for: 1) thread.started with thread_id, 2) session_meta with id,
+			// 3) first line with id field (transcript header format)
 			if !sessionIDCaptured {
 				var event codexEvent
 				if json.Unmarshal(line, &event) == nil {
+					var sessionID string
+
+					// Method 1: thread.started event (older Codex versions)
 					if event.Type == "thread.started" && event.ThreadID != "" {
-						proc.SessionID = event.ThreadID
+						sessionID = event.ThreadID
+					}
+
+					// Method 2: session_meta event or first line with id field
+					if sessionID == "" && event.ID != "" {
+						sessionID = event.ID
+					}
+
+					// Method 3: session_meta payload.id
+					if sessionID == "" && event.Type == "session_meta" {
+						// Try parsing payload if it's a nested structure
+						var fullEvent struct {
+							Payload codexSessionMetaPayload `json:"payload"`
+						}
+						if json.Unmarshal(line, &fullEvent) == nil && fullEvent.Payload.ID != "" {
+							sessionID = fullEvent.Payload.ID
+						}
+					}
+
+					if sessionID != "" {
+						proc.SessionID = sessionID
 						sessionIDCaptured = true
 						close(sessionIDReady) // Signal that session ID is available
 					}
