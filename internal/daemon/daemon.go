@@ -38,12 +38,14 @@ type Daemon struct {
 	cooldownUntil map[string]time.Time // agent_id -> when cooldown expires (after clean exit)
 	drivers       map[string]Driver    // driver name -> driver
 	lastSpawnTime time.Time            // rate-limit spawns to prevent resource exhaustion
+	startedAt     time.Time            // daemon start time (for staleness gate)
 	stopCh        chan struct{}
 	cancelFunc    context.CancelFunc // cancels spawned process contexts
 	wg            sync.WaitGroup
 	lockPath      string
 	pollInterval  time.Duration
 	debug         bool
+	force         bool
 }
 
 // LockInfo represents the daemon lock file contents.
@@ -56,6 +58,7 @@ type LockInfo struct {
 type Config struct {
 	PollInterval time.Duration
 	Debug        bool
+	Force        bool // Kill existing daemon if running
 }
 
 // DefaultConfig returns default daemon configuration.
@@ -94,6 +97,7 @@ func New(project core.Project, database *sql.DB, cfg Config) *Daemon {
 		lockPath:      filepath.Join(frayDir, "daemon.lock"),
 		pollInterval:  cfg.PollInterval,
 		debug:         cfg.Debug,
+		force:         cfg.Force,
 	}
 
 	// Register drivers
@@ -106,6 +110,9 @@ func New(project core.Project, database *sql.DB, cfg Config) *Daemon {
 
 // Start begins the daemon watch loop.
 func (d *Daemon) Start(ctx context.Context) error {
+	// Record start time for staleness gate
+	d.startedAt = time.Now()
+
 	// Acquire lock
 	if err := d.acquireLock(); err != nil {
 		return fmt.Errorf("acquire lock: %w", err)
@@ -176,6 +183,7 @@ func (d *Daemon) Stop() error {
 }
 
 // acquireLock creates the lock file, detecting stale locks.
+// If force is set, kills any existing daemon first.
 func (d *Daemon) acquireLock() error {
 	// Check for existing lock
 	if data, err := os.ReadFile(d.lockPath); err == nil {
@@ -183,9 +191,30 @@ func (d *Daemon) acquireLock() error {
 		if json.Unmarshal(data, &info) == nil {
 			// Check if process is still running using syscall.Kill with signal 0
 			if syscall.Kill(info.PID, 0) == nil {
-				return fmt.Errorf("daemon already running (pid %d)", info.PID)
+				if d.force {
+					// Kill existing daemon
+					d.debugf("killing existing daemon (pid %d)", info.PID)
+					if err := syscall.Kill(info.PID, syscall.SIGTERM); err != nil {
+						return fmt.Errorf("failed to kill existing daemon (pid %d): %w", info.PID, err)
+					}
+					// Wait briefly for it to exit
+					for i := 0; i < 10; i++ {
+						time.Sleep(100 * time.Millisecond)
+						if syscall.Kill(info.PID, 0) != nil {
+							break // Process exited
+						}
+					}
+					// If still running, force kill
+					if syscall.Kill(info.PID, 0) == nil {
+						d.debugf("daemon didn't respond to SIGTERM, sending SIGKILL")
+						syscall.Kill(info.PID, syscall.SIGKILL)
+						time.Sleep(100 * time.Millisecond)
+					}
+				} else {
+					return fmt.Errorf("daemon already running (pid %d)", info.PID)
+				}
 			}
-			// Stale lock, remove it
+			// Stale lock (or we just killed it), remove it
 		}
 	}
 
@@ -284,6 +313,51 @@ func (d *Daemon) unwatchSessionUsage(sessionID string) {
 	}
 
 	d.usageWatcher.UnwatchSession(sessionID)
+}
+
+// captureUsageSnapshot persists the final usage state to agents.jsonl.
+// This provides durability: if transcripts are rotated or the daemon restarts,
+// the last known token counts are still available for display.
+func (d *Daemon) captureUsageSnapshot(agentID, sessionID string) {
+	// Get the last known usage from the watcher (before unwatching)
+	var sessionUsage *usage.SessionUsage
+	if d.usageWatcher != nil {
+		sessionUsage = d.usageWatcher.GetSessionUsageSnapshot(sessionID)
+	}
+
+	// If watcher doesn't have it, try direct fetch
+	if sessionUsage == nil {
+		agent, err := db.GetAgent(d.database, agentID)
+		if err != nil || agent == nil || agent.Invoke == nil {
+			return
+		}
+		sessionUsage, _ = usage.GetSessionUsageByDriver(sessionID, agent.Invoke.Driver)
+	}
+
+	// Skip if no meaningful usage data
+	if sessionUsage == nil || (sessionUsage.InputTokens == 0 && sessionUsage.OutputTokens == 0) {
+		return
+	}
+
+	snapshot := types.UsageSnapshot{
+		AgentID:        agentID,
+		SessionID:      sessionID,
+		Driver:         sessionUsage.Driver,
+		Model:          sessionUsage.Model,
+		InputTokens:    sessionUsage.InputTokens,
+		OutputTokens:   sessionUsage.OutputTokens,
+		CachedTokens:   sessionUsage.CachedTokens,
+		ContextLimit:   sessionUsage.ContextLimit,
+		ContextPercent: sessionUsage.ContextPercent,
+		CapturedAt:     time.Now().Unix(),
+	}
+
+	if err := db.AppendUsageSnapshot(d.project.DBPath, snapshot); err != nil {
+		d.debugf("failed to persist usage snapshot for @%s: %v", agentID, err)
+	} else {
+		d.debugf("persisted usage snapshot for @%s: %d input, %d output, %d%% context",
+			agentID, snapshot.InputTokens, snapshot.OutputTokens, snapshot.ContextPercent)
+	}
 }
 
 // truncate shortens a string for debug output.
@@ -492,6 +566,19 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 		// The mention is tracked (watermark advances) but no spawn is triggered.
 		if IsAllMentionOnly(msg, agent.AgentID) {
 			d.debugf("    %s: skip (@all only - ambient notification)", msg.ID)
+			if !hasQueued && !spawned {
+				lastProcessedID = msg.ID
+			}
+			continue
+		}
+
+		// Staleness gate: skip messages older than 20 minutes at daemon startup.
+		// This prevents stale mentions from triggering spawns after daemon restarts.
+		// Only applies to messages that predate daemon start (not new messages during runtime).
+		const stalenessThreshold = 20 * time.Minute
+		msgTime := time.Unix(msg.TS, 0)
+		if msgTime.Before(d.startedAt.Add(-stalenessThreshold)) {
+			d.debugf("    %s: skip (stale - %v before daemon start)", msg.ID, d.startedAt.Sub(msgTime).Round(time.Minute))
 			if !hasQueued && !spawned {
 				lastProcessedID = msg.ID
 			}
@@ -2222,8 +2309,10 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) bool {
 
 	db.AppendSessionEnd(d.project.DBPath, sessionEnd)
 
-	// Stop watching session's transcript for usage updates
+	// Capture and persist usage snapshot before unwatching
+	// This provides durability across transcript rotation and daemon restarts
 	if proc.SessionID != "" {
+		d.captureUsageSnapshot(agentID, proc.SessionID)
 		d.unwatchSessionUsage(proc.SessionID)
 	}
 

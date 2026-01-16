@@ -138,6 +138,29 @@ func (h *testHarness) postMessage(fromAgent, body string, msgType types.MessageT
 	return created
 }
 
+// postMessageWithTS creates a test message with a specific timestamp.
+func (h *testHarness) postMessageWithTS(fromAgent, body string, msgType types.MessageType, ts int64) types.Message {
+	h.t.Helper()
+
+	msg := types.Message{
+		TS:        ts,
+		FromAgent: fromAgent,
+		Body:      body,
+		Type:      msgType,
+		Home:      "room",
+	}
+
+	// Extract mentions
+	bases, _ := db.GetAgentBases(h.db)
+	msg.Mentions = core.ExtractMentions(body, bases)
+
+	created, err := db.CreateMessage(h.db, msg)
+	if err != nil {
+		h.t.Fatalf("create message: %v", err)
+	}
+	return created
+}
+
 // postReply creates a reply to an existing message.
 func (h *testHarness) postReply(fromAgent, body, replyTo string, msgType types.MessageType) types.Message {
 	h.t.Helper()
@@ -961,6 +984,64 @@ func TestSpawnFlow_NoSpawnOnSelfMention(t *testing.T) {
 	// No spawn - self mentions don't trigger
 	if h.mockDriver.SpawnCount() != 0 {
 		t.Errorf("expected 0 spawns for self-mention, got %d", h.mockDriver.SpawnCount())
+	}
+}
+
+func TestSpawnFlow_NoSpawnOnStaleMention(t *testing.T) {
+	h := newDaemonHarness(t)
+	defer h.daemon.Stop()
+
+	// Create managed agent
+	h.createManagedAgent("alice")
+	h.createAgent("bob", false)
+
+	// Post a message that's older than 20 minutes (staleness threshold)
+	staleTS := time.Now().Add(-30 * time.Minute).Unix()
+	h.postMessageWithTS("bob", "@alice stale request from 30 minutes ago", types.MessageTypeUser, staleTS)
+
+	// Start daemon
+	ctx := context.Background()
+	if err := h.daemon.Start(ctx); err != nil {
+		t.Fatalf("start daemon: %v", err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	// No spawn - message is stale (more than 20 minutes old at daemon start)
+	if h.mockDriver.SpawnCount() != 0 {
+		t.Errorf("expected 0 spawns for stale mention, got %d", h.mockDriver.SpawnCount())
+	}
+
+	// Watermark should still advance past the stale message
+	watermark := h.daemon.debouncer.GetWatermark("alice")
+	if watermark == "" {
+		t.Error("expected watermark to be set after processing stale message")
+	}
+}
+
+func TestSpawnFlow_SpawnOnRecentMention(t *testing.T) {
+	h := newDaemonHarness(t)
+	defer h.daemon.Stop()
+
+	// Create managed agent
+	h.createManagedAgent("alice")
+	h.createAgent("bob", false)
+
+	// Post a message that's recent (within 20 minute threshold)
+	recentTS := time.Now().Add(-10 * time.Minute).Unix()
+	h.postMessageWithTS("bob", "@alice recent request from 10 minutes ago", types.MessageTypeUser, recentTS)
+
+	// Start daemon
+	ctx := context.Background()
+	if err := h.daemon.Start(ctx); err != nil {
+		t.Fatalf("start daemon: %v", err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	// Should spawn - message is within threshold
+	if h.mockDriver.SpawnCount() != 1 {
+		t.Errorf("expected 1 spawn for recent mention, got %d", h.mockDriver.SpawnCount())
 	}
 }
 
