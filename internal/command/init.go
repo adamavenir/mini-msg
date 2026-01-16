@@ -12,6 +12,7 @@ import (
 
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/llm"
 	"github.com/adamavenir/fray/internal/types"
 	"github.com/spf13/cobra"
 )
@@ -461,42 +462,52 @@ func ensureLLMRouter(projectRoot string) error {
 		return fmt.Errorf("create llm/slash directory: %w", err)
 	}
 
-	// Write mentions router template (if not exists)
-	mentionsPath := filepath.Join(routersDir, "mentions.mld")
-	if _, err := os.Stat(mentionsPath); os.IsNotExist(err) {
-		if err := os.WriteFile(mentionsPath, db.MentionsRouterTemplate, 0o644); err != nil {
-			return fmt.Errorf("write mentions router template: %w", err)
+	// Write router templates
+	routerTemplates := []string{
+		llm.MentionsRouterTemplate,
+		llm.StdoutRepairTemplate,
+	}
+	for _, templatePath := range routerTemplates {
+		content, err := llm.ReadTemplate(templatePath)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", templatePath, err)
+		}
+		destPath := filepath.Join(routersDir, filepath.Base(templatePath))
+		if _, err := os.Stat(destPath); os.IsNotExist(err) {
+			if err := os.WriteFile(destPath, content, 0o644); err != nil {
+				return fmt.Errorf("write %s: %w", templatePath, err)
+			}
 		}
 	}
 
-	// Write stdout-repair router template (if not exists)
-	stdoutRepairPath := filepath.Join(routersDir, "stdout-repair.mld")
-	if _, err := os.Stat(stdoutRepairPath); os.IsNotExist(err) {
-		if err := os.WriteFile(stdoutRepairPath, db.StdoutRepairTemplate, 0o644); err != nil {
-			return fmt.Errorf("write stdout-repair router template: %w", err)
-		}
+	// Write status template (lives in llm/ root)
+	statusContent, err := llm.ReadTemplate(llm.StatusTemplate)
+	if err != nil {
+		return fmt.Errorf("read status template: %w", err)
 	}
-
-	// Write stock status template (if not exists)
 	statusPath := filepath.Join(llmDir, "status.mld")
 	if _, err := os.Stat(statusPath); os.IsNotExist(err) {
-		if err := os.WriteFile(statusPath, db.StatusTemplate, 0o644); err != nil {
+		if err := os.WriteFile(statusPath, statusContent, 0o644); err != nil {
 			return fmt.Errorf("write status template: %w", err)
 		}
 	}
 
 	// Write slash command templates (session lifecycle)
-	slashTemplates := map[string][]byte{
-		"fly.mld":  db.FlyTemplate,
-		"land.mld": db.LandTemplate,
-		"hand.mld": db.HandTemplate,
-		"hop.mld":  db.HopTemplate,
+	slashTemplates := []string{
+		llm.FlyTemplate,
+		llm.LandTemplate,
+		llm.HandTemplate,
+		llm.HopTemplate,
 	}
-	for name, content := range slashTemplates {
-		path := filepath.Join(slashDir, name)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if err := os.WriteFile(path, content, 0o644); err != nil {
-				return fmt.Errorf("write %s template: %w", name, err)
+	for _, templatePath := range slashTemplates {
+		content, err := llm.ReadTemplate(templatePath)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", templatePath, err)
+		}
+		destPath := filepath.Join(slashDir, filepath.Base(templatePath))
+		if _, err := os.Stat(destPath); os.IsNotExist(err) {
+			if err := os.WriteFile(destPath, content, 0o644); err != nil {
+				return fmt.Errorf("write %s: %w", templatePath, err)
 			}
 		}
 	}
@@ -508,15 +519,19 @@ func ensureLLMRouter(projectRoot string) error {
 	}
 
 	// Write prompt templates (used by daemon for @mentions)
-	promptTemplates := map[string][]byte{
-		"mention-fresh.mld":  db.MentionFreshTemplate,
-		"mention-resume.mld": db.MentionResumeTemplate,
+	promptTemplates := []string{
+		llm.MentionFreshTemplate,
+		llm.MentionResumeTemplate,
 	}
-	for name, content := range promptTemplates {
-		path := filepath.Join(promptsDir, name)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if err := os.WriteFile(path, content, 0o644); err != nil {
-				return fmt.Errorf("write %s template: %w", name, err)
+	for _, templatePath := range promptTemplates {
+		content, err := llm.ReadTemplate(templatePath)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", templatePath, err)
+		}
+		destPath := filepath.Join(promptsDir, filepath.Base(templatePath))
+		if _, err := os.Stat(destPath); os.IsNotExist(err) {
+			if err := os.WriteFile(destPath, content, 0o644); err != nil {
+				return fmt.Errorf("write %s: %w", templatePath, err)
 			}
 		}
 	}

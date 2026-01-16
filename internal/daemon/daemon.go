@@ -16,6 +16,7 @@ import (
 	"github.com/adamavenir/fray/internal/aap"
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/llm"
 	"github.com/adamavenir/fray/internal/router"
 	"github.com/adamavenir/fray/internal/types"
 	"github.com/adamavenir/fray/internal/usage"
@@ -1292,7 +1293,11 @@ func (d *Daemon) ensureWakePromptTemplate() error {
 
 	wakePromptPath := filepath.Join(llmDir, "wake-prompt.mld")
 	if _, err := os.Stat(wakePromptPath); os.IsNotExist(err) {
-		return os.WriteFile(wakePromptPath, db.WakePromptTemplate, 0644)
+		content, err := llm.ReadTemplate(llm.WakePromptTemplate)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(wakePromptPath, content, 0644)
 	}
 	return nil
 }
@@ -1965,7 +1970,9 @@ Trigger messages:
 ---
 This is a fresh session. Check your notes (fray get meta/%s/notes) for prior context, then proceed with the task.
 
-IMPORTANT: Users only see messages posted to fray. Your stdout is not visible. Post progress updates and summaries to fray so users can follow your work.`,
+IMPORTANT: Users only see messages posted to fray, so:
+1. Send a quick casual acknowledgement of the request ASAP so the user knows you received their message.
+2. Your stdout is not visible. Post progress updates and summaries to fray as you go so users can follow your work.`,
 		agent.AgentID, triggerInfo, taskContext, agent.AgentID)
 }
 
@@ -1984,7 +1991,9 @@ Trigger messages:
 ---
 Complete this task efficiently, then run 'fray bye %s' when done. If you go idle without completing, you'll be auto-terminated.
 
-IMPORTANT: Users only see messages posted to fray. Your stdout is not visible. Post progress updates to fray so users can follow your work.`,
+IMPORTANT: Users only see messages posted to fray, so:
+1. Send a quick casual acknowledgement of the request ASAP so the user knows you received their message.
+2. Your stdout is not visible. Post progress updates and summaries to fray as you go so users can follow your work.`,
 		agent.AgentID, triggerInfo, taskContext, agent.AgentID)
 }
 
@@ -1996,7 +2005,7 @@ Trigger: %s
 
 Generate a standup report and clean up your session:
 1. Post a brief standup to the room
-2. Update your notes with handoff context
+2. Update your notes thread in fray in meta/%s/notes with handoff context
 3. Clear claims: fray clear @%s
 4. Leave: fray bye %s "standup message"`,
 		agent.AgentID, triggerInfo, agent.AgentID, agent.AgentID)
@@ -2010,7 +2019,7 @@ Trigger: %s
 Hand off to fresh context:
 1. Post brief "handing off" message to room
 2. Create beads for discovered work: bd create "..." --type task
-3. Update your notes with current state (preserve details, don't condense)
+3. Update your notes thread in fray in meta/%s/notes with current state (preserve details, don't condense)
 4. Clear claims: fray clear @%s
 5. Hand off: fray brb %s "handing off to fresh context"`,
 		agent.AgentID, triggerInfo, agent.AgentID, agent.AgentID)
@@ -2026,7 +2035,9 @@ Trigger messages:
 ---
 Reply in the thread where you were mentioned (use --reply-to <msg-id>). If you can answer immediately, just answer. Otherwise, acknowledge briefly then continue.
 
-IMPORTANT: Users only see messages posted to fray. Your stdout is not visible. Post progress updates and summaries to fray so users can follow your work.`,
+IMPORTANT: Users only see messages posted to fray, so:
+1. Send a quick casual acknowledgement of the request ASAP so the user knows you received their message.
+2. Your stdout is not visible. Post progress updates and summaries to fray as you go so users can follow your work.`,
 		agent.AgentID, triggerInfo)
 }
 

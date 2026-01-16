@@ -88,8 +88,11 @@ func InitProject(dir string, force bool) (Project, error) {
 	EnsureFrayGitignore(frayDir)
 
 	if force {
-		if err := os.Remove(dbPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return Project{}, err
+		// Remove db and WAL files to avoid orphan WAL errors (SQLITE_IOERR 522)
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			if err := os.Remove(dbPath + suffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return Project{}, err
+			}
 		}
 	}
 
