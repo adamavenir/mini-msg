@@ -6753,3 +6753,6 @@
 {"type":"session_end","agent_id":"pm","session_id":"fa279323-20eb-4dcd-86ab-1b15ecbee637","exit_code":0,"duration_ms":18787,"ended_at":1768604130}
 {"type":"usage_snapshot","agent_id":"pm","session_id":"fa279323-20eb-4dcd-86ab-1b15ecbee637","driver":"claude","model":"claude-opus-4-5-20251101","input_tokens":73128,"output_tokens":7654,"cached_tokens":72718,"context_limit":200000,"context_percent":36,"captured_at":1768604130}
 {"type":"presence_event","agent_id":"pm","from":"idle","to":"idle","reason":"exit_ok","source":"daemon","ts":1768604130}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-o91owxq9"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-vplgrp8f"}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-9k98ydvm"}
