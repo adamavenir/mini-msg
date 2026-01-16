@@ -2628,3 +2628,4 @@
 {"type":"thread_update","guid":"thrd-1kmd98t8","anchor_message_guid":"msg-itt8aogn","last_activity_at":1768604016}
 {"type":"thread_update","guid":"thrd-1kmd98t8","last_activity_at":1768604045}
 {"type":"thread_subscribe","thread_guid":"thrd-7ie95678","agent_id":"pm","subscribed_at":1768604070}
+{"type":"thread_update","guid":"thrd-7ie95678","last_activity_at":1768605441}
