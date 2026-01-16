@@ -25,11 +25,19 @@ type tokenCacheEntry struct {
 	fetchedAt time.Time
 }
 
-const tokenCacheTTL = 30 * time.Second
+// tokenCacheTTL controls how long token usage is cached.
+// Reduced from 30s to 5s for faster feedback on active agents.
+const tokenCacheTTL = 5 * time.Second
 
 // getTokenUsage fetches token usage for a session ID using internal/usage package.
 // Returns nil if session not found or no usage data.
 func getTokenUsage(sessionID string) *TokenUsage {
+	return getTokenUsageWithFallback(sessionID, "")
+}
+
+// getTokenUsageWithFallback fetches token usage with JSONL fallback.
+// If transcript parsing fails, falls back to persisted usage snapshots.
+func getTokenUsageWithFallback(sessionID, projectDBPath string) *TokenUsage {
 	if sessionID == "" {
 		return nil
 	}
@@ -44,10 +52,33 @@ func getTokenUsage(sessionID string) *TokenUsage {
 	}
 	tokenCache.RUnlock()
 
-	// Use internal/usage package to get session usage
+	// Use internal/usage package to get session usage from transcript
 	sessionUsage, err := usage.GetSessionUsage(sessionID)
 	if err != nil || sessionUsage == nil || sessionUsage.InputTokens == 0 {
-		// Cache the miss
+		// Transcript unavailable - try fallback to persisted JSONL snapshot
+		if projectDBPath != "" {
+			snapshot := db.GetLatestUsageSnapshot(projectDBPath, sessionID)
+			if snapshot != nil && (snapshot.InputTokens > 0 || snapshot.OutputTokens > 0) {
+				tuiUsage := &TokenUsage{
+					SessionID:   sessionID,
+					TotalTokens: snapshot.InputTokens + snapshot.OutputTokens,
+					Entries: []TokenUsageEntry{
+						{
+							InputTokens:     snapshot.InputTokens,
+							OutputTokens:    snapshot.OutputTokens,
+							CacheReadTokens: snapshot.CachedTokens,
+						},
+					},
+				}
+				// Cache with shorter TTL since this is historical data
+				tokenCache.Lock()
+				tokenCache.data[sessionID] = tokenCacheEntry{usage: tuiUsage, fetchedAt: time.Now()}
+				tokenCache.Unlock()
+				return tuiUsage
+			}
+		}
+
+		// No data available
 		tokenCache.Lock()
 		tokenCache.data[sessionID] = tokenCacheEntry{usage: nil, fetchedAt: time.Now()}
 		tokenCache.Unlock()
@@ -119,6 +150,7 @@ func (m *Model) pollCmd() tea.Cmd {
 	showUpdates := m.showUpdates
 	currentThread := m.currentThread
 	currentPseudo := m.currentPseudo
+	projectDBPath := m.projectDBPath
 
 	return tea.Tick(pollInterval, func(time.Time) tea.Msg {
 		options := types.MessageQueryOptions{Since: cursor, IncludeArchived: includeArchived}
@@ -207,11 +239,12 @@ func (m *Model) pollCmd() tea.Cmd {
 		// Fetch managed agents for activity panel
 		managedAgents, _ := db.GetManagedAgents(m.db)
 
-		// Fetch token usage for active agents
+		// Fetch token usage for active agents with JSONL fallback
 		agentTokenUsage := make(map[string]*TokenUsage)
 		for _, agent := range managedAgents {
 			if agent.LastSessionID != nil && *agent.LastSessionID != "" {
-				if usage := getTokenUsage(*agent.LastSessionID); usage != nil {
+				// Use fallback version to try persisted snapshots if transcript unavailable
+				if usage := getTokenUsageWithFallback(*agent.LastSessionID, projectDBPath); usage != nil {
 					agentTokenUsage[agent.AgentID] = usage
 				}
 			}
@@ -244,11 +277,12 @@ func (m *Model) activityPollCmd() tea.Cmd {
 		// Fetch managed agents for activity panel
 		managedAgents, _ := db.GetManagedAgents(m.db)
 
-		// Fetch token usage for active agents
+		// Fetch token usage for active agents with JSONL fallback
 		agentTokenUsage := make(map[string]*TokenUsage)
 		for _, agent := range managedAgents {
 			if agent.LastSessionID != nil && *agent.LastSessionID != "" {
-				if usage := getTokenUsage(*agent.LastSessionID); usage != nil {
+				// Use fallback version to try persisted snapshots if transcript unavailable
+				if usage := getTokenUsageWithFallback(*agent.LastSessionID, projectDBPath); usage != nil {
 					agentTokenUsage[agent.AgentID] = usage
 				}
 			}
