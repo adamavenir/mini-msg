@@ -185,12 +185,13 @@ func NewInitCmd() *cobra.Command {
 				if !useDefaults && isTTY(os.Stdin) {
 					fmt.Fprintln(out, "")
 
-					// Issue tracker selection
-					issueTracker := promptIssueTracker()
-					if issueTracker != "" && issueTracker != "none" {
-						result.IssueTracker = issueTracker
-						fmt.Fprintf(out, "✓ Issue tracker: %s\n", issueTracker)
-					}
+					// TODO: Issue tracker selection is disabled until we modify prompts based on selection
+					// See bead for re-enabling: bd search "issue tracker"
+					// issueTracker := promptIssueTracker()
+					// if issueTracker != "" && issueTracker != "none" {
+					// 	result.IssueTracker = issueTracker
+					// 	fmt.Fprintf(out, "✓ Issue tracker: %s\n", issueTracker)
+					// }
 
 					// Agent selection
 					agentsCreated := promptAndCreateAgents(project.DBPath)
