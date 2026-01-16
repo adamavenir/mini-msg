@@ -6763,3 +6763,15 @@
 {"type":"agent_update","agent_id":"architect","mention_watermark":"msg-9k98ydvm"}
 {"type":"agent_update","agent_id":"architect","mention_watermark":"msg-u127bw0t"}
 {"type":"agent_update","agent_id":"reviewer","mention_watermark":"msg-u127bw0t"}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-0izao86n"}
+{"type":"agent_update","agent_id":"clank","mention_watermark":"msg-uwx5takw"}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-6avz132b"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-j235h7vx"}
+{"type":"agent_update","agent_id":"architect","mention_watermark":"msg-td462bzi"}
+{"type":"agent_update","agent_id":"clank","mention_watermark":"msg-nmnio0f4"}
+{"type":"agent_update","agent_id":"designer","mention_watermark":"msg-gaec9d5b"}
+{"type":"agent_update","agent_id":"dev","mention_watermark":"msg-vplgrp8f"}
+{"type":"presence_event","agent_id":"pm","from":"idle","to":"spawning","reason":"spawn","source":"daemon","ts":1768606098}
+{"type":"session_start","agent_id":"pm","session_id":"3d84a7b4-9e24-499f-b550-06b90dbff440","triggered_by":"msg-6h2mwvtu","started_at":1768606101}
+{"type":"agent_update","agent_id":"pm","mention_watermark":"msg-6h2mwvtu"}
+{"type":"presence_event","agent_id":"pm","from":"spawning","to":"error","reason":"spawn_timeout","source":"daemon","ts":1768606129}
