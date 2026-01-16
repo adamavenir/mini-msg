@@ -15,6 +15,8 @@ struct SidebarView: View {
     @State private var channels: [FrayChannel] = []
     @State private var favedThreadGuids: Set<String> = []
     @State private var pollTimer: Timer?
+    @State private var expandedThreadGuids: Set<String> = []
+    @AppStorage("expandedThreadGuids") private var expandedThreadGuidsData: Data = Data()
 
     var favedThreads: [FrayThread] {
         threads.filter { favedThreadGuids.contains($0.guid) }
@@ -34,6 +36,7 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .navigationTitle(currentChannel?.name ?? "Fray")
         .task {
+            loadExpandedState()
             await loadData()
             startPolling()
         }
@@ -43,6 +46,21 @@ struct SidebarView: View {
         .onChange(of: bridge.projectPath) { _, _ in
             // Reload when bridge connects to a different project
             Task { await loadThreadsAndFaves() }
+        }
+        .onChange(of: expandedThreadGuids) { _, newValue in
+            saveExpandedState(newValue)
+        }
+    }
+
+    private func loadExpandedState() {
+        if let decoded = try? JSONDecoder().decode(Set<String>.self, from: expandedThreadGuidsData) {
+            expandedThreadGuids = decoded
+        }
+    }
+
+    private func saveExpandedState(_ guids: Set<String>) {
+        if let encoded = try? JSONEncoder().encode(guids) {
+            expandedThreadGuidsData = encoded
         }
     }
 
@@ -129,6 +147,7 @@ struct SidebarView: View {
                 allThreads: threads,
                 favedIds: favedThreadGuids,
                 selectedThread: $selectedThread,
+                expandedThreads: $expandedThreadGuids,
                 onFave: { faveThread($0) }
             )
         }
@@ -221,6 +240,7 @@ struct SidebarRow: View {
     var onFaveToggle: (() -> Void)?
 
     @State private var isHovering = false
+    @State private var hoverWorkItem: DispatchWorkItem?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -259,7 +279,16 @@ struct SidebarRow: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { onSelect() }
-        .onHover { isHovering = $0 }
+        .onHover { hovering in
+            hoverWorkItem?.cancel()
+            if hovering {
+                isHovering = true
+            } else {
+                let workItem = DispatchWorkItem { isHovering = false }
+                hoverWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + FraySpacing.hoverGracePeriod, execute: workItem)
+            }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isChannel ? "Channel: \(title)" : (isFaved ? "Favorited thread: \(title)" : "Thread: \(title)"))
         .accessibilityAddTraits(.isButton)
@@ -337,10 +366,35 @@ struct AgentAvatar: View {
 struct PresenceIndicator: View {
     let presence: FrayAgent.AgentPresence
 
+    private var iconName: String {
+        switch presence {
+        case .active: return "circle.fill"
+        case .spawning: return "arrow.triangle.2.circlepath"
+        case .prompting, .prompted: return "questionmark.circle"
+        case .idle: return "circle"
+        case .error: return "exclamationmark.triangle"
+        case .offline: return "circle.dotted"
+        case .brb: return "moon.fill"
+        }
+    }
+
     var body: some View {
-        Circle()
-            .fill(FrayColors.presence[presence] ?? .gray)
-            .frame(width: 8, height: 8)
+        Image(systemName: iconName)
+            .font(.system(size: FraySpacing.presenceIndicatorSize))
+            .foregroundStyle(FrayColors.presence[presence] ?? .gray)
+            .accessibilityLabel(presenceLabel)
+    }
+
+    private var presenceLabel: String {
+        switch presence {
+        case .active: return "Active"
+        case .spawning: return "Spawning"
+        case .prompting, .prompted: return "Prompting"
+        case .idle: return "Idle"
+        case .error: return "Error"
+        case .offline: return "Offline"
+        case .brb: return "Be right back"
+        }
     }
 }
 
@@ -349,12 +403,25 @@ struct ThreadListItem: View {
     let allThreads: [FrayThread]
     let favedIds: Set<String>
     @Binding var selectedThread: FrayThread?
+    @Binding var expandedThreads: Set<String>
     let onFave: (String) -> Void
 
-    @State private var isExpanded = false
     @State private var isHovering = false
+    @State private var hoverWorkItem: DispatchWorkItem?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isExpanded: Bool {
+        expandedThreads.contains(thread.guid)
+    }
+
+    private func toggleExpanded() {
+        if isExpanded {
+            expandedThreads.remove(thread.guid)
+        } else {
+            expandedThreads.insert(thread.guid)
+        }
+    }
 
     var childThreads: [FrayThread] {
         allThreads.filter { $0.parentThread == thread.guid && !favedIds.contains($0.guid) }
@@ -379,6 +446,7 @@ struct ThreadListItem: View {
                         allThreads: allThreads,
                         favedIds: favedIds,
                         selectedThread: $selectedThread,
+                        expandedThreads: $expandedThreads,
                         onFave: onFave
                     )
                     .padding(.leading, FraySpacing.md)
@@ -393,10 +461,10 @@ struct ThreadListItem: View {
             if hasChildren {
                 Button(action: {
                     if reduceMotion {
-                        isExpanded.toggle()
+                        toggleExpanded()
                     } else {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            isExpanded.toggle()
+                            toggleExpanded()
                         }
                     }
                 }) {
@@ -438,7 +506,16 @@ struct ThreadListItem: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { selectedThread = thread }
-        .onHover { isHovering = $0 }
+        .onHover { hovering in
+            hoverWorkItem?.cancel()
+            if hovering {
+                isHovering = true
+            } else {
+                let workItem = DispatchWorkItem { isHovering = false }
+                hoverWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + FraySpacing.hoverGracePeriod, execute: workItem)
+            }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(threadAccessibilityLabel)
         .accessibilityAddTraits(.isButton)

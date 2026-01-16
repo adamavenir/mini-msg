@@ -19,6 +19,10 @@ struct MessageListView: View {
     // Track the thread/room we loaded for to detect stale content
     @State private var loadedForId: String?
 
+    // Scroll position restoration
+    @AppStorage("scrollPositions") private var scrollPositionsData: Data = Data()
+    @State private var lastVisibleMessageId: String?
+
     // Limit initial load to prevent UI overwhelm
     private let initialLoadLimit = 50
 
@@ -26,10 +30,62 @@ struct MessageListView: View {
         thread?.guid ?? "room"
     }
 
+    private var scrollPositions: [String: String] {
+        (try? JSONDecoder().decode([String: String].self, from: scrollPositionsData)) ?? [:]
+    }
+
+    private func saveScrollPosition(for id: String, messageId: String) {
+        var positions = scrollPositions
+        positions[id] = messageId
+        if let encoded = try? JSONEncoder().encode(positions) {
+            scrollPositionsData = encoded
+        }
+    }
+
+    private func getSavedScrollPosition(for id: String) -> String? {
+        scrollPositions[id]
+    }
+
     private struct MessageGroup: Identifiable {
         let id: String  // first message id
         let messages: [FrayMessage]
         var isGrouped: Bool { messages.count > 1 }
+    }
+
+    private var messageDict: [String: FrayMessage] {
+        Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
+    }
+
+    @ViewBuilder
+    private func messageRow(msg: FrayMessage, showHeader: Bool) -> some View {
+        if msg.type == .event,
+           let event = parseInteractiveEvent(from: msg.body) {
+            PermissionRequestBubble(message: msg, event: event)
+                .id(msg.id)
+                .onAppear { lastVisibleMessageId = msg.id }
+        } else {
+            MessageBubble(
+                message: msg,
+                onReply: { replyTo = msg },
+                showHeader: showHeader,
+                parentMessage: msg.replyTo.flatMap { messageDict[$0] }
+            )
+            .id(msg.id)
+            .onAppear { lastVisibleMessageId = msg.id }
+        }
+    }
+
+    @ViewBuilder
+    private var messageContent: some View {
+        if loadedForId == viewId {
+            ForEach(groupMessages(messages)) { group in
+                VStack(spacing: group.isGrouped ? FraySpacing.groupedMessageSpacing : 0) {
+                    ForEach(Array(group.messages.enumerated()), id: \.element.id) { idx, msg in
+                        messageRow(msg: msg, showHeader: idx == 0)
+                    }
+                }
+            }
+        }
     }
 
     var body: some View {
@@ -42,32 +98,7 @@ struct MessageListView: View {
                             .padding()
                     }
 
-                    // Only show messages if they match current view
-                    if loadedForId == viewId {
-                        let messageDict = Dictionary(uniqueKeysWithValues:
-                            messages.map { ($0.id, $0) }
-                        )
-
-                        ForEach(groupMessages(messages)) { group in
-                            VStack(spacing: group.isGrouped ? FraySpacing.groupedMessageSpacing : 0) {
-                                ForEach(Array(group.messages.enumerated()), id: \.element.id) { idx, msg in
-                                    if msg.type == .event,
-                                       let event = parseInteractiveEvent(from: msg.body) {
-                                        PermissionRequestBubble(message: msg, event: event)
-                                            .id(msg.id)
-                                    } else {
-                                        MessageBubble(
-                                            message: msg,
-                                            onReply: { replyTo = msg },
-                                            showHeader: idx == 0,
-                                            parentMessage: msg.replyTo.flatMap { messageDict[$0] }
-                                        )
-                                        .id(msg.id)
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    messageContent
                 }
                 .padding(.horizontal)
                 .padding(.top)
@@ -83,10 +114,17 @@ struct MessageListView: View {
                 }
             }
             .onChange(of: loadedForId) { _, newId in
-                // Scroll to bottom after initial load with delay for layout
-                if newId == viewId, let last = messages.last {
-                    // Use longer delay to ensure LazyVStack has laid out content
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                // Restore scroll position or scroll to bottom after initial load
+                guard let newId = newId, newId == viewId else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    if let savedId = getSavedScrollPosition(for: newId),
+                       messages.contains(where: { $0.id == savedId }) {
+                        // Restore to saved position
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            proxy.scrollTo(savedId, anchor: .center)
+                        }
+                    } else if let last = messages.last {
+                        // Default to bottom
                         withAnimation(.easeOut(duration: 0.1)) {
                             proxy.scrollTo(last.id, anchor: .bottom)
                         }
@@ -94,12 +132,17 @@ struct MessageListView: View {
                 }
             }
             .onChange(of: viewId) { oldId, newId in
-                // Clear messages immediately on thread change to prevent showing stale content
+                // Save scroll position before switching
                 if oldId != newId {
+                    if let lastVisible = lastVisibleMessageId {
+                        saveScrollPosition(for: oldId, messageId: lastVisible)
+                    }
+                    // Clear messages immediately on thread change
                     messages = []
                     cursor = nil
                     hasInitialLoad = false
                     loadedForId = nil
+                    lastVisibleMessageId = nil
                 }
             }
         }
@@ -142,7 +185,7 @@ struct MessageListView: View {
             let shouldGroup = message.fromAgent == lastAgent &&
                              message.type == .agent &&
                              lastTimestamp != nil &&
-                             (message.ts - lastTimestamp!) < 120
+                             (message.ts - lastTimestamp!) < FraySpacing.messageGroupTimeWindow
 
             if shouldGroup {
                 currentGroup.append(message)

@@ -207,7 +207,7 @@ struct ThreadNavigationRow: View {
                     .lineLimit(1)
 
                 if let lastActivity = thread.lastActivityAt {
-                    Text(formatRelativeTime(lastActivity))
+                    Text(FrayFormatters.compactRelativeTimestamp(lastActivity))
                         .font(FrayTypography.timestamp)
                         .foregroundStyle(.tertiary)
                 }
@@ -245,16 +245,6 @@ struct ThreadNavigationRow: View {
         case .system: return "gearshape"
         case .standard, nil: return thread.status == .archived ? "archivebox" : "bubble.left"
         }
-    }
-
-    private func formatRelativeTime(_ timestamp: Int64) -> String {
-        let date = Date(timeIntervalSince1970: Double(timestamp))
-        let interval = Date().timeIntervalSince(date)
-
-        if interval < 60 { return "just now" }
-        if interval < 3600 { return "\(Int(interval / 60))m ago" }
-        if interval < 86400 { return "\(Int(interval / 3600))h ago" }
-        return "\(Int(interval / 86400))d ago"
     }
 }
 

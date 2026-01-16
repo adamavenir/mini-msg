@@ -22,4 +22,16 @@ enum FraySpacing {
 
     // Input alignment: matches avatar column + gap so input aligns with message content
     static let inputLeadingPadding: CGFloat = avatarSize + sm
+
+    // Component sizes
+    static let presenceIndicatorSize: CGFloat = 10
+    static let presenceIndicatorSizeLarge: CGFloat = 12
+    static let commandPaletteWidth: CGFloat = 600
+    static let commandPaletteHeight: CGFloat = 400
+    static let inputMinHeight: CGFloat = 36
+    static let inputMaxHeight: CGFloat = 120
+
+    // Timing constants (seconds)
+    static let hoverGracePeriod: Double = 0.2
+    static let messageGroupTimeWindow: Int64 = 120
 }

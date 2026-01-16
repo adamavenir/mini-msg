@@ -38,7 +38,7 @@ struct MessageInputArea: View {
                     placeholder: placeholder,
                     onSubmit: handleSubmit
                 )
-                .frame(minHeight: 36, maxHeight: 120)
+                .frame(minHeight: FraySpacing.inputMinHeight, maxHeight: FraySpacing.inputMaxHeight)
 
                 Button(action: handleSubmit) {
                     Image(systemName: "arrow.up.circle.fill")

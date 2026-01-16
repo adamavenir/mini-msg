@@ -8,6 +8,7 @@ struct MessageBubble: View {
     var parentMessage: FrayMessage?
 
     @State private var isHovering = false
+    @State private var hoverWorkItem: DispatchWorkItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -21,12 +22,28 @@ struct MessageBubble: View {
                 .fill(isHovering ? FrayColors.secondaryBackground : .clear)
         }
         .onHover { hovering in
-            if reduceMotion {
-                isHovering = hovering
-            } else {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    isHovering = hovering
+            hoverWorkItem?.cancel()
+            if hovering {
+                if reduceMotion {
+                    isHovering = true
+                } else {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        isHovering = true
+                    }
                 }
+            } else {
+                // Grace period before hiding hover elements
+                let workItem = DispatchWorkItem {
+                    if reduceMotion {
+                        isHovering = false
+                    } else {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            isHovering = false
+                        }
+                    }
+                }
+                hoverWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + FraySpacing.hoverGracePeriod, execute: workItem)
             }
         }
         .accessibilityElement(children: .combine)
@@ -61,20 +78,6 @@ struct MessageBubble: View {
             MessageFooter(message: message)
         }
     }
-
-    private func formatTimestamp(_ ts: Int64) -> String {
-        let date = Date(timeIntervalSince1970: TimeInterval(ts))
-        let interval = Date().timeIntervalSince(date)
-
-        if interval < 60 { return "just now" }
-        if interval < 3600 { return "\(Int(interval / 60))m ago" }
-        if interval < 86400 { return "\(Int(interval / 3600))h ago" }
-        if interval < 604800 { return "\(Int(interval / 86400))d ago" }
-
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        return formatter.string(from: date)
-    }
 }
 
 struct MessageHeader: View {
@@ -88,7 +91,7 @@ struct MessageHeader: View {
                 .font(FrayTypography.agentName)
                 .foregroundStyle(FrayColors.colorForAgent(message.fromAgent))
 
-            Text(formatTimestamp(message.ts))
+            Text(FrayFormatters.relativeTimestamp(message.ts))
                 .font(FrayTypography.timestamp)
                 .foregroundStyle(.secondary)
 
@@ -104,20 +107,6 @@ struct MessageHeader: View {
                 MessageActions(message: message, onReply: onReply)
             }
         }
-    }
-
-    private func formatTimestamp(_ ts: Int64) -> String {
-        let date = Date(timeIntervalSince1970: TimeInterval(ts))
-        let interval = Date().timeIntervalSince(date)
-
-        if interval < 60 { return "just now" }
-        if interval < 3600 { return "\(Int(interval / 60))m ago" }
-        if interval < 86400 { return "\(Int(interval / 3600))h ago" }
-        if interval < 604800 { return "\(Int(interval / 86400))d ago" }
-
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        return formatter.string(from: date)
     }
 }
 

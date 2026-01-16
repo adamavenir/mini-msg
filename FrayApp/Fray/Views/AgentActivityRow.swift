@@ -99,30 +99,23 @@ struct PresenceIndicatorAnimated: View {
     @State private var isAnimating = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var iconName: String {
+        switch presence {
+        case .active: return "circle.fill"
+        case .spawning: return "arrow.triangle.2.circlepath"
+        case .prompting, .prompted: return "questionmark.circle"
+        case .idle: return "circle"
+        case .error: return "exclamationmark.triangle"
+        case .offline: return "circle.dotted"
+        case .brb: return "moon.fill"
+        }
+    }
+
     var body: some View {
-        Circle()
-            .fill(FrayColors.presence[presence] ?? .gray)
-            .frame(width: 10, height: 10)
-            .overlay {
-                if presence == .spawning && !reduceMotion {
-                    Circle()
-                        .stroke(FrayColors.presence[presence] ?? .yellow, lineWidth: 2)
-                        .scaleEffect(isAnimating ? 2.0 : 1.0)
-                        .opacity(isAnimating ? 0 : 0.5)
-                        .animation(
-                            .easeOut(duration: 1.0).repeatForever(autoreverses: false),
-                            value: isAnimating
-                        )
-                }
-            }
-            .onAppear {
-                if presence == .spawning && !reduceMotion {
-                    isAnimating = true
-                }
-            }
-            .onChange(of: presence) { _, newValue in
-                isAnimating = newValue == .spawning && !reduceMotion
-            }
+        Image(systemName: iconName)
+            .font(.system(size: FraySpacing.presenceIndicatorSizeLarge))
+            .foregroundStyle(FrayColors.presence[presence] ?? .gray)
+            .symbolEffect(.pulse, options: .repeating, isActive: presence == .spawning && !reduceMotion)
             .accessibilityLabel(presenceAccessibilityLabel)
     }
 

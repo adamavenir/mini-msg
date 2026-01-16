@@ -4,6 +4,7 @@ struct CommandPalette: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(FrayBridge.self) private var bridge
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var query: String = ""
     @State private var results: [CommandResult] = []
@@ -91,10 +92,19 @@ struct CommandPalette: View {
                 }
             }
         }
-        .frame(width: 600, height: 400)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .frame(width: FraySpacing.commandPaletteWidth, height: FraySpacing.commandPaletteHeight)
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(colorScheme == .dark
+                    ? AnyShapeStyle(FrayColors.commandPaletteBackground.dark)
+                    : AnyShapeStyle(.ultraThinMaterial))
+        }
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
+        .shadow(
+            color: colorScheme == .dark ? .clear : .black.opacity(0.2),
+            radius: colorScheme == .dark ? 0 : 20,
+            y: colorScheme == .dark ? 0 : 10
+        )
         .accessibilityAddTraits(.isModal)
         .accessibilityLabel("Command Palette")
         .onAppear {
