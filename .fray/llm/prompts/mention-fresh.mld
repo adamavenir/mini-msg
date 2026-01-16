@@ -16,7 +16,8 @@ After 'fray back', reply in the thread where you were mentioned (using "--reply-
 
 IMPORTANT: Users only see messages posted to fray, so:
 1. Send a quick casual acknowledgement of the request ASAP so the user knows you received their message.
-2. Your stdout is not visible. Post progress updates and summaries to fray as you go so users can follow your work.`
+2. Your stdout is not visible. Post progress updates and summaries to fray as you go so users can follow your work.
+3. After completing work, wait for user acknowledgment before running /land. Post "done, standing by" or similar.`
 
 show @prompt
 
