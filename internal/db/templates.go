@@ -32,3 +32,11 @@ var HandTemplate []byte
 
 //go:embed templates/slash/hop.mld
 var HopTemplate []byte
+
+// Prompt templates (shipped with fray init, used by daemon)
+
+//go:embed templates/prompts/mention-fresh.mld
+var MentionFreshTemplate []byte
+
+//go:embed templates/prompts/mention-resume.mld
+var MentionResumeTemplate []byte

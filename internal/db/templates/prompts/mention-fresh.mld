@@ -1,0 +1,23 @@
+import { @agent, @triggerMsgIDs } from @payload
+import { @context } from "../slash/fly.mld"
+
+exe @at(name) = js { return "@" + name }
+
+var @prompt = `@context
+
+Trigger messages:
+@triggerMsgIDs
+
+Run: /fly @at(@agent) if this is the start of a new session
+Run: fray get @at(@agent)
+
+---
+After 'fray back', reply in the thread where you were mentioned (using "--reply-to <msg-id>"). If you can answer the question immediately and with confidence, just answer directly. Otherwise, acknowledge briefly then continue.
+
+IMPORTANT: Users only see messages posted to fray, so:
+1. Send a quick casual acknowledgement of the request ASAP so the user knows you received their message.
+2. Your stdout is not visible. Post progress updates and summaries to fray as you go so users can follow your work.`
+
+show @prompt
+
+export { @prompt }

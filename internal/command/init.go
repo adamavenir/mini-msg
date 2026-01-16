@@ -37,12 +37,9 @@ type stockAgent struct {
 // stockAgents is the default set of agents to suggest during init.
 var stockAgents = []stockAgent{
 	{Name: "dev", Description: "development work", Driver: "claude"},
+	{Name: "arch", Description: "architecture review/plans", Driver: "claude"},
 	{Name: "desi", Description: "design review", Driver: "claude"},
-	{Name: "arch", Description: "architecture review/plans", Driver: "codex"},
-	{Name: "qa", Description: "testing and quality checks", Driver: "codex"},
 	{Name: "pm", Description: "project coordination", Driver: "claude"},
-	{Name: "knit", Description: "knowledge organization", Driver: "claude"},
-	{Name: "party", Description: "workparty coordinator, fray advisor", Driver: "claude"},
 }
 
 // NewInitCmd creates the init command.
@@ -322,13 +319,9 @@ func promptAndCreateAgents(dbPath string) []string {
 	}
 
 	fmt.Println("")
-	fmt.Println("Suggested agents (select with numbers, e.g., 1,2,5 or 'all' or 'none'):")
+	fmt.Println("Suggested agents (select with numbers, e.g., 1,2,4 or 'all' or 'none'):")
 	for i, agent := range stockAgents {
-		driverNote := ""
-		if agent.Driver == "codex" {
-			driverNote = " [codex]"
-		}
-		fmt.Printf("  %d. %s - %s%s\n", i+1, agent.Name, agent.Description, driverNote)
+		fmt.Printf("  %d. %s - %s\n", i+1, agent.Name, agent.Description)
 	}
 	fmt.Print("Select [default=all]: ")
 
@@ -360,15 +353,15 @@ func promptAndCreateAgents(dbPath string) []string {
 
 	// Ask about driver customization
 	fmt.Println("")
-	fmt.Println("Default drivers: claude for most, codex for arch/qa")
+	fmt.Println("Default driver: claude (also supports codex, opencode)")
 	if !promptYesNo("Use defaults?", true) {
 		// Let user customize per-agent
 		for _, idx := range selectedIndices {
 			agent := &stockAgents[idx]
-			fmt.Printf("Driver for %s [claude/codex, default=%s]: ", agent.Name, agent.Driver)
+			fmt.Printf("Driver for %s [claude/codex/opencode, default=%s]: ", agent.Name, agent.Driver)
 			driverText, _ := reader.ReadString('\n')
 			driverTrimmed := strings.TrimSpace(strings.ToLower(driverText))
-			if driverTrimmed == "claude" || driverTrimmed == "codex" {
+			if driverTrimmed == "claude" || driverTrimmed == "codex" || driverTrimmed == "opencode" {
 				agent.Driver = driverTrimmed
 			}
 		}
@@ -501,6 +494,26 @@ func ensureLLMRouter(projectRoot string) error {
 	}
 	for name, content := range slashTemplates {
 		path := filepath.Join(slashDir, name)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			if err := os.WriteFile(path, content, 0o644); err != nil {
+				return fmt.Errorf("write %s template: %w", name, err)
+			}
+		}
+	}
+
+	// Create llm/prompts/ directory for daemon prompts
+	promptsDir := filepath.Join(llmDir, "prompts")
+	if err := os.MkdirAll(promptsDir, 0o755); err != nil {
+		return fmt.Errorf("create llm/prompts directory: %w", err)
+	}
+
+	// Write prompt templates (used by daemon for @mentions)
+	promptTemplates := map[string][]byte{
+		"mention-fresh.mld":  db.MentionFreshTemplate,
+		"mention-resume.mld": db.MentionResumeTemplate,
+	}
+	for name, content := range promptTemplates {
+		path := filepath.Join(promptsDir, name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			if err := os.WriteFile(path, content, 0o644); err != nil {
 				return fmt.Errorf("write %s template: %w", name, err)

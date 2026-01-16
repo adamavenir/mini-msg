@@ -1,0 +1,38 @@
+import { @agent, @triggerMsgIDs } from @payload
+
+exe @fray(args) = cmd { fray @args --json }
+exe @safe(obj, field) = js { return (obj && obj[field]) || [] }
+exe @at(name) = js { return "@" + name }
+exe @truncate(text, len) = js { return text && text.length > len ? text.substring(0, len) + "..." : text }
+
+>> Lighter context for resume - just recent mentions and claims
+var @mentionsData = @fray(`@$@agent`)
+var @claimsData = @fray(`claims @$@agent`)
+var @mentionsList = @safe(@mentionsData, "mentions")
+var @claimsList = @safe(@claimsData, "claims")
+
+var @prompt = `**@at(@agent)** resuming session.
+
+Trigger messages:
+@triggerMsgIDs
+
+## Recent @mentions
+/for @m in @mentionsList
+- [@m.id] @m.from_agent: @truncate(@m.body, 200)
+/end
+
+## Your Claims
+/for @c in @claimsList
+- @c.resource
+/end
+
+---
+Reply in the thread where you were mentioned (use --reply-to <msg-id>). If you can answer immediately, just answer. Otherwise, acknowledge briefly then continue.
+
+IMPORTANT: Users only see messages posted to fray, so:
+1. Send a quick casual acknowledgement of the request ASAP so the user knows you received their message.
+2. Your stdout is not visible. Post progress updates and summaries to fray as you go so users can follow your work.`
+
+show @prompt
+
+export { @prompt }
