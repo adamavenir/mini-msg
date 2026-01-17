@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Chat: auto-scroll to bottom when navigating to long threads
+- Chat: click-to-copy and click-to-reply targets now accurate (were off by 1-2 lines)
 - Token tracking: Claude context now includes cached tokens (was showing 0% when caching active)
 - Token tracking: Codex transcript discovery handles modern filename format
 
