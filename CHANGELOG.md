@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Chat: multiline pastes collapsed to `[N lines pasted]` placeholder (original text submitted on Enter)
 - Token tracking: Claude context now includes cached tokens (was showing 0% when caching active)
 - Token tracking: Codex transcript discovery handles modern filename format
+- Daemon: `fray bye` no longer triggers immediate re-spawn when unprocessed mentions exist (watermark advanced past skipped mentions)
 
 ### Added
 - `fray cursor stage <home> <msg>`: stage ghost cursor for commit on bye/brb
