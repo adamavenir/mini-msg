@@ -484,6 +484,7 @@ func (d *Daemon) cleanupStalePresence() {
 		types.PresenceSpawning,
 		types.PresencePrompting,
 		types.PresencePrompted,
+		types.PresenceCompacting,
 		types.PresenceActive,
 		// Note: PresenceIdle is NOT stale - it means session ended naturally but agent is resumable
 	}
@@ -819,6 +820,7 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 		isBusyState := agent.Presence == types.PresenceSpawning ||
 			agent.Presence == types.PresencePrompting ||
 			agent.Presence == types.PresencePrompted ||
+			agent.Presence == types.PresenceCompacting ||
 			agent.Presence == types.PresenceActive
 
 		if isBusyState {
@@ -988,7 +990,7 @@ func (d *Daemon) checkReactions(ctx context.Context, agent types.Agent) {
 			// Only spawn once per poll cycle
 			return
 
-		case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted, types.PresenceActive:
+		case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted, types.PresenceCompacting, types.PresenceActive:
 			// Orphaned state: presence busy but no process (we checked above)
 			// Reset and spawn
 			d.debugf("    @%s: orphaned presence (%s), resetting to idle", agent.AgentID, agent.Presence)
@@ -1393,10 +1395,9 @@ func (d *Daemon) runWakePrompt(payload types.WakePromptPayload) (*types.WakeProm
 		return nil, err
 	}
 
-	// Run mlld
+	// Run mlld with --payload flag
 	wakePromptPath := filepath.Join(d.project.Root, ".fray", "llm", "wake-prompt.mld")
-	cmd := exec.Command("mlld", wakePromptPath)
-	cmd.Stdin = strings.NewReader(string(payloadJSON))
+	cmd := exec.Command("mlld", "--payload", fmt.Sprintf("@payload=%s", string(payloadJSON)), wakePromptPath)
 	cmd.Dir = d.project.Root
 
 	output, err := cmd.Output()
@@ -1441,9 +1442,8 @@ func (d *Daemon) runStdoutRepair(stdout string, lastPost *string, agentID string
 		return nil
 	}
 
-	// Run mlld
-	cmd := exec.Command("mlld", stdoutRepairPath)
-	cmd.Stdin = strings.NewReader(string(payloadJSON))
+	// Run mlld with --payload flag
+	cmd := exec.Command("mlld", "--payload", fmt.Sprintf("@payload=%s", string(payloadJSON)), stdoutRepairPath)
 	cmd.Dir = d.project.Root
 
 	output, err := cmd.Output()
@@ -2237,7 +2237,7 @@ func (d *Daemon) updatePresence() {
 
 		// Handle presence state transitions based on current state
 		switch agent.Presence {
-		case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted:
+		case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted, types.PresenceCompacting:
 			// Poll ccusage for token-based state transitions
 			// Compare against baseline to detect NEW tokens (important for resumed sessions)
 			ccState := GetCCUsageStateForDriver(agent.Invoke.Driver, proc.SessionID)

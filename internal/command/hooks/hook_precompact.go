@@ -24,8 +24,8 @@ func NewHookPrecompactCmd() *cobra.Command {
 				agentID = "<you>"
 			}
 
-			// Send heartbeat to keep agent active through compaction.
-			// This resets error state to active if needed.
+			// Set presence to compacting and send heartbeat.
+			// This signals the daemon that the agent is compacting context.
 			if agentID != "<you>" {
 				projectPath := os.Getenv("CLAUDE_PROJECT_DIR")
 				if project, err := core.DiscoverProject(projectPath); err == nil {
@@ -34,23 +34,14 @@ func NewHookPrecompactCmd() *cobra.Command {
 						if err := db.InitSchema(dbConn); err == nil {
 							if agent, err := db.GetAgent(dbConn, agentID); err == nil && agent != nil {
 								now := time.Now().UnixMilli()
-								if agent.Presence == "error" {
-									// Reset error state to active
-									active := "active"
-									_ = db.UpdateAgentPresence(dbConn, agentID, types.PresenceActive)
-									_ = db.AppendAgentUpdate(project.DBPath, db.AgentUpdateJSONLRecord{
-										AgentID:       agentID,
-										Presence:      &active,
-										LastHeartbeat: &now,
-									})
-								} else {
-									// Just update heartbeat
-									_ = db.UpdateAgentHeartbeat(dbConn, agentID, now)
-									_ = db.AppendAgentUpdate(project.DBPath, db.AgentUpdateJSONLRecord{
-										AgentID:       agentID,
-										LastHeartbeat: &now,
-									})
-								}
+								compacting := "compacting"
+								_ = db.UpdateAgentPresence(dbConn, agentID, types.PresenceCompacting)
+								_ = db.UpdateAgentHeartbeat(dbConn, agentID, now)
+								_ = db.AppendAgentUpdate(project.DBPath, db.AgentUpdateJSONLRecord{
+									AgentID:       agentID,
+									Presence:      &compacting,
+									LastHeartbeat: &now,
+								})
 							}
 						}
 					}

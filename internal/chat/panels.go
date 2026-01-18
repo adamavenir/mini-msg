@@ -1995,8 +1995,8 @@ func (m *Model) renderActivitySection(width int) ([]string, int) {
 		// Offline: offline beyond 4h (hidden)
 		category := ""
 		if agent.Presence == types.PresenceSpawning || agent.Presence == types.PresencePrompting ||
-			agent.Presence == types.PresencePrompted || agent.Presence == types.PresenceActive ||
-			agent.Presence == types.PresenceError {
+			agent.Presence == types.PresencePrompted || agent.Presence == types.PresenceCompacting ||
+			agent.Presence == types.PresenceActive || agent.Presence == types.PresenceError {
 			category = "active"
 		} else if agent.Presence == types.PresenceIdle {
 			category = "idle"
@@ -2102,7 +2102,8 @@ func (m *Model) renderJobClusterRow(jobID string, workers []types.Agent, width i
 	activeCount := 0
 	for _, w := range workers {
 		if w.Presence == types.PresenceActive || w.Presence == types.PresenceSpawning ||
-			w.Presence == types.PresencePrompting || w.Presence == types.PresencePrompted {
+			w.Presence == types.PresencePrompting || w.Presence == types.PresencePrompted ||
+			w.Presence == types.PresenceCompacting {
 			activeCount++
 		}
 	}
@@ -2152,12 +2153,16 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 	// Status icon based on (debounced) presence
 	// Spawn cycle: △ ▲ animate slowly (1.5s cycle = 6 frames at 250ms each, 3 frames per icon)
 	spawnCycleIcons := []string{"△", "△", "△", "▲", "▲", "▲"}
+	// Compact cycle: ◁ ◀ animate slowly (same timing)
+	compactCycleIcons := []string{"◁", "◁", "◁", "◀", "◀", "◀"}
 	icon := "▶"
 	switch displayPresence {
 	case types.PresenceActive:
 		icon = "▶"
 	case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted:
 		icon = spawnCycleIcons[m.animationFrame%len(spawnCycleIcons)]
+	case types.PresenceCompacting:
+		icon = compactCycleIcons[m.animationFrame%len(compactCycleIcons)]
 	case types.PresenceIdle:
 		icon = "▷"
 	case types.PresenceError:
@@ -2262,6 +2267,8 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 		} else {
 			iconColor = lipgloss.Color("226") // bright yellow - resumed session spinning up
 		}
+	case types.PresenceCompacting:
+		iconColor = lipgloss.Color("226") // bright yellow - compacting context
 	case types.PresenceActive:
 		iconColor = lipgloss.Color("46") // bright green - active
 	case types.PresenceIdle:

@@ -15,14 +15,15 @@ const (
 type PresenceState string
 
 const (
-	PresenceActive    PresenceState = "active"
-	PresenceSpawning  PresenceState = "spawning"
-	PresencePrompting PresenceState = "prompting" // input_tokens > 0, sending context to API
-	PresencePrompted  PresenceState = "prompted"  // output_tokens > 0, agent is generating
-	PresenceIdle      PresenceState = "idle"
-	PresenceError     PresenceState = "error"
-	PresenceOffline   PresenceState = "offline"
-	PresenceBRB       PresenceState = "brb"       // agent wants immediate respawn (fray brb)
+	PresenceActive     PresenceState = "active"
+	PresenceSpawning   PresenceState = "spawning"
+	PresencePrompting  PresenceState = "prompting"  // input_tokens > 0, sending context to API
+	PresencePrompted   PresenceState = "prompted"   // output_tokens > 0, agent is generating
+	PresenceCompacting PresenceState = "compacting" // context compaction in progress
+	PresenceIdle       PresenceState = "idle"
+	PresenceError      PresenceState = "error"
+	PresenceOffline    PresenceState = "offline"
+	PresenceBRB        PresenceState = "brb"        // agent wants immediate respawn (fray brb)
 )
 
 // PromptDelivery specifies how prompts are passed to CLI.
