@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Daemon: `fray heartbeat` now resets agents from error→active (enables recovery after manual /compact)
+- Daemon: PreCompact hook sends heartbeat automatically (keeps agents active through context compaction)
 - Chat: down arrow at end of text exits edit mode (mirrors up arrow entering it)
 - Chat: text input color now resets to normal when exiting edit mode (was staying red)
 - Daemon debug: repeated log messages now collapse with count instead of spamming
