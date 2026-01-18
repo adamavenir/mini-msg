@@ -214,15 +214,14 @@ type Model struct {
 	daemonStartedAt  int64
 }
 
-// TokenUsage holds token usage data from ccusage (for activity panel).
+// TokenUsage holds token usage data (for activity panel).
 type TokenUsage struct {
 	SessionID   string            `json:"sessionId"`
-	TotalCost   float64           `json:"totalCost"`
 	TotalTokens int64             `json:"totalTokens"`
 	Entries     []TokenUsageEntry `json:"entries"`
 }
 
-// TokenUsageEntry represents a single API call from ccusage.
+// TokenUsageEntry represents a single API call.
 type TokenUsageEntry struct {
 	Timestamp       string `json:"timestamp"`
 	InputTokens     int64  `json:"inputTokens"`
@@ -877,6 +876,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Actual presence changed - record change time
 					m.agentActualPresence[agent.AgentID] = agent.Presence
 					m.agentPresenceChanged[agent.AgentID] = now
+
+					// Display compact initiated event when agent starts compacting
+					if agent.Presence == types.PresenceCompacting {
+						event := newEventMessage(fmt.Sprintf("compact initiated for @%s", agent.AgentID))
+						m.messages = append(m.messages, event)
+						m.refreshViewport(true)
+					}
 
 					// Skip debounce for "wake up" transitions (inactive → active).
 					// These should display immediately since they're deliberate, not flicker.

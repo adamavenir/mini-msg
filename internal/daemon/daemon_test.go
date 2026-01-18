@@ -1062,7 +1062,7 @@ func TestSpawnFlow_NoSpawnWhenActive(t *testing.T) {
 		t.Fatalf("start daemon: %v", err)
 	}
 
-	// Wait for spawn to complete (includes 2s ccusage timeout if not installed)
+	// Wait for spawn to complete
 	time.Sleep(3 * time.Second)
 
 	// Verify first spawn happened
@@ -1109,7 +1109,7 @@ func TestSpawnFlow_WatermarkAdvances(t *testing.T) {
 		t.Fatalf("start daemon: %v", err)
 	}
 
-	// Wait for spawn to complete (includes ccusage timeout if not available)
+	// Wait for spawn to complete (includes startup time)
 	time.Sleep(3 * time.Second)
 
 	// Watermark should advance past the processed message
@@ -1141,7 +1141,7 @@ func TestSessionLifecycle_FreshSpawnSetsSessionID(t *testing.T) {
 		t.Fatalf("start daemon: %v", err)
 	}
 
-	// Wait for spawn to complete (includes ccusage timeout if not available)
+	// Wait for spawn to complete (includes startup time)
 	time.Sleep(3 * time.Second)
 
 	// Session ID should be set after spawn
@@ -1465,7 +1465,7 @@ func TestErrorRecovery_ProcessExitWithErrorSetsPresence(t *testing.T) {
 		t.Fatalf("start daemon: %v", err)
 	}
 
-	// Wait for spawn + process to exit and be detected (includes ccusage timeout)
+	// Wait for spawn + process to exit and be detected (includes exit detection time)
 	time.Sleep(3 * time.Second)
 
 	// Presence should be error (non-zero exit code)
@@ -1584,7 +1584,7 @@ func TestErrorRecovery_SignalKillSetsIdle(t *testing.T) {
 		t.Fatalf("start daemon: %v", err)
 	}
 
-	// Wait for spawn + process to exit and be detected (includes ccusage timeout)
+	// Wait for spawn + process to exit and be detected (includes exit detection time)
 	time.Sleep(3 * time.Second)
 
 	// Presence should be idle (signal kill exit_code=-1 should NOT be error)

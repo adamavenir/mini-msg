@@ -143,7 +143,7 @@ func GetDriver(name string) Driver {
 }
 
 // DefaultTimeouts returns default timeout values in milliseconds.
-// spawnTimeout: max time in 'spawning' state (60s - gives time for ccusage/activity fallbacks)
+// spawnTimeout: max time in 'spawning' state (60s - gives time for token parsing/activity fallbacks)
 // idleAfter: time since activity before 'idle' presence (5s)
 // minCheckin: done-detection threshold - idle + no fray posts = kill (0 = disabled by default)
 // maxRuntime: zombie safety net - forced termination (0 = unlimited)

@@ -3,23 +3,24 @@ package command
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"sync"
 	"time"
 
 	"github.com/adamavenir/fray/internal/db"
 	"github.com/adamavenir/fray/internal/types"
+	"github.com/adamavenir/fray/internal/usage"
 	"github.com/spf13/cobra"
 )
 
-// TokenUsage holds token usage data from ccusage.
+// TokenUsage holds token usage data for dashboard display.
 type TokenUsage struct {
-	SessionID   string  `json:"sessionId"`
-	TotalCost   float64 `json:"totalCost"`
-	TotalTokens int64   `json:"totalTokens"`
+	SessionID   string
+	TotalTokens int64
+	InputTokens int64
+	OutputTokens int64
 }
 
-// tokenCache caches ccusage results to avoid repeated shell calls.
+// tokenCache caches transcript parsing results to avoid repeated file reads.
 var tokenCache = struct {
 	sync.RWMutex
 	data map[string]tokenCacheEntry
@@ -32,8 +33,8 @@ type tokenCacheEntry struct {
 
 const tokenCacheTTL = 30 * time.Second
 
-// getTokenUsage fetches token usage for a session ID via ccusage.
-// Returns nil if ccusage is not installed or session not found.
+// getTokenUsage fetches token usage for a session ID by parsing transcript files.
+// Returns nil if session not found.
 func getTokenUsage(sessionID string) *TokenUsage {
 	if sessionID == "" {
 		return nil
@@ -49,10 +50,9 @@ func getTokenUsage(sessionID string) *TokenUsage {
 	}
 	tokenCache.RUnlock()
 
-	// Call ccusage
-	cmd := exec.Command("npx", "ccusage", "session", "--id", sessionID, "--json", "--offline")
-	output, err := cmd.Output()
-	if err != nil {
+	// Parse transcript directly
+	sessionUsage, err := usage.GetSessionUsage(sessionID)
+	if err != nil || sessionUsage == nil {
 		// Cache the miss to avoid repeated failed calls
 		tokenCache.Lock()
 		tokenCache.data[sessionID] = tokenCacheEntry{usage: nil, fetchedAt: time.Now()}
@@ -60,20 +60,19 @@ func getTokenUsage(sessionID string) *TokenUsage {
 		return nil
 	}
 
-	var usage TokenUsage
-	if err := json.Unmarshal(output, &usage); err != nil {
-		tokenCache.Lock()
-		tokenCache.data[sessionID] = tokenCacheEntry{usage: nil, fetchedAt: time.Now()}
-		tokenCache.Unlock()
-		return nil
+	tokenUsage := &TokenUsage{
+		SessionID:    sessionID,
+		InputTokens:  sessionUsage.InputTokens + sessionUsage.CachedTokens,
+		OutputTokens: sessionUsage.OutputTokens,
+		TotalTokens:  sessionUsage.InputTokens + sessionUsage.CachedTokens + sessionUsage.OutputTokens,
 	}
 
 	// Cache the result
 	tokenCache.Lock()
-	tokenCache.data[sessionID] = tokenCacheEntry{usage: &usage, fetchedAt: time.Now()}
+	tokenCache.data[sessionID] = tokenCacheEntry{usage: tokenUsage, fetchedAt: time.Now()}
 	tokenCache.Unlock()
 
-	return &usage
+	return tokenUsage
 }
 
 // NewDashboardCmd creates the dashboard command.
@@ -344,12 +343,13 @@ func buildActiveAgentsPayload(agents []types.Agent, unreadCounts map[string]int,
 			entry["claims"] = claimsList
 		}
 
-		// Token usage from ccusage
-		if usage := tokenUsage[agent.AgentID]; usage != nil {
+		// Token usage
+		if u := tokenUsage[agent.AgentID]; u != nil {
 			entry["tokens"] = map[string]any{
-				"total_tokens": usage.TotalTokens,
-				"total_cost":   usage.TotalCost,
-				"session_id":   usage.SessionID,
+				"total_tokens":  u.TotalTokens,
+				"input_tokens":  u.InputTokens,
+				"output_tokens": u.OutputTokens,
+				"session_id":    u.SessionID,
 			}
 		}
 
@@ -467,11 +467,18 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
-func formatTokenUsage(usage *TokenUsage) string {
-	if usage == nil {
+func formatTokenUsage(u *TokenUsage) string {
+	if u == nil {
 		return "N/A"
 	}
-	return fmt.Sprintf("$%.2f", usage.TotalCost)
+	// Format total tokens in k/M format
+	if u.TotalTokens >= 1000000 {
+		return fmt.Sprintf("%.1fM tok", float64(u.TotalTokens)/1000000)
+	}
+	if u.TotalTokens >= 1000 {
+		return fmt.Sprintf("%.0fk tok", float64(u.TotalTokens)/1000)
+	}
+	return fmt.Sprintf("%d tok", u.TotalTokens)
 }
 
 func truncate(s string, max int) string {

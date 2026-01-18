@@ -1626,9 +1626,9 @@ func (d *Daemon) spawnAgent(ctx context.Context, agent types.Agent, triggerMsgID
 	// Capture baseline token counts for resumed sessions
 	// This lets us detect prompting/prompted by checking for token INCREASE from baseline
 	if proc.SessionID != "" {
-		if ccState := GetCCUsageStateForDriver(agent.Invoke.Driver, proc.SessionID); ccState != nil {
-			proc.BaselineInput = ccState.TotalInput
-			proc.BaselineOutput = ccState.TotalOutput
+		if tokenState := GetTokenStateForDriver(agent.Invoke.Driver, proc.SessionID); tokenState != nil {
+			proc.BaselineInput = tokenState.TotalInput
+			proc.BaselineOutput = tokenState.TotalOutput
 			d.debugf("  baseline tokens: input=%d, output=%d", proc.BaselineInput, proc.BaselineOutput)
 		}
 	}
@@ -2208,7 +2208,7 @@ func (d *Daemon) getSessionMessages(sessionID, agentID string, limit int) []type
 }
 
 // updatePresence checks running processes and updates their presence.
-// Uses ccusage polling for spawning→prompting→prompted transitions.
+// Uses token polling for spawning→prompting→prompted transitions.
 // Implements done-detection: idle presence + no fray posts for min_checkin = kill session.
 func (d *Daemon) updatePresence() {
 	d.mu.Lock()
@@ -2238,16 +2238,16 @@ func (d *Daemon) updatePresence() {
 		// Handle presence state transitions based on current state
 		switch agent.Presence {
 		case types.PresenceSpawning, types.PresencePrompting, types.PresencePrompted, types.PresenceCompacting:
-			// Poll ccusage for token-based state transitions
+			// Poll for token-based state transitions
 			// Compare against baseline to detect NEW tokens (important for resumed sessions)
-			ccState := GetCCUsageStateForDriver(agent.Invoke.Driver, proc.SessionID)
-			if ccState != nil {
-				newInput := ccState.TotalInput - proc.BaselineInput
-				newOutput := ccState.TotalOutput - proc.BaselineOutput
+			tokenState := GetTokenStateForDriver(agent.Invoke.Driver, proc.SessionID)
+			if tokenState != nil {
+				newInput := tokenState.TotalInput - proc.BaselineInput
+				newOutput := tokenState.TotalOutput - proc.BaselineOutput
 
 				// Update token watermarks for spawn decision detection
 				// This persists across daemon restarts
-				db.UpdateAgentTokenWatermarks(d.database, agentID, ccState.TotalInput, ccState.TotalOutput)
+				db.UpdateAgentTokenWatermarks(d.database, agentID, tokenState.TotalInput, tokenState.TotalOutput)
 
 				if newOutput > 0 {
 					// Agent is generating response (new output tokens)
@@ -2256,7 +2256,7 @@ func (d *Daemon) updatePresence() {
 						db.UpdateAgentPresence(d.database, agentID, types.PresencePrompted)
 					}
 					// Initialize token tracking for active state idle detection
-					proc.LastOutputTokens = ccState.TotalOutput
+					proc.LastOutputTokens = tokenState.TotalOutput
 					proc.LastTokenCheck = time.Now()
 				} else if newInput > 0 {
 					// Context being sent to API (new input tokens)
@@ -2268,7 +2268,7 @@ func (d *Daemon) updatePresence() {
 			}
 
 			// Fallback: if agent has posted to fray since spawn, transition to active.
-			// This handles cases where ccusage is unavailable or slow.
+			// This handles cases where transcript parsing is unavailable.
 			lastPostTs, _ := db.GetAgentLastPostTime(d.database, agentID)
 			if lastPostTs > proc.StartedAt.UnixMilli() {
 				d.debugf("  @%s: %s→active (fray post detected)", agentID, agent.Presence)
@@ -2283,12 +2283,12 @@ func (d *Daemon) updatePresence() {
 			}
 
 		case types.PresenceActive:
-			// Poll ccusage for idle detection - if output tokens stop increasing, go idle
-			ccState := GetCCUsageStateForDriver(agent.Invoke.Driver, proc.SessionID)
-			if ccState != nil {
-				currentOutput := ccState.TotalOutput
+			// Poll for idle detection - if output tokens stop increasing, go idle
+			tokenState := GetTokenStateForDriver(agent.Invoke.Driver, proc.SessionID)
+			if tokenState != nil {
+				currentOutput := tokenState.TotalOutput
 				// Update token watermarks for spawn decision detection
-				db.UpdateAgentTokenWatermarks(d.database, agentID, ccState.TotalInput, currentOutput)
+				db.UpdateAgentTokenWatermarks(d.database, agentID, tokenState.TotalInput, currentOutput)
 				if currentOutput > proc.LastOutputTokens {
 					// Still generating output - update tracking
 					proc.LastOutputTokens = currentOutput
@@ -2299,7 +2299,7 @@ func (d *Daemon) updatePresence() {
 					db.UpdateAgentPresenceWithAudit(d.database, d.project.DBPath, agentID, agent.Presence, types.PresenceIdle, "idle_timeout", "daemon", agent.Status)
 				}
 			} else {
-				// ccusage unavailable - fall back to stdout activity detection
+				// Token parsing unavailable - fall back to stdout activity detection
 				pid := proc.Cmd.Process.Pid
 				lastActivity := d.detector.LastActivityTime(pid)
 				if time.Since(lastActivity).Milliseconds() > idleAfter {
