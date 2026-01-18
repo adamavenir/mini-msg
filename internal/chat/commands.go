@@ -337,7 +337,11 @@ func (m *Model) exitEditMode() {
 	m.clearSuggestions()
 	m.lastInputValue = m.input.Value()
 	m.lastInputPos = m.inputCursorPos()
-	m.updateInputStyle()
+	// Explicitly reset to normal text color (don't rely on conditional logic)
+	m.wasEditMode = false
+	m.reactionMode = false
+	m.replyMode = false
+	applyInputStyles(&m.input, textColor, blurText)
 	m.status = ""
 }
 

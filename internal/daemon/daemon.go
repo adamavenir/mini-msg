@@ -37,10 +37,12 @@ type Daemon struct {
 	spawning      map[string]bool     // agent_id -> true if spawn in progress (prevents races)
 	handled       map[string]bool     // agent_id -> true if exit already handled
 	cooldownUntil map[string]time.Time // agent_id -> when cooldown expires (after clean exit)
-	drivers       map[string]Driver    // driver name -> driver
-	lastSpawnTime time.Time            // rate-limit spawns to prevent resource exhaustion
-	startedAt     time.Time            // daemon start time (for staleness gate)
-	stopCh        chan struct{}
+	drivers         map[string]Driver    // driver name -> driver
+	lastSpawnTime   time.Time            // rate-limit spawns to prevent resource exhaustion
+	startedAt       time.Time            // daemon start time (for staleness gate)
+	lastDebugMsg    string               // last debug message for collapsing repeats
+	lastDebugCount  int                  // count of consecutive repeated messages
+	stopCh          chan struct{}
 	cancelFunc    context.CancelFunc // cancels spawned process contexts
 	wg            sync.WaitGroup
 	lockPath      string
@@ -239,7 +241,20 @@ func (d *Daemon) releaseLock() error {
 // debugf logs a debug message if debug mode is enabled.
 func (d *Daemon) debugf(format string, args ...any) {
 	if d.debug {
-		fmt.Fprintf(os.Stderr, "[daemon] "+format+"\n", args...)
+		msg := fmt.Sprintf(format, args...)
+		if msg == d.lastDebugMsg {
+			d.lastDebugCount++
+			// Overwrite the line with updated count using carriage return
+			fmt.Fprintf(os.Stderr, "\r[daemon] %s (%d)", msg, d.lastDebugCount)
+		} else {
+			// Flush previous repeated message with newline if needed
+			if d.lastDebugCount > 1 {
+				fmt.Fprintf(os.Stderr, "\n")
+			}
+			d.lastDebugMsg = msg
+			d.lastDebugCount = 1
+			fmt.Fprintf(os.Stderr, "[daemon] %s\n", msg)
+		}
 	}
 }
 

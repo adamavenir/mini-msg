@@ -79,6 +79,26 @@ func (m *Model) inputCursorPos() int {
 	return pos
 }
 
+// cursorAtEndOfInput returns true if the cursor is at the last position
+// on the last line of the input text.
+func (m *Model) cursorAtEndOfInput() bool {
+	value := m.input.Value()
+	if value == "" {
+		return true
+	}
+	lines := strings.Split(value, "\n")
+	lastLineIdx := len(lines) - 1
+	lastLineLen := len([]rune(lines[lastLineIdx]))
+
+	row := m.input.Line()
+	if row < lastLineIdx {
+		return false // not on last line
+	}
+	lineInfo := m.input.LineInfo()
+	col := lineInfo.ColumnOffset
+	return col >= lastLineLen
+}
+
 func (m *Model) updateInputStyle() {
 	value := m.input.Value()
 	_, reactionMode := reactionInputText(value)

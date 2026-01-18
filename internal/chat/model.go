@@ -532,6 +532,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
+		// Down key at end of text exits edit mode (mirrors Up entering it)
+		if msg.Type == tea.KeyDown && m.editingMessageID != "" {
+			if m.cursorAtEndOfInput() {
+				m.exitEditMode()
+				m.resize()
+				return m, nil
+			}
+		}
 		if msg.Type == tea.KeyCtrlJ {
 			m.insertInputText("\n")
 			return m, nil
