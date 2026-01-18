@@ -2414,6 +2414,11 @@ func (d *Daemon) handleProcessExit(agentID string, proc *Process) bool {
 	if proc.SessionID != "" {
 		d.captureUsageSnapshot(agentID, proc.SessionID)
 		d.unwatchSessionUsage(proc.SessionID)
+		// Clear token cache so fresh sessions don't show stale data
+		driver := d.getDriver(agentID)
+		if driver != nil {
+			ClearTokenCacheForDriver(driver.Name(), proc.SessionID)
+		}
 	}
 
 	// Session ID is now stored at spawn time (we generate it ourselves with --session-id)
