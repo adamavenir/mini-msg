@@ -1286,6 +1286,28 @@ func (m *Model) runRenameCommand(args []string) (tea.Cmd, error) {
 
 	oldName := m.currentThread.Name
 	m.currentThread.Name = newName
+
+	// Create event for thread rename (shows name, not ID)
+	eventBody := fmt.Sprintf("edited %s → %s", oldName, newName)
+	eventMessage, err := db.CreateMessage(m.db, types.Message{
+		TS:        time.Now().Unix(),
+		FromAgent: m.username,
+		Body:      eventBody,
+		Type:      types.MessageTypeEvent,
+		Home:      "room",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := db.AppendMessage(m.projectDBPath, eventMessage); err != nil {
+		return nil, err
+	}
+	m.messageCount++
+	if m.showUpdates {
+		m.messages = append(m.messages, eventMessage)
+		m.refreshViewport(false)
+	}
+
 	m.status = fmt.Sprintf("Renamed %s to %s", oldName, newName)
 	m.input.SetValue("")
 	return nil, nil

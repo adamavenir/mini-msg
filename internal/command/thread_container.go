@@ -1138,14 +1138,37 @@ func NewThreadRenameCmd() *cobra.Command {
 				return writeCommandError(cmd, err)
 			}
 
+			// Create event for thread rename (shows names, not IDs)
+			agentRef, _ := cmd.Flags().GetString("as")
+			if agentRef == "" {
+				agentRef = os.Getenv("FRAY_AGENT_ID")
+			}
+			if agentRef != "" {
+				agentID, err := resolveAgentRef(ctx, agentRef)
+				if err == nil {
+					eventBody := fmt.Sprintf("edited %s → %s", thread.Name, name)
+					eventMessage, err := db.CreateMessage(ctx.DB, types.Message{
+						TS:        time.Now().Unix(),
+						FromAgent: agentID,
+						Body:      eventBody,
+						Type:      types.MessageTypeEvent,
+						Home:      "room",
+					})
+					if err == nil {
+						_ = db.AppendMessage(ctx.Project.DBPath, eventMessage)
+					}
+				}
+			}
+
 			if ctx.JSONMode {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(updated)
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Renamed thread %s to %s\n", updated.GUID, updated.Name)
+			fmt.Fprintf(cmd.OutOrStdout(), "Renamed thread %s to %s\n", thread.Name, updated.Name)
 			return nil
 		},
 	}
 
+	cmd.Flags().String("as", "", "agent to attribute the rename event (uses FRAY_AGENT_ID if not set)")
 	return cmd
 }
