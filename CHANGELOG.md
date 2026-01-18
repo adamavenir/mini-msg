@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Activity panel: progress bar now shows accurate context usage (was double-counting cached tokens)
 - Activity panel: restored "· X offline" summary for agents offline > 4 hours
 - Activity panel: idle and recently-offline agents now display distinctly
 - Daemon: agents now remain 'idle' (resumable) after clean exit instead of 'offline'
