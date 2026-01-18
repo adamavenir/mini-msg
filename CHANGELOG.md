@@ -8,7 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Chat: down arrow at end of text exits edit mode (mirrors up arrow entering it)
 - Chat: text input color now resets to normal when exiting edit mode (was staying red)
+- Daemon debug: repeated log messages now collapse with count instead of spamming
 - Activity panel: "wake up" transitions (offline/error/brb → spawning) now display immediately (was showing ▽ for 1 second due to debounce)
 - Activity panel: progress bar now shows accurate context usage (was double-counting cached tokens)
 - Activity panel: restored "· X offline" summary for agents offline > 4 hours
