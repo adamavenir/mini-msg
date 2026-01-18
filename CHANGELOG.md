@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Chat: text input color now resets to normal when exiting edit mode (was staying red)
+- Activity panel: "wake up" transitions (offline/error/brb → spawning) now display immediately (was showing ▽ for 1 second due to debounce)
 - Activity panel: progress bar now shows accurate context usage (was double-counting cached tokens)
 - Activity panel: restored "· X offline" summary for agents offline > 4 hours
 - Activity panel: idle and recently-offline agents now display distinctly
@@ -21,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Daemon: `fray bye` no longer triggers immediate re-spawn when unprocessed mentions exist (watermark advanced past skipped mentions)
 
 ### Added
+- Activity panel: PresenceBRB handling (◁ icon with yellow color for agents about to respawn)
 - `fray cursor stage <home> <msg>`: stage ghost cursor for commit on bye/brb
   - Uses FRAY_AGENT_ID, supports multiple homes (room + threads)
   - Staged cursors commit automatically on session exit

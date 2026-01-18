@@ -88,15 +88,18 @@ func (m *Model) updateInputStyle() {
 	if m.editingMessageID != "" {
 		m.reactionMode = false
 		m.replyMode = false
+		m.wasEditMode = true
 		applyInputStyles(&m.input, editColor, editColor)
 		return
 	}
 
-	// Check if mode changed
-	if reactionMode == m.reactionMode && replyMode == m.replyMode {
+	// Skip style update if mode unchanged (optimization).
+	// But always apply styles when exiting edit mode to reset from red.
+	if !m.wasEditMode && reactionMode == m.reactionMode && replyMode == m.replyMode {
 		return
 	}
 
+	m.wasEditMode = false
 	m.reactionMode = reactionMode
 	m.replyMode = replyMode
 

@@ -2164,6 +2164,8 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 		icon = "𝘅"
 	case types.PresenceOffline:
 		icon = "▽"
+	case types.PresenceBRB:
+		icon = "◁" // BRB - will respawn immediately
 	}
 
 	// Build plain text content: " icon name status (unread)"
@@ -2268,6 +2270,8 @@ func (m *Model) renderAgentRow(agent types.Agent, width int) string {
 		iconColor = lipgloss.Color("250") // dim white - offline
 	case types.PresenceError:
 		iconColor = lipgloss.Color("196") // red - error
+	case types.PresenceBRB:
+		iconColor = lipgloss.Color("226") // bright yellow - will respawn
 	default:
 		iconColor = lipgloss.Color("240") // gray fallback
 	}

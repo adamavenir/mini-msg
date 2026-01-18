@@ -134,6 +134,7 @@ type Model struct {
 	suggestionKind      suggestionKind
 	reactionMode        bool
 	replyMode           bool
+	wasEditMode         bool   // true if last style update was in edit mode
 	editingMessageID    string // non-empty when in edit mode
 	lastInputValue      string
 	lastInputPos        int
@@ -868,6 +869,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Actual presence changed - record change time
 					m.agentActualPresence[agent.AgentID] = agent.Presence
 					m.agentPresenceChanged[agent.AgentID] = now
+
+					// Skip debounce for "wake up" transitions (inactive → active).
+					// These should display immediately since they're deliberate, not flicker.
+					fromInactive := actualPresence == types.PresenceOffline ||
+						actualPresence == types.PresenceError ||
+						actualPresence == types.PresenceBRB
+					toActive := agent.Presence == types.PresenceSpawning ||
+						agent.Presence == types.PresencePrompting ||
+						agent.Presence == types.PresencePrompted ||
+						agent.Presence == types.PresenceActive
+					if fromInactive && toActive {
+						m.agentDisplayPresence[agent.AgentID] = agent.Presence
+					}
 				}
 				// Update display presence if debounce period has passed
 				changedAt := m.agentPresenceChanged[agent.AgentID]
