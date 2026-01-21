@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Codex: context percentage now reflects post-compaction state (uses `last_token_usage` instead of cumulative total)
+- Token cache: cleared on session end to prevent stale data in fresh sessions
 - Daemon: spawn decisions now survive daemon restarts (uses persisted token watermarks instead of in-memory process map)
 - Daemon: mlld scripts now invoked correctly (uses `--payload` flag instead of stdin)
 - Daemon: `fray heartbeat` now resets agents from error→active (enables recovery after manual /compact)
@@ -29,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Daemon: `fray bye` no longer triggers immediate re-spawn when unprocessed mentions exist (watermark advanced past skipped mentions)
 
 ### Added
+- `fray d` alias for `fray daemon` command
+- `fray daemon status` now shows detailed agent info by default (presence, driver, session, tokens, context %)
 - Activity panel: compacting presence state (◁◀ yellow animation when agent is compacting context)
 - Activity panel: PresenceBRB handling (◁ icon with yellow color for agents about to respawn)
 - `fray cursor stage <home> <msg>`: stage ghost cursor for commit on bye/brb
