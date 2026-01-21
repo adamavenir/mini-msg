@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Init: `fray init --defaults` now creates default managed agents (dev, arch, desi, pm)
+- Init: SQLite cache now rebuilds correctly after JSONL writes (mtime detection was inverted)
 - Codex: context percentage now reflects post-compaction state (uses `last_token_usage` instead of cumulative total)
 - Token cache: cleared on session end to prevent stale data in fresh sessions
 - Daemon: spawn decisions now survive daemon restarts (uses persisted token watermarks instead of in-memory process map)
