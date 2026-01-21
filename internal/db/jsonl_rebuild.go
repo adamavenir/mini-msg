@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/adamavenir/fray/internal/types"
 )
@@ -25,18 +24,11 @@ func ensureDir(dirPath string) error {
 	return os.MkdirAll(dirPath, 0o755)
 }
 
+// touchDatabaseFile is a no-op. Previously it updated the db mtime,
+// but that prevented rebuild detection (jsonlMtime > dbMtime check).
+// The mtime comparison works naturally without touching the db.
 func touchDatabaseFile(projectPath string) {
-	frayDir := resolveFrayDir(projectPath)
-	if strings.HasSuffix(projectPath, ".db") {
-		frayDir = filepath.Dir(projectPath)
-	}
-	path := filepath.Join(frayDir, "fray.db")
-	_, err := os.Stat(path)
-	if err != nil {
-		return
-	}
-	now := time.Now()
-	_ = os.Chtimes(path, now, now)
+	// no-op: let jsonl mtime naturally trigger rebuild on next OpenDatabase
 }
 
 // UpdateProjectConfig merges updates into the project config.

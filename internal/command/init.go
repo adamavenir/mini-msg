@@ -172,35 +172,44 @@ func NewInitCmd() *cobra.Command {
 					Path:           project.Root,
 				}
 
+				// Create agents (interactive or default)
+				var agentsCreated []string
+				if !useDefaults && isTTY(os.Stdin) {
+					// Interactive: let user select agents
+					agentsCreated = promptAndCreateAgents(project.DBPath)
+				} else {
+					// Non-interactive: create all stock agents
+					for _, agent := range stockAgents {
+						if err := createManagedAgent(project.DBPath, agent.Name, agent.Driver); err != nil {
+							fmt.Fprintf(errOut, "Warning: failed to create agent %s: %v\n", agent.Name, err)
+							continue
+						}
+						agentsCreated = append(agentsCreated, agent.Name)
+					}
+				}
+				if len(agentsCreated) > 0 {
+					result.AgentsCreated = agentsCreated
+				}
+
+				// JSON output (after agents created)
 				if jsonMode {
 					_ = json.NewEncoder(out).Encode(result)
 					return nil
 				}
+
+				// Human-readable output
 				if !alreadyExisted {
 					fmt.Fprintf(out, "✓ Registered channel %s as '%s'\n", channelID, channelName)
 				}
 				fmt.Fprintln(out, "Initialized .fray/")
 
-				// Interactive setup (only if TTY and not using defaults)
+				if len(agentsCreated) > 0 {
+					fmt.Fprintf(out, "✓ Created %d managed agents: %s\n", len(agentsCreated), strings.Join(agentsCreated, ", "))
+				}
+
+				// Interactive: offer to install hooks
 				if !useDefaults && isTTY(os.Stdin) {
 					fmt.Fprintln(out, "")
-
-					// TODO: Issue tracker selection is disabled until we modify prompts based on selection
-					// See bead for re-enabling: bd search "issue tracker"
-					// issueTracker := promptIssueTracker()
-					// if issueTracker != "" && issueTracker != "none" {
-					// 	result.IssueTracker = issueTracker
-					// 	fmt.Fprintf(out, "✓ Issue tracker: %s\n", issueTracker)
-					// }
-
-					// Agent selection
-					agentsCreated := promptAndCreateAgents(project.DBPath)
-					if len(agentsCreated) > 0 {
-						result.AgentsCreated = agentsCreated
-						fmt.Fprintf(out, "✓ Created %d managed agents\n", len(agentsCreated))
-					}
-
-					// Offer to install hooks
 					if promptYesNo("Install Claude Code hooks?", true) {
 						fmt.Fprintln(out, "")
 						fmt.Fprintln(out, "Run: fray hook-install")
@@ -209,7 +218,6 @@ func NewInitCmd() *cobra.Command {
 				} else {
 					fmt.Fprintln(out, "")
 					fmt.Fprintln(out, "Next steps:")
-					fmt.Fprintln(out, "  fray new <name>                # Join as an agent")
 					fmt.Fprintln(out, "  fray hook-install              # Install Claude Code hooks")
 					fmt.Fprintln(out, "  fray hook-install --precommit  # Add git pre-commit hook for claims")
 				}
