@@ -2701,3 +2701,8 @@
 {"type":"thread_subscribe","thread_guid":"thrd-d7rxropw","agent_id":"clank","subscribed_at":1768767017}
 {"type":"thread_subscribe","thread_guid":"thrd-d7rxropw","agent_id":"clank","subscribed_at":1768767425}
 {"type":"thread_subscribe","thread_guid":"thrd-d7rxropw","agent_id":"clank","subscribed_at":1768767597}
+{"type":"thread_subscribe","thread_guid":"thrd-n6qks7tl","agent_id":"clank","subscribed_at":1768773656}
+{"type":"thread_subscribe","thread_guid":"thrd-tj8vgk23","agent_id":"architect","subscribed_at":1768773704}
+{"type":"thread_subscribe","thread_guid":"thrd-tj8vgk23","agent_id":"architect","subscribed_at":1768935847}
+{"type":"thread","guid":"thrd-7rq4qhut","name":"jrnl","parent_thread":"thrd-rcyq7wou","subscribed":["gpt52"],"status":"open","thread_type":"system","created_at":1768952119}
+{"type":"thread_subscribe","thread_guid":"thrd-h5nrez8h","agent_id":"clank","subscribed_at":1769021956}
