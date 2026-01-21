@@ -111,3 +111,36 @@ func TestParseCodexTranscript_EmptyFile(t *testing.T) {
 		t.Errorf("Expected 0 input tokens for empty file, got %d", usage.InputTokens)
 	}
 }
+
+func TestParseCodexTranscript_ContextPercentFromLastUsage(t *testing.T) {
+	tmpDir := t.TempDir()
+	transcriptPath := filepath.Join(tmpDir, "test-session.jsonl")
+
+	// Test that context percentage uses last_token_usage.input_tokens (post-compaction)
+	// rather than total_token_usage (cumulative)
+	// Scenario: 1M cumulative tokens but only 50k in current context after compaction
+	content := `{"type":"event_msg","timestamp":"2025-01-14T10:00:00Z","payload":{"type":"token_count","info":{"model":"gpt-5","model_context_window":200000,"total_token_usage":{"input_tokens":1000000,"output_tokens":50000},"last_token_usage":{"input_tokens":50000,"output_tokens":1000}}}}
+`
+
+	if err := os.WriteFile(transcriptPath, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write test transcript: %v", err)
+	}
+
+	usage, err := parseCodexTranscript("test-session", transcriptPath)
+	if err != nil {
+		t.Fatalf("parseCodexTranscript failed: %v", err)
+	}
+
+	// InputTokens should still reflect cumulative total (for cost tracking)
+	if usage.InputTokens != 1000000 {
+		t.Errorf("Expected 1000000 cumulative input tokens, got %d", usage.InputTokens)
+	}
+
+	// Context percentage should be based on last_token_usage.input_tokens (50k / 200k = 25%)
+	// NOT total_token_usage (1M / 200k = 500%)
+	if usage.ContextPercent != 25 {
+		t.Errorf("Expected 25%% context (from last_token_usage), got %d%%", usage.ContextPercent)
+	}
+
+	t.Logf("Cumulative input: %d, Context percent: %d%%", usage.InputTokens, usage.ContextPercent)
+}

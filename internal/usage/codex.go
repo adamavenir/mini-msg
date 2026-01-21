@@ -126,7 +126,9 @@ func findCodexTranscript(sessionID string) string {
 	return ""
 }
 
-// parseCodexTranscript reads a Codex transcript and aggregates token usage
+// parseCodexTranscript reads a Codex transcript and aggregates token usage.
+// For context percentage, we use last_token_usage.input_tokens (current context size after compaction)
+// rather than total_token_usage which accumulates forever and doesn't reflect compaction.
 func parseCodexTranscript(sessionID, transcriptPath string) (*SessionUsage, error) {
 	file, err := os.Open(transcriptPath)
 	if err != nil {
@@ -134,7 +136,8 @@ func parseCodexTranscript(sessionID, transcriptPath string) (*SessionUsage, erro
 	}
 	defer file.Close()
 
-	var inputTokens, outputTokens, cachedTokens int64
+	var totalInputTokens, totalOutputTokens, totalCachedTokens int64
+	var lastInputTokens int64 // Current context size (post-compaction)
 	var model string
 	var contextWindow int64
 
@@ -188,15 +191,21 @@ func parseCodexTranscript(sessionID, transcriptPath string) (*SessionUsage, erro
 			contextWindow = payload.Info.ModelContextWindow
 		}
 
-		// Use total_token_usage for cumulative counts (last entry will have final totals)
+		// Use total_token_usage for cumulative cost tracking
 		if payload.Info.TotalTokenUsage != nil {
 			usage := payload.Info.TotalTokenUsage
-			inputTokens = usage.InputTokens
-			outputTokens = usage.OutputTokens
-			cachedTokens = usage.CachedInputTokens
-			if cachedTokens == 0 {
-				cachedTokens = usage.CacheReadInputTokens
+			totalInputTokens = usage.InputTokens
+			totalOutputTokens = usage.OutputTokens
+			totalCachedTokens = usage.CachedInputTokens
+			if totalCachedTokens == 0 {
+				totalCachedTokens = usage.CacheReadInputTokens
 			}
+		}
+
+		// Use last_token_usage.input_tokens for context percentage
+		// This reflects current context size after compaction, not cumulative total
+		if payload.Info.LastTokenUsage != nil {
+			lastInputTokens = payload.Info.LastTokenUsage.InputTokens
 		}
 	}
 
@@ -206,20 +215,28 @@ func parseCodexTranscript(sessionID, transcriptPath string) (*SessionUsage, erro
 		contextLimit = getCodexContextLimit(model)
 	}
 
+	// Calculate context percentage from LAST turn's input tokens (current context size)
+	// This matches how codex CLI displays "X% context remaining"
+	// Fall back to total if last_token_usage wasn't available
+	contextInput := lastInputTokens
+	if contextInput == 0 {
+		contextInput = totalInputTokens
+	}
+
 	contextPercent := 0
 	if contextLimit > 0 {
-		contextPercent = int((inputTokens * 100) / contextLimit)
+		contextPercent = int((contextInput * 100) / contextLimit)
 	}
 
 	return &SessionUsage{
 		SessionID:      sessionID,
 		Driver:         "codex",
 		Model:          model,
-		InputTokens:    inputTokens,
-		OutputTokens:   outputTokens,
-		CachedTokens:   cachedTokens,
+		InputTokens:    totalInputTokens, // Keep cumulative for cost tracking
+		OutputTokens:   totalOutputTokens,
+		CachedTokens:   totalCachedTokens,
 		ContextLimit:   contextLimit,
-		ContextPercent: contextPercent,
+		ContextPercent: contextPercent, // Now based on current context, not cumulative
 	}, nil
 }
 
