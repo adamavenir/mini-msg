@@ -663,7 +663,11 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 		// Interrupts bypass cooldown and can kill running processes
 		isInterrupt := false
 		if interruptInfo := d.getInterruptInfo(msg, agent.AgentID); interruptInfo != nil {
-			skipSpawn := d.handleInterrupt(ctx, agent, msg, *interruptInfo)
+			skipSpawn, clearSession := d.handleInterrupt(ctx, agent, msg, *interruptInfo)
+			// If !! was used, clear local agent's session ID so spawnAgent starts fresh
+			if clearSession {
+				agent.LastSessionID = nil
+			}
 			if skipSpawn {
 				// noSpawn was set, just advance watermark
 				if !hasQueued {
@@ -2629,8 +2633,10 @@ func (d *Daemon) getInterruptInfo(msg types.Message, agentID string) *types.Inte
 }
 
 // handleInterrupt processes an interrupt request for an agent.
-// Returns true if interrupt was handled and caller should skip normal spawn logic.
-func (d *Daemon) handleInterrupt(ctx context.Context, agent types.Agent, msg types.Message, info types.InterruptInfo) bool {
+// Returns (skipSpawn, clearSession):
+// - skipSpawn: true if caller should skip normal spawn logic (noSpawn was set)
+// - clearSession: true if !! was used and caller should clear agent.LastSessionID
+func (d *Daemon) handleInterrupt(ctx context.Context, agent types.Agent, msg types.Message, info types.InterruptInfo) (bool, bool) {
 	d.debugf("    %s: interrupt detected (double=%v, noSpawn=%v)", msg.ID, info.Double, info.NoSpawn)
 
 	// Clear cooldown (interrupts always bypass)
@@ -2652,19 +2658,21 @@ func (d *Daemon) handleInterrupt(ctx context.Context, agent types.Agent, msg typ
 	}
 
 	// If !! prefix: clear session ID for fresh start
+	clearSession := false
 	if info.Double {
 		d.debugf("    %s: clearing session ID (fresh start)", msg.ID)
 		db.UpdateAgentSessionID(d.database, agent.AgentID, "")
+		clearSession = true
 	}
 
 	// If ! suffix: don't spawn after interrupt
 	if info.NoSpawn {
 		d.debugf("    %s: noSpawn set, skipping spawn", msg.ID)
-		return true // Skip normal spawn
+		return true, clearSession // Skip normal spawn
 	}
 
 	// Normal interrupt: proceed to spawn (caller will handle)
-	return false
+	return false, clearSession
 }
 
 // ClearCooldown clears the cooldown for an agent (called from bye command).
