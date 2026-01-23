@@ -111,6 +111,7 @@ func NewRootCmd(version string) *cobra.Command {
 		NewWakeCmd(),
 		NewJobCmd(),
 		NewTrustCmd(),
+		NewTriggersCmd(),
 		NewMigrateAAPCmd(),
 		NewInstallNotifierCmd(),
 		hooks.NewHookInstallCmd(),

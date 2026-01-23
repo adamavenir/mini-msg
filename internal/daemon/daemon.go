@@ -854,7 +854,11 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 					remaining := time.Until(cooldownExpires).Round(time.Second)
 					d.debugf("    %s: queued (cooldown: %v remaining)", msg.ID, remaining)
 					d.debouncer.QueueMention(agent.AgentID, msg.ID)
-					hasQueued = true
+					// Advance watermark even for queued messages during cooldown.
+					// This prevents the same messages from being re-queued on every poll cycle.
+					// Trade-off: daemon restart during cooldown may cause some messages to be missed,
+					// but this is acceptable since cooldown is short (30s) and restart is rare.
+					lastProcessedID = msg.ID
 					continue
 				}
 				// Cooldown expired - clear it and proceed to spawn

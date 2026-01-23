@@ -457,6 +457,15 @@ fray wake clear --as pm            # Clear all wake conditions for agent
 fray agent status                  # JSON output: agents with presence, status, idle_seconds
 fray agent status --managed        # Only show managed agents
 
+# Trigger audit (debugging agent spawns)
+fray triggers                      # Show last 10 trigger events
+fray triggers --agent opus         # Filter to specific agent
+fray triggers --last 20            # Show last 20 triggers
+fray triggers --all                # Include manual starts (no trigger message)
+fray triggers --presence           # Show presence state changes instead
+fray triggers --presence --agent x # Presence for specific agent
+fray triggers --json               # JSON output
+
 # Jobs (parallel agent workers)
 fray job create "name" --as pm     # Create job, returns job-xxx GUID
 fray job create "name" --as pm --context '{"issues":["id"]}'  # With context JSON
