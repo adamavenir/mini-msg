@@ -38,6 +38,24 @@ func GetAgent(db *sql.DB, agentID string) (*types.Agent, error) {
 	return &agent, nil
 }
 
+// GetAgentBySessionID returns an agent by their current session ID.
+func GetAgentBySessionID(db *sql.DB, sessionID string) (*types.Agent, error) {
+	row := db.QueryRow(`
+		SELECT guid, agent_id, aap_guid, status, purpose, avatar, registered_at, last_seen, left_at, managed, invoke, presence, presence_changed_at, mention_watermark, reaction_watermark, last_heartbeat, last_session_id, session_mode, job_id, job_idx, is_ephemeral, last_known_input, last_known_output, tokens_updated_at
+		FROM fray_agents
+		WHERE last_session_id = ?
+	`, sessionID)
+
+	agent, err := scanAgent(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &agent, nil
+}
+
 // GetAgentsByPrefix returns agents matching a prefix.
 func GetAgentsByPrefix(db *sql.DB, prefix string) ([]types.Agent, error) {
 	rows, err := db.Query(`

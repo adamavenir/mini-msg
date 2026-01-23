@@ -41,9 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses FRAY_AGENT_ID, supports multiple homes (room + threads)
   - Staged cursors commit automatically on session exit
 - Ghost cursors auto-expire after first read (one-time handoff semantics)
-- `fray approve <perm-id> <1|2|3>`: approve permission requests
+- `fray approve`: interactive TUI to review pending permission requests (no args for TUI, or `<perm-id> <1|2|3>` for direct approval)
 - `fray deny <perm-id>`: deny permission requests
 - `fray hook-permission`: PermissionRequest hook handler for Claude Code
+  - Now resolves agent via session ID lookup when FRAY_AGENT_ID env var is missing
 - Job system for parallel agent coordination
   - `fray job create "name" --as pm`: create job, returns job-xxx GUID
   - `fray job create "name" --as pm --context '{"issues":["id"]}'`: with context JSON

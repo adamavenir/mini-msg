@@ -37,15 +37,28 @@ func NewHookPermissionCmd() *cobra.Command {
 			}
 
 			agentID := os.Getenv("FRAY_AGENT_ID")
-			if agentID == "" {
-				agentID = "unknown"
-			}
 			sessionID := os.Getenv("CLAUDE_SESSION_ID")
 
 			// Create permission request
 			project, err := core.DiscoverProject("")
 			if err != nil {
 				return fmt.Errorf("discover project: %w", err)
+			}
+
+			// If FRAY_AGENT_ID not set, try to look up by session ID
+			if agentID == "" && sessionID != "" {
+				dbConn, dbErr := db.OpenDatabase(project)
+				if dbErr == nil {
+					defer dbConn.Close()
+					if agent, lookupErr := db.GetAgentBySessionID(dbConn, sessionID); lookupErr == nil && agent != nil {
+						agentID = agent.AgentID
+					}
+				}
+			}
+
+			// Fallback to unknown if still not resolved
+			if agentID == "" {
+				agentID = "unknown"
 			}
 
 			guid, err := core.GenerateGUID("perm")
