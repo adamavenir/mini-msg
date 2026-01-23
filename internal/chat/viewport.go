@@ -301,6 +301,14 @@ func (m *Model) activityPollCmd() tea.Cmd {
 
 func (m *Model) refreshViewport(scrollToBottom bool) {
 	content := m.renderMessages()
+	// Ensure content is always taller than viewport to trigger scroll behavior.
+	// This works around Bubble Tea renderer bug #1232 where exact height match
+	// causes first line to be cut off.
+	contentHeight := lipgloss.Height(content)
+	if contentHeight > 0 && contentHeight <= m.viewport.Height {
+		// Add invisible padding line at top to force scrolling
+		content = "\n" + content
+	}
 	m.viewport.SetContent(content)
 	// Check pending scroll flag first
 	if m.pendingScrollBottom {
