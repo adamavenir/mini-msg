@@ -1786,9 +1786,9 @@ func (m *Model) drillOutAction() {
 
 func (m *Model) calculateThreadPanelWidth() {
 	// Calculate width based on longest visible thread name + 4 char buffer, max 50
-	// Minimum 22 for good visual balance even with short thread names
-	// (also ensures "   <space> to filter" (20 chars) fits)
-	maxLen := 22
+	// Minimum 26 for good visual balance even with short thread names
+	// (ensures "   <space> to filter" (20 chars) fits with comfortable margins)
+	maxLen := 26
 	entries := m.threadEntries()
 	for _, entry := range entries {
 		label := m.threadEntryLabel(entry)
