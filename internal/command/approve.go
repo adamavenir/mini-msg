@@ -17,21 +17,67 @@ import (
 // NewApproveCmd creates the approve command.
 func NewApproveCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "approve <perm-guid> <option>",
-		Short: "Approve a permission request",
-		Long: `Approve a permission request with a specific option.
+		Use:   "approve [perm-guid] [option]",
+		Short: "Approve permission requests",
+		Long: `Review and approve pending permission requests.
+
+Interactive mode (no arguments):
+  fray approve              Open interactive TUI to review all pending requests
+
+Direct mode (with arguments):
+  fray approve <perm-guid> <option>    Approve a specific request
 
 Options are numbered 1-3:
   1 - Allow once (just this invocation)
   2 - Allow this pattern (for the session)
   3 - Allow for all agents (persists in project settings)
 
+In interactive mode:
+  - Press 1, 2, or 3 to approve with that option
+  - Press d to deny
+  - Press s to skip
+  - Press q to quit
+
 Examples:
-  fray approve perm-abc123 1    # Allow once
-  fray approve perm-abc123 2    # Allow for session
-  fray approve perm-abc123 3    # Allow for project`,
-		Args: cobra.ExactArgs(2),
+  fray approve                    Review all pending requests interactively
+  fray approve perm-abc123 1      Allow once
+  fray approve perm-abc123 2      Allow for session
+  fray approve perm-abc123 3      Allow for project`,
+		Args: cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			project, err := core.DiscoverProject("")
+			if err != nil {
+				return err
+			}
+
+			// Interactive mode: no args
+			if len(args) == 0 {
+				perms, err := db.ReadPermissions(project.Root)
+				if err != nil {
+					return fmt.Errorf("read permissions: %w", err)
+				}
+
+				// Filter to pending only
+				var pending []types.PermissionRequest
+				for _, p := range perms {
+					if p.Status == types.PermissionStatusPending {
+						pending = append(pending, p)
+					}
+				}
+
+				if len(pending) == 0 {
+					fmt.Println("No pending permission requests")
+					return nil
+				}
+
+				return runApprovalsSession(project.Root, pending)
+			}
+
+			// Direct mode: need exactly 2 args
+			if len(args) != 2 {
+				return fmt.Errorf("usage: fray approve <perm-guid> <option>\n       fray approve (interactive mode)")
+			}
+
 			permGUID := args[0]
 			optionStr := args[1]
 			jsonMode, _ := cmd.Flags().GetBool("json")
@@ -41,11 +87,6 @@ Examples:
 				return fmt.Errorf("option must be 1, 2, or 3")
 			}
 			optionIdx-- // Convert to 0-indexed
-
-			project, err := core.DiscoverProject("")
-			if err != nil {
-				return err
-			}
 
 			// Read the permission request
 			req, err := db.ReadPermissionByGUID(project.Root, permGUID)

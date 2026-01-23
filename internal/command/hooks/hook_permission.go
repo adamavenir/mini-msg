@@ -107,18 +107,9 @@ func NewHookPermissionCmd() *cobra.Command {
 				channelID = config.ChannelID
 			}
 
-			// Create simple text message with commands (no interactive UI)
-			messageBody := fmt.Sprintf(`**Permission Request** from @%s
-
-**Tool:** %s
-**Action:** %s
-
-**Options:**
-[1] Allow once: fray approve %s 1
-[2] Allow for session: fray approve %s 2
-[3] Allow for project: fray approve %s 3 ⚠️
-[x] Deny: fray deny %s`,
-				agentID, input.ToolName, action, guid, guid, guid, guid)
+			// Create simple text message
+			messageBody := fmt.Sprintf("@%s requested approval for %s: %s\n`fray approve` to review requests",
+				agentID, input.ToolName, action)
 
 			// Create an event message for the permission request
 			msg := types.Message{
