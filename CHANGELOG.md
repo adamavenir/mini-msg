@@ -33,8 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Token tracking: Claude context now includes cached tokens (was showing 0% when caching active)
 - Token tracking: Codex transcript discovery handles modern filename format
 - Daemon: `fray bye` no longer triggers immediate re-spawn when unprocessed mentions exist (watermark advanced past skipped mentions)
+- Daemon: watermark now advances during cooldown (prevents infinite re-trigger loops when same messages kept being processed)
 
 ### Added
+- `fray triggers`: audit agent spawn events and presence transitions
+  - `--agent`: filter by agent
+  - `--presence`: show presence state changes instead of triggers
+  - `--json`: machine-readable output
 - `fray d` alias for `fray daemon` command
 - `fray daemon status` now shows detailed agent info by default (presence, driver, session, tokens, context %)
 - Activity panel: compacting presence state (◁◀ yellow animation when agent is compacting context)
