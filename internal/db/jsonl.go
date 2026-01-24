@@ -603,9 +603,53 @@ type machineIDFile struct {
 func GetStorageVersion(projectPath string) int {
 	config, err := ReadProjectConfig(projectPath)
 	if err != nil || config == nil || config.StorageVersion == 0 {
+		if hasV2Sentinel(projectPath) {
+			return 2
+		}
 		return 1
 	}
+	if config.StorageVersion < 2 && hasV2Sentinel(projectPath) {
+		return 2
+	}
 	return config.StorageVersion
+}
+
+func hasV2Sentinel(projectPath string) bool {
+	frayDir := resolveFrayDir(projectPath)
+	_, err := os.Stat(filepath.Join(frayDir, "shared", ".v2"))
+	return err == nil
+}
+
+func legacyWriteBlocked(projectPath string) (bool, []string, error) {
+	if !hasV2Sentinel(projectPath) {
+		return false, nil, nil
+	}
+	frayDir := resolveFrayDir(projectPath)
+	legacyFiles := []string{messagesFile, threadsFile, questionsFile, agentsFile}
+	var present []string
+	for _, name := range legacyFiles {
+		path := filepath.Join(frayDir, name)
+		if _, err := os.Stat(path); err == nil {
+			present = append(present, name)
+		} else if !os.IsNotExist(err) {
+			return false, nil, err
+		}
+	}
+	if len(present) == 0 {
+		return false, nil, nil
+	}
+	return true, present, nil
+}
+
+func ensureLegacyWriteAllowed(projectPath string) error {
+	blocked, files, err := legacyWriteBlocked(projectPath)
+	if err != nil {
+		return err
+	}
+	if !blocked {
+		return nil
+	}
+	return fmt.Errorf("legacy JSONL files detected in multi-machine project (%s). Remove legacy files or re-run `fray migrate --multi-machine`", strings.Join(files, ", "))
 }
 
 // IsMultiMachineMode reports whether storage_version >= 2.

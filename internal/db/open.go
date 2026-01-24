@@ -13,6 +13,9 @@ import (
 func OpenDatabase(project core.Project) (*sql.DB, error) {
 	frayDir := filepath.Dir(project.DBPath)
 	core.EnsureFrayGitignore(frayDir)
+	if err := ensureLegacyWriteAllowed(project.DBPath); err != nil {
+		return nil, err
+	}
 
 	dbExists := true
 	if _, err := os.Stat(project.DBPath); err != nil {
