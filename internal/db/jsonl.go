@@ -690,6 +690,20 @@ func GetSharedMachinesDirs(projectPath string) []string {
 	return dirs
 }
 
+// MachineIDExists reports whether a shared machine directory exists for the ID.
+func MachineIDExists(projectPath, machineID string) bool {
+	if machineID == "" {
+		return false
+	}
+	frayDir := resolveFrayDir(projectPath)
+	path := filepath.Join(frayDir, "shared", "machines", machineID)
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
+}
+
 // GetLocalMachineDir returns the shared directory for the local machine.
 func GetLocalMachineDir(projectPath string) string {
 	localID := GetLocalMachineID(projectPath)

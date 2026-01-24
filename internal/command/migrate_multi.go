@@ -33,7 +33,7 @@ func migrateMultiMachine(cmd *cobra.Command, project *core.Project) error {
 	}
 
 	defaultID := defaultMachineID()
-	machineID, err := promptMachineID(defaultID)
+	machineID, err := promptMachineID(project.DBPath, defaultID)
 	if err != nil {
 		return writeCommandError(cmd, err)
 	}
@@ -172,21 +172,33 @@ func defaultMachineID() string {
 	return name
 }
 
-func promptMachineID(defaultID string) (string, error) {
+func promptMachineID(projectPath, defaultID string) (string, error) {
 	if !isTTY(os.Stdin) {
+		if db.MachineIDExists(projectPath, defaultID) {
+			return "", fmt.Errorf("machine id already exists: %s", defaultID)
+		}
 		return defaultID, nil
 	}
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Fprintf(os.Stdout, "Machine ID for this device? [%s]: ", defaultID)
-	text, err := reader.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return "", err
+	for {
+		fmt.Fprintf(os.Stdout, "Machine ID for this device? [%s]: ", defaultID)
+		text, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return "", err
+		}
+		trimmed := strings.TrimSpace(text)
+		if trimmed == "" {
+			trimmed = defaultID
+		}
+		if trimmed == "" {
+			continue
+		}
+		if db.MachineIDExists(projectPath, trimmed) {
+			fmt.Fprintf(os.Stdout, "Machine ID already exists: %s\n", trimmed)
+			continue
+		}
+		return trimmed, nil
 	}
-	trimmed := strings.TrimSpace(text)
-	if trimmed == "" {
-		return defaultID, nil
-	}
-	return trimmed, nil
 }
 
 func splitAgentsJSONL(path string) ([]string, []string, error) {
