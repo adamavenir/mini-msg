@@ -33,19 +33,19 @@ func TestJobCreateAndJoinFlow(t *testing.T) {
 
 	// Create agent who will be job owner
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "pm", "starting workparty"); err != nil {
-		t.Fatalf("new pm: %v", err)
+	if _, err := executeCommand(cmd, "new", "owner", "starting workparty"); err != nil {
+		t.Fatalf("new owner: %v", err)
 	}
 
 	// Create agent who will be worker
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "dev", "ready to work"); err != nil {
-		t.Fatalf("new dev: %v", err)
+	if _, err := executeCommand(cmd, "new", "worker", "ready to work"); err != nil {
+		t.Fatalf("new worker: %v", err)
 	}
 
 	// Create a job
 	cmd = NewRootCmd("test")
-	output, err := executeCommand(cmd, "job", "create", "implement auth", "--as", "pm")
+	output, err := executeCommand(cmd, "job", "create", "implement auth", "--as", "owner")
 	if err != nil {
 		t.Fatalf("job create: %v", err)
 	}
@@ -67,8 +67,8 @@ func TestJobCreateAndJoinFlow(t *testing.T) {
 	if job.Name != "implement auth" {
 		t.Fatalf("expected job name 'implement auth', got %q", job.Name)
 	}
-	if job.OwnerAgent != "pm" {
-		t.Fatalf("expected owner_agent 'pm', got %q", job.OwnerAgent)
+	if job.OwnerAgent != "owner" {
+		t.Fatalf("expected owner_agent 'owner', got %q", job.OwnerAgent)
 	}
 	if job.Status != types.JobStatusRunning {
 		t.Fatalf("expected status 'running', got %q", job.Status)
@@ -89,15 +89,15 @@ func TestJobCreateAndJoinFlow(t *testing.T) {
 
 	// Join the job as first worker (auto-index should be 0)
 	cmd = NewRootCmd("test")
-	output, err = executeCommand(cmd, "job", "join", jobGUID, "--as", "dev")
+	output, err = executeCommand(cmd, "job", "join", jobGUID, "--as", "worker")
 	if err != nil {
 		t.Fatalf("job join: %v", err)
 	}
 
 	workerID := strings.TrimSpace(output)
-	// Worker format: dev[<4-char-suffix>-<idx>]
+	// Worker format: worker[<4-char-suffix>-<idx>]
 	suffix := jobGUID[4:8]
-	expectedWorkerID := "dev[" + suffix + "-0]"
+	expectedWorkerID := "worker[" + suffix + "-0]"
 	if workerID != expectedWorkerID {
 		t.Fatalf("expected worker ID %q, got %q", expectedWorkerID, workerID)
 	}
@@ -159,33 +159,33 @@ func TestJobJoinAutoIndex(t *testing.T) {
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "pm", "starting workparty"); err != nil {
-		t.Fatalf("new pm: %v", err)
+	if _, err := executeCommand(cmd, "new", "owner", "starting workparty"); err != nil {
+		t.Fatalf("new owner: %v", err)
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "dev", "ready"); err != nil {
-		t.Fatalf("new dev: %v", err)
+	if _, err := executeCommand(cmd, "new", "worker", "ready"); err != nil {
+		t.Fatalf("new worker: %v", err)
 	}
 
 	// Create job
 	cmd = NewRootCmd("test")
-	output, err := executeCommand(cmd, "job", "create", "test job", "--as", "pm")
+	output, err := executeCommand(cmd, "job", "create", "test job", "--as", "owner")
 	if err != nil {
 		t.Fatalf("job create: %v", err)
 	}
 	jobGUID := strings.TrimSpace(output)
 	suffix := jobGUID[4:8]
 
-	// Join as dev three times - should get indices 0, 1, 2
+	// Join as worker three times - should get indices 0, 1, 2
 	for i := 0; i < 3; i++ {
 		cmd = NewRootCmd("test")
-		output, err = executeCommand(cmd, "job", "join", jobGUID, "--as", "dev")
+		output, err = executeCommand(cmd, "job", "join", jobGUID, "--as", "worker")
 		if err != nil {
 			t.Fatalf("job join %d: %v", i, err)
 		}
 		workerID := strings.TrimSpace(output)
-		expectedWorkerID := "dev[" + suffix + "-" + string('0'+byte(i)) + "]"
+		expectedWorkerID := "worker[" + suffix + "-" + string('0'+byte(i)) + "]"
 		if workerID != expectedWorkerID {
 			t.Fatalf("worker %d: expected %q, got %q", i, expectedWorkerID, workerID)
 		}
@@ -231,17 +231,17 @@ func TestJobJoinExplicitIndex(t *testing.T) {
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "pm", "hi"); err != nil {
-		t.Fatalf("new pm: %v", err)
+	if _, err := executeCommand(cmd, "new", "owner", "hi"); err != nil {
+		t.Fatalf("new owner: %v", err)
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "dev", "hi"); err != nil {
-		t.Fatalf("new dev: %v", err)
+	if _, err := executeCommand(cmd, "new", "worker", "hi"); err != nil {
+		t.Fatalf("new worker: %v", err)
 	}
 
 	cmd = NewRootCmd("test")
-	output, err := executeCommand(cmd, "job", "create", "test", "--as", "pm")
+	output, err := executeCommand(cmd, "job", "create", "test", "--as", "owner")
 	if err != nil {
 		t.Fatalf("job create: %v", err)
 	}
@@ -250,12 +250,12 @@ func TestJobJoinExplicitIndex(t *testing.T) {
 
 	// Join with explicit index 5
 	cmd = NewRootCmd("test")
-	output, err = executeCommand(cmd, "job", "join", jobGUID, "--as", "dev", "--idx", "5")
+	output, err = executeCommand(cmd, "job", "join", jobGUID, "--as", "worker", "--idx", "5")
 	if err != nil {
 		t.Fatalf("job join: %v", err)
 	}
 	workerID := strings.TrimSpace(output)
-	expectedWorkerID := "dev[" + suffix + "-5]"
+	expectedWorkerID := "worker[" + suffix + "-5]"
 	if workerID != expectedWorkerID {
 		t.Fatalf("expected %q, got %q", expectedWorkerID, workerID)
 	}
@@ -283,57 +283,57 @@ func TestIsAmbiguousMention(t *testing.T) {
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "pm", "hi"); err != nil {
-		t.Fatalf("new pm: %v", err)
+	if _, err := executeCommand(cmd, "new", "owner", "hi"); err != nil {
+		t.Fatalf("new owner: %v", err)
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "dev", "hi"); err != nil {
-		t.Fatalf("new dev: %v", err)
+	if _, err := executeCommand(cmd, "new", "worker", "hi"); err != nil {
+		t.Fatalf("new worker: %v", err)
 	}
 
-	// Before job: @dev is not ambiguous
+	// Before job: @worker is not ambiguous
 	dbConn := openProjectDB(t, projectDir)
-	isAmbig, err := db.IsAmbiguousMention(dbConn, "dev")
+	isAmbig, err := db.IsAmbiguousMention(dbConn, "worker")
 	if err != nil {
 		t.Fatalf("is ambiguous: %v", err)
 	}
 	if isAmbig {
-		t.Fatal("expected @dev not to be ambiguous before job")
+		t.Fatal("expected @worker not to be ambiguous before job")
 	}
 	dbConn.Close()
 
-	// Create job and join as dev
+	// Create job and join as worker
 	cmd = NewRootCmd("test")
-	output, err := executeCommand(cmd, "job", "create", "test", "--as", "pm")
+	output, err := executeCommand(cmd, "job", "create", "test", "--as", "owner")
 	if err != nil {
 		t.Fatalf("job create: %v", err)
 	}
 	jobGUID := strings.TrimSpace(output)
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "job", "join", jobGUID, "--as", "dev"); err != nil {
+	if _, err := executeCommand(cmd, "job", "join", jobGUID, "--as", "worker"); err != nil {
 		t.Fatalf("job join: %v", err)
 	}
 
-	// After job with worker: @dev is ambiguous
+	// After job with worker: @worker is ambiguous
 	dbConn = openProjectDB(t, projectDir)
 	defer dbConn.Close()
-	isAmbig, err = db.IsAmbiguousMention(dbConn, "dev")
+	isAmbig, err = db.IsAmbiguousMention(dbConn, "worker")
 	if err != nil {
 		t.Fatalf("is ambiguous: %v", err)
 	}
 	if !isAmbig {
-		t.Fatal("expected @dev to be ambiguous when job has workers")
+		t.Fatal("expected @worker to be ambiguous when job has workers")
 	}
 
-	// @pm should not be ambiguous (no workers)
-	isAmbig, err = db.IsAmbiguousMention(dbConn, "pm")
+	// @owner should not be ambiguous (no workers)
+	isAmbig, err = db.IsAmbiguousMention(dbConn, "owner")
 	if err != nil {
-		t.Fatalf("is ambiguous pm: %v", err)
+		t.Fatalf("is ambiguous owner: %v", err)
 	}
 	if isAmbig {
-		t.Fatal("expected @pm not to be ambiguous (no workers)")
+		t.Fatal("expected @owner not to be ambiguous (no workers)")
 	}
 }
 
@@ -359,13 +359,13 @@ func TestJobCreateWithContext(t *testing.T) {
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "pm", "hi"); err != nil {
-		t.Fatalf("new pm: %v", err)
+	if _, err := executeCommand(cmd, "new", "owner", "hi"); err != nil {
+		t.Fatalf("new owner: %v", err)
 	}
 
 	// Create job with context
 	cmd = NewRootCmd("test")
-	output, err := executeCommand(cmd, "job", "create", "with context", "--as", "pm", "--context", `{"issues":["fray-abc","fray-xyz"]}`)
+	output, err := executeCommand(cmd, "job", "create", "with context", "--as", "owner", "--context", `{"issues":["fray-abc","fray-xyz"]}`)
 	if err != nil {
 		t.Fatalf("job create: %v", err)
 	}
@@ -411,13 +411,13 @@ func TestJobJoinNonexistentJob(t *testing.T) {
 	}
 
 	cmd = NewRootCmd("test")
-	if _, err := executeCommand(cmd, "new", "dev", "hi"); err != nil {
-		t.Fatalf("new dev: %v", err)
+	if _, err := executeCommand(cmd, "new", "worker", "hi"); err != nil {
+		t.Fatalf("new worker: %v", err)
 	}
 
 	// Try to join non-existent job
 	cmd = NewRootCmd("test")
-	_, err = executeCommand(cmd, "job", "join", "job-notfound", "--as", "dev")
+	_, err = executeCommand(cmd, "job", "join", "job-notfound", "--as", "worker")
 	if err == nil {
 		t.Fatal("expected error joining non-existent job")
 	}
