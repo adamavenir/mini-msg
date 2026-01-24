@@ -59,6 +59,7 @@ type readReceiptRow struct {
 // NewMigrateCmd creates the migrate command.
 func NewMigrateCmd() *cobra.Command {
 	var fixThreads bool
+	var multiMachine bool
 
 	cmd := &cobra.Command{
 		Use:   "migrate",
@@ -67,6 +68,10 @@ func NewMigrateCmd() *cobra.Command {
 			project, err := core.DiscoverProject("")
 			if err != nil {
 				return writeCommandError(cmd, err)
+			}
+
+			if multiMachine {
+				return migrateMultiMachine(cmd, &project)
 			}
 
 			frayDir := filepath.Dir(project.DBPath)
@@ -300,6 +305,7 @@ func NewMigrateCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&fixThreads, "fix-threads", false, "Fix legacy thread naming patterns only")
+	cmd.Flags().BoolVar(&multiMachine, "multi-machine", false, "Migrate to multi-machine storage layout")
 
 	return cmd
 }
