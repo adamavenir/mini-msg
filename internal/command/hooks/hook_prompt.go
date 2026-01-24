@@ -39,7 +39,7 @@ func NewHookPromptCmd() *cobra.Command {
 				return writeHookOutput(cmd, output)
 			}
 
-			roomMessages, mentionMessages, _ := fetchHookMessages(dbConn, agentID, 5, 3)
+			roomMessages, mentionMessages, _ := fetchHookMessages(dbConn, project.DBPath, agentID, 5, 3)
 			statusline := buildStatusline(dbConn, agentID)
 
 			if len(roomMessages) == 0 && len(mentionMessages) == 0 && statusline == "" {

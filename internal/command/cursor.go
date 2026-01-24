@@ -298,6 +298,9 @@ If home is specified, only clear that cursor. Otherwise clear all cursors.`,
 				if err := db.DeleteGhostCursor(ctx.DB, agentID, home); err != nil {
 					return writeCommandError(cmd, err)
 				}
+				if err := db.AppendCursorClear(ctx.Project.DBPath, agentID, home, time.Now().UnixMilli()); err != nil {
+					return writeCommandError(cmd, err)
+				}
 
 				// Append a "clear" event by setting an empty cursor
 				// Actually, we just don't append anything - the JSONL will just not have a cursor for this home
@@ -316,8 +319,20 @@ If home is specified, only clear that cursor. Otherwise clear all cursors.`,
 				return nil
 			}
 
+			cursors, err := db.GetGhostCursors(ctx.DB, agentID)
+			if err != nil {
+				return writeCommandError(cmd, err)
+			}
 			if err := db.DeleteAllGhostCursors(ctx.DB, agentID); err != nil {
 				return writeCommandError(cmd, err)
+			}
+			if len(cursors) > 0 {
+				clearedAt := time.Now().UnixMilli()
+				for _, cursor := range cursors {
+					if err := db.AppendCursorClear(ctx.Project.DBPath, agentID, cursor.Home, clearedAt); err != nil {
+						return writeCommandError(cmd, err)
+					}
+				}
 			}
 
 			if ctx.JSONMode {

@@ -61,6 +61,15 @@ type MessageUpdateJSONLRecord struct {
 	Reason     *string              `json:"reason,omitempty"`
 }
 
+// MessageDeleteJSONLRecord represents a message deletion tombstone.
+type MessageDeleteJSONLRecord struct {
+	Type      string  `json:"type"` // "message_delete"
+	ID        string  `json:"id"`
+	DeletedBy *string `json:"deleted_by,omitempty"`
+	Seq       int64   `json:"seq,omitempty"`
+	TS        int64   `json:"ts"`
+}
+
 // QuestionJSONLRecord represents a question entry in JSONL.
 type QuestionJSONLRecord struct {
 	Type       string                 `json:"type"`
@@ -113,6 +122,14 @@ type ThreadUpdateJSONLRecord struct {
 	AnchorMessageGUID *string `json:"anchor_message_guid,omitempty"`
 	AnchorHidden      *bool   `json:"anchor_hidden,omitempty"`
 	LastActivityAt    *int64  `json:"last_activity_at,omitempty"`
+}
+
+// ThreadDeleteJSONLRecord represents a thread deletion tombstone.
+type ThreadDeleteJSONLRecord struct {
+	Type     string `json:"type"` // "thread_delete"
+	ThreadID string `json:"thread_id"`
+	Seq      int64  `json:"seq,omitempty"`
+	TS       int64  `json:"ts"`
 }
 
 // ThreadSubscribeJSONLRecord represents a subscription event.
@@ -335,6 +352,15 @@ type GhostCursorJSONLRecord struct {
 	SetAt       int64  `json:"set_at"`
 }
 
+// CursorClearJSONLRecord represents clearing a ghost cursor.
+type CursorClearJSONLRecord struct {
+	Type    string `json:"type"` // "cursor_clear"
+	AgentID string `json:"agent_id"`
+	Home    string `json:"home"`
+	Seq     int64  `json:"seq,omitempty"`
+	TS      int64  `json:"ts"`
+}
+
 // ReactionJSONLRecord represents a reaction event in JSONL.
 type ReactionJSONLRecord struct {
 	Type        string `json:"type"` // "reaction"
@@ -362,6 +388,16 @@ type AgentUnfaveJSONLRecord struct {
 	UnfavedAt int64  `json:"unfaved_at"`
 }
 
+// FaveRemoveJSONLRecord represents a fave removal tombstone.
+type FaveRemoveJSONLRecord struct {
+	Type     string `json:"type"` // "fave_remove"
+	AgentID  string `json:"agent_id"`
+	ItemType string `json:"item_type"`
+	ItemGUID string `json:"item_guid"`
+	Seq      int64  `json:"seq,omitempty"`
+	TS       int64  `json:"ts"`
+}
+
 // RoleHoldJSONLRecord represents a role hold (persistent assignment) event.
 type RoleHoldJSONLRecord struct {
 	Type       string `json:"type"` // "role_hold"
@@ -376,6 +412,15 @@ type RoleDropJSONLRecord struct {
 	AgentID   string `json:"agent_id"`
 	RoleName  string `json:"role_name"`
 	DroppedAt int64  `json:"dropped_at"`
+}
+
+// RoleReleaseJSONLRecord represents releasing a held role.
+type RoleReleaseJSONLRecord struct {
+	Type     string `json:"type"` // "role_release"
+	AgentID  string `json:"agent_id"`
+	RoleName string `json:"role_name"`
+	Seq      int64  `json:"seq,omitempty"`
+	TS       int64  `json:"ts"`
 }
 
 // RolePlayJSONLRecord represents a session-scoped role play event.

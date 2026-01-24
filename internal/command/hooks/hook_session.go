@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
@@ -58,7 +59,7 @@ func NewHookSessionCmd() *cobra.Command {
 				}
 			}
 
-			roomMessages, mentionMessages, agentBase := fetchHookMessages(dbConn, agentID, 10, 5)
+			roomMessages, mentionMessages, agentBase := fetchHookMessages(dbConn, project.DBPath, agentID, 10, 5)
 			output.AdditionalContext = buildHookSessionContext(event, agentID, agentBase, roomMessages, mentionMessages)
 			return writeHookOutput(cmd, output)
 		},
@@ -97,7 +98,7 @@ func buildHookRegistrationContext(dbConn *sql.DB) string {
 	return builder.String()
 }
 
-func fetchHookMessages(dbConn *sql.DB, agentID string, roomLimit, mentionLimit int) ([]types.Message, []types.Message, string) {
+func fetchHookMessages(dbConn *sql.DB, projectPath, agentID string, roomLimit, mentionLimit int) ([]types.Message, []types.Message, string) {
 	agentBase := agentID
 	if parsed, err := core.ParseAgentID(agentID); err == nil {
 		agentBase = parsed.Base
@@ -182,6 +183,7 @@ func fetchHookMessages(dbConn *sql.DB, agentID string, roomLimit, mentionLimit i
 	// Auto-clear ghost cursor after first use (one-time handoff)
 	if usedGhostCursor {
 		_ = db.DeleteGhostCursor(dbConn, agentBase, "room")
+		_ = db.AppendCursorClear(projectPath, agentBase, "room", time.Now().UnixMilli())
 	}
 
 	return roomMessages, filteredMentions, agentBase

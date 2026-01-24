@@ -91,10 +91,16 @@ func deleteMessage(cmd *cobra.Command, ctx *CommandContext, input string) error 
 		return writeCommandError(cmd, fmt.Errorf("message %s not found", msg.ID))
 	}
 
-	update := db.MessageUpdateJSONLRecord{ID: updated.ID, ArchivedAt: updated.ArchivedAt}
-	body := updated.Body
-	update.Body = &body
-	if err := db.AppendMessageUpdate(ctx.Project.DBPath, update); err != nil {
+	deletedBy, _ := cmd.Flags().GetString("as")
+	var deletedByPtr *string
+	if strings.TrimSpace(deletedBy) != "" {
+		deletedByPtr = &deletedBy
+	}
+	deletedAt := int64(0)
+	if updated.ArchivedAt != nil {
+		deletedAt = *updated.ArchivedAt
+	}
+	if err := db.AppendMessageDelete(ctx.Project.DBPath, updated.ID, deletedByPtr, deletedAt); err != nil {
 		return writeCommandError(cmd, err)
 	}
 
@@ -125,10 +131,7 @@ func deleteThread(cmd *cobra.Command, ctx *CommandContext, threadGUID string) er
 		return writeCommandError(cmd, err)
 	}
 
-	if err := db.AppendThreadUpdate(ctx.Project.DBPath, db.ThreadUpdateJSONLRecord{
-		GUID:   updated.GUID,
-		Status: &status,
-	}); err != nil {
+	if err := db.AppendThreadDelete(ctx.Project.DBPath, updated.GUID, 0); err != nil {
 		return writeCommandError(cmd, err)
 	}
 

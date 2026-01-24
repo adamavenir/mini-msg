@@ -161,6 +161,35 @@ func AppendMessageUpdate(projectPath string, update MessageUpdateJSONLRecord) er
 	return nil
 }
 
+// AppendMessageDelete appends a message deletion tombstone to JSONL.
+func AppendMessageDelete(projectPath, messageID string, deletedBy *string, deletedAt int64) error {
+	if deletedAt == 0 {
+		deletedAt = time.Now().Unix()
+	}
+	record := MessageDeleteJSONLRecord{
+		Type:      "message_delete",
+		ID:        messageID,
+		DeletedBy: deletedBy,
+		TS:        deletedAt,
+	}
+	if IsMultiMachineMode(projectPath) {
+		seq, err := GetNextSequence(projectPath)
+		if err != nil {
+			return err
+		}
+		record.Seq = seq
+	}
+	filePath, err := sharedMachinePath(projectPath, messagesFile)
+	if err != nil {
+		return err
+	}
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
 // AppendAgent appends an agent record to JSONL.
 func AppendAgent(projectPath string, agent types.Agent) error {
 	config, err := ReadProjectConfig(projectPath)
@@ -410,6 +439,34 @@ func AppendThreadUpdate(projectPath string, update ThreadUpdateJSONLRecord) erro
 	return nil
 }
 
+// AppendThreadDelete appends a thread deletion tombstone to JSONL.
+func AppendThreadDelete(projectPath, threadID string, deletedAt int64) error {
+	if deletedAt == 0 {
+		deletedAt = time.Now().Unix()
+	}
+	record := ThreadDeleteJSONLRecord{
+		Type:     "thread_delete",
+		ThreadID: threadID,
+		TS:       deletedAt,
+	}
+	if IsMultiMachineMode(projectPath) {
+		seq, err := GetNextSequence(projectPath)
+		if err != nil {
+			return err
+		}
+		record.Seq = seq
+	}
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
 // AppendThreadSubscribe appends a thread subscribe event to JSONL.
 func AppendThreadSubscribe(projectPath string, event ThreadSubscribeJSONLRecord) error {
 	event.Type = "thread_subscribe"
@@ -599,6 +656,35 @@ func AppendGhostCursor(projectPath string, cursor types.GhostCursor) error {
 	return nil
 }
 
+// AppendCursorClear appends a ghost cursor clear tombstone to JSONL.
+func AppendCursorClear(projectPath, agentID, home string, clearedAt int64) error {
+	if clearedAt == 0 {
+		clearedAt = time.Now().UnixMilli()
+	}
+	record := CursorClearJSONLRecord{
+		Type:    "cursor_clear",
+		AgentID: agentID,
+		Home:    home,
+		TS:      clearedAt,
+	}
+	if IsMultiMachineMode(projectPath) {
+		seq, err := GetNextSequence(projectPath)
+		if err != nil {
+			return err
+		}
+		record.Seq = seq
+	}
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
 // AppendReaction appends a reaction record to JSONL.
 func AppendReaction(projectPath, messageGUID, agentID, emoji string, reactedAt int64) error {
 	record := ReactionJSONLRecord{
@@ -659,6 +745,36 @@ func AppendAgentUnfave(projectPath, agentID, itemType, itemGUID string, unfavedA
 	return nil
 }
 
+// AppendFaveRemove appends a fave removal tombstone to JSONL.
+func AppendFaveRemove(projectPath, agentID, itemType, itemGUID string, removedAt int64) error {
+	if removedAt == 0 {
+		removedAt = time.Now().UnixMilli()
+	}
+	record := FaveRemoveJSONLRecord{
+		Type:     "fave_remove",
+		AgentID:  agentID,
+		ItemType: itemType,
+		ItemGUID: itemGUID,
+		TS:       removedAt,
+	}
+	if IsMultiMachineMode(projectPath) {
+		seq, err := GetNextSequence(projectPath)
+		if err != nil {
+			return err
+		}
+		record.Seq = seq
+	}
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
 // AppendRoleHold appends a role hold (persistent assignment) record to JSONL.
 func AppendRoleHold(projectPath, agentID, roleName string, assignedAt int64) error {
 	record := RoleHoldJSONLRecord{
@@ -685,6 +801,35 @@ func AppendRoleDrop(projectPath, agentID, roleName string, droppedAt int64) erro
 		AgentID:   agentID,
 		RoleName:  roleName,
 		DroppedAt: droppedAt,
+	}
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
+		return err
+	}
+	touchDatabaseFile(projectPath)
+	return nil
+}
+
+// AppendRoleRelease appends a role release tombstone to JSONL.
+func AppendRoleRelease(projectPath, agentID, roleName string, releasedAt int64) error {
+	if releasedAt == 0 {
+		releasedAt = time.Now().Unix()
+	}
+	record := RoleReleaseJSONLRecord{
+		Type:     "role_release",
+		AgentID:  agentID,
+		RoleName: roleName,
+		TS:       releasedAt,
+	}
+	if IsMultiMachineMode(projectPath) {
+		seq, err := GetNextSequence(projectPath)
+		if err != nil {
+			return err
+		}
+		record.Seq = seq
 	}
 	filePath, err := agentStatePath(projectPath)
 	if err != nil {

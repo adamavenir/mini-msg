@@ -181,7 +181,7 @@ func newRoleDropCmd() *cobra.Command {
 
 			// Append to JSONL
 			now := time.Now().UnixMilli()
-			if err := db.AppendRoleDrop(ctx.Project.DBPath, agentID, roleName, now); err != nil {
+			if err := db.AppendRoleRelease(ctx.Project.DBPath, agentID, roleName, now); err != nil {
 				return writeCommandError(cmd, err)
 			}
 

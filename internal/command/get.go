@@ -293,6 +293,7 @@ Legacy (deprecated):
 							})
 							// Auto-clear ghost cursor after first use (one-time handoff)
 							_ = db.DeleteGhostCursor(ctx.DB, agentBase, "room")
+							_ = db.AppendCursorClear(ctx.Project.DBPath, agentBase, "room", time.Now().UnixMilli())
 						}
 					}
 					if roomMessages == nil {
@@ -722,9 +723,9 @@ func getThreadAnchors(cmd *cobra.Command, ctx *CommandContext, thread *types.Thr
 
 	if ctx.JSONMode {
 		type jsonEntry struct {
-			Thread  types.Thread    `json:"thread"`
-			Path    string          `json:"path"`
-			Message *types.Message  `json:"anchor,omitempty"`
+			Thread  types.Thread   `json:"thread"`
+			Path    string         `json:"path"`
+			Message *types.Message `json:"anchor,omitempty"`
 		}
 		jsonEntries := make([]jsonEntry, len(entries))
 		for i, e := range entries {

@@ -514,7 +514,15 @@ func (m *Model) runDeleteCommand(input string) error {
 		return fmt.Errorf("message %s not found", msg.ID)
 	}
 
-	if err := m.appendMessageUpdate(*updated); err != nil {
+	deletedAt := int64(0)
+	if updated.ArchivedAt != nil {
+		deletedAt = *updated.ArchivedAt
+	}
+	var deletedBy *string
+	if m.username != "" {
+		deletedBy = &m.username
+	}
+	if err := db.AppendMessageDelete(m.projectDBPath, updated.ID, deletedBy, deletedAt); err != nil {
 		return err
 	}
 
@@ -1071,7 +1079,7 @@ func (m *Model) runUnfaveCommand(args []string) (tea.Cmd, error) {
 	if err := db.RemoveFave(m.db, m.username, "thread", thread.GUID); err != nil {
 		return nil, fmt.Errorf("failed to unfave: %w", err)
 	}
-	if err := db.AppendAgentUnfave(m.projectDBPath, m.username, "thread", thread.GUID, time.Now().Unix()); err != nil {
+	if err := db.AppendFaveRemove(m.projectDBPath, m.username, "thread", thread.GUID, time.Now().Unix()); err != nil {
 		return nil, fmt.Errorf("failed to persist unfave: %w", err)
 	}
 

@@ -679,7 +679,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 			switch event.Type {
 			case "agent_fave":
 				faves[key] = event
-			case "agent_unfave":
+			case "agent_unfave", "fave_remove":
 				delete(faves, key)
 			}
 		}
@@ -715,7 +715,7 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 			case "role_hold":
 				key := heldKey{agentID: event.AgentID, roleName: event.RoleName}
 				heldRoles[key] = event.AssignedAt
-			case "role_drop":
+			case "role_drop", "role_release":
 				key := heldKey{agentID: event.AgentID, roleName: event.RoleName}
 				delete(heldRoles, key)
 			case "role_play":

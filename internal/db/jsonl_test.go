@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 
@@ -819,6 +820,53 @@ func TestReadMessagesMultiMachineMergeOrdering(t *testing.T) {
 	}
 }
 
+func TestReadMessagesMultiMachineDeleteTombstone(t *testing.T) {
+	projectDir := t.TempDir()
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	machineDir := filepath.Join(projectDir, ".fray", "shared", "machines", "laptop")
+	if err := os.MkdirAll(machineDir, 0o755); err != nil {
+		t.Fatalf("mkdir machine: %v", err)
+	}
+
+	message := MessageJSONLRecord{
+		Type:      "message",
+		ID:        "msg-del",
+		FromAgent: "alice",
+		Body:      "hello",
+		Mentions:  []string{},
+		MsgType:   types.MessageTypeAgent,
+		TS:        100,
+	}
+	tombstone := MessageDeleteJSONLRecord{
+		Type: "message_delete",
+		ID:   "msg-del",
+		TS:   200,
+	}
+	msgData, _ := json.Marshal(message)
+	delData, _ := json.Marshal(tombstone)
+	contents := string(msgData) + "\n" + string(delData) + "\n"
+	if err := os.WriteFile(filepath.Join(machineDir, messagesFile), []byte(contents), 0o644); err != nil {
+		t.Fatalf("write messages: %v", err)
+	}
+
+	readBack, err := ReadMessages(projectDir)
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(readBack) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(readBack))
+	}
+	if readBack[0].ArchivedAt == nil || *readBack[0].ArchivedAt != 200 {
+		t.Fatalf("expected archived_at 200, got %#v", readBack[0].ArchivedAt)
+	}
+	if readBack[0].Body != "[deleted]" {
+		t.Fatalf("expected deleted body, got %q", readBack[0].Body)
+	}
+}
+
 func TestReadAgentsMultiMachineUsesRuntime(t *testing.T) {
 	projectDir := t.TempDir()
 	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
@@ -852,6 +900,48 @@ func TestReadAgentsMultiMachineUsesRuntime(t *testing.T) {
 	}
 	if readBack[0].AgentID != "alice" {
 		t.Fatalf("expected alice, got %s", readBack[0].AgentID)
+	}
+}
+
+func TestReadThreadsMultiMachineDeleteTombstone(t *testing.T) {
+	projectDir := t.TempDir()
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	machineDir := filepath.Join(projectDir, ".fray", "shared", "machines", "laptop")
+	if err := os.MkdirAll(machineDir, 0o755); err != nil {
+		t.Fatalf("mkdir machine: %v", err)
+	}
+
+	thread := ThreadJSONLRecord{
+		Type:      "thread",
+		GUID:      "thrd-del",
+		Name:      "obsolete",
+		Status:    string(types.ThreadStatusOpen),
+		CreatedAt: 10,
+	}
+	tombstone := ThreadDeleteJSONLRecord{
+		Type:     "thread_delete",
+		ThreadID: "thrd-del",
+		TS:       20,
+	}
+	threadData, _ := json.Marshal(thread)
+	delData, _ := json.Marshal(tombstone)
+	contents := string(threadData) + "\n" + string(delData) + "\n"
+	if err := os.WriteFile(filepath.Join(machineDir, threadsFile), []byte(contents), 0o644); err != nil {
+		t.Fatalf("write threads: %v", err)
+	}
+
+	readBack, _, _, err := ReadThreads(projectDir)
+	if err != nil {
+		t.Fatalf("read threads: %v", err)
+	}
+	if len(readBack) != 1 {
+		t.Fatalf("expected 1 thread, got %d", len(readBack))
+	}
+	if readBack[0].Status != string(types.ThreadStatusArchived) {
+		t.Fatalf("expected archived status, got %s", readBack[0].Status)
 	}
 }
 
@@ -1173,5 +1263,96 @@ func TestRebuildDatabaseFromJSONLMultiMachine(t *testing.T) {
 	}
 	if agent == nil {
 		t.Fatalf("expected agent for remote")
+	}
+}
+
+func TestRebuildAppliesAgentStateTombstones(t *testing.T) {
+	projectDir := t.TempDir()
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	machineDir := filepath.Join(projectDir, ".fray", "shared", "machines", "laptop")
+	if err := os.MkdirAll(machineDir, 0o755); err != nil {
+		t.Fatalf("mkdir machine: %v", err)
+	}
+
+	cursor := GhostCursorJSONLRecord{
+		Type:        "ghost_cursor",
+		AgentID:     "alice",
+		Home:        "room",
+		MessageGUID: "msg-1",
+		SetAt:       10,
+	}
+	cursorClear := CursorClearJSONLRecord{
+		Type:    "cursor_clear",
+		AgentID: "alice",
+		Home:    "room",
+		TS:      20,
+	}
+	fave := AgentFaveJSONLRecord{
+		Type:     "agent_fave",
+		AgentID:  "alice",
+		ItemType: "thread",
+		ItemGUID: "thrd-1",
+		FavedAt:  30,
+	}
+	faveRemove := FaveRemoveJSONLRecord{
+		Type:     "fave_remove",
+		AgentID:  "alice",
+		ItemType: "thread",
+		ItemGUID: "thrd-1",
+		TS:       40,
+	}
+	roleHold := RoleHoldJSONLRecord{
+		Type:       "role_hold",
+		AgentID:    "alice",
+		RoleName:   "architect",
+		AssignedAt: 50,
+	}
+	roleRelease := RoleReleaseJSONLRecord{
+		Type:     "role_release",
+		AgentID:  "alice",
+		RoleName: "architect",
+		TS:       60,
+	}
+
+	records := []any{cursor, cursorClear, fave, faveRemove, roleHold, roleRelease}
+	var lines []string
+	for _, record := range records {
+		data, _ := json.Marshal(record)
+		lines = append(lines, string(data))
+	}
+	if err := os.WriteFile(filepath.Join(machineDir, agentStateFile), []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("write agent-state: %v", err)
+	}
+
+	dbConn := openTestDB(t)
+	if err := RebuildDatabaseFromJSONL(dbConn, projectDir); err != nil {
+		t.Fatalf("rebuild: %v", err)
+	}
+
+	cursorGot, err := GetGhostCursor(dbConn, "alice", "room")
+	if err != nil {
+		t.Fatalf("get cursor: %v", err)
+	}
+	if cursorGot != nil {
+		t.Fatalf("expected cursor cleared, got %#v", cursorGot)
+	}
+
+	faves, err := GetFaves(dbConn, "alice", "thread")
+	if err != nil {
+		t.Fatalf("get faves: %v", err)
+	}
+	if len(faves) != 0 {
+		t.Fatalf("expected no faves, got %d", len(faves))
+	}
+
+	roles, err := GetAgentRoles(dbConn, "alice")
+	if err != nil {
+		t.Fatalf("get roles: %v", err)
+	}
+	if len(roles.Held) != 0 || len(roles.Playing) != 0 {
+		t.Fatalf("expected no roles, got %#v", roles)
 	}
 }

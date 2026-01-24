@@ -191,7 +191,7 @@ func NewUnfaveCmd() *cobra.Command {
 
 			// Write to JSONL
 			unfavedAt := time.Now().UnixMilli()
-			if err := db.AppendAgentUnfave(ctx.Project.DBPath, agentID, itemType, itemGUID, unfavedAt); err != nil {
+			if err := db.AppendFaveRemove(ctx.Project.DBPath, agentID, itemType, itemGUID, unfavedAt); err != nil {
 				return writeCommandError(cmd, err)
 			}
 

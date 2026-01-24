@@ -188,6 +188,7 @@ func readMessagesLegacy(projectPath string) ([]MessageJSONLRecord, error) {
 	messageMap := make(map[string]MessageJSONLRecord)
 	order := make([]string, 0)
 	seen := make(map[string]struct{})
+	deletedAt := make(map[string]int64)
 
 	for _, line := range lines {
 		var envelope struct {
@@ -210,6 +211,9 @@ func readMessagesLegacy(projectPath string) ([]MessageJSONLRecord, error) {
 				seen[record.ID] = struct{}{}
 				order = append(order, record.ID)
 			}
+			if deletedTS, ok := deletedAt[record.ID]; ok {
+				record = applyMessageDelete(record, deletedTS)
+			}
 			messageMap[record.ID] = record
 		case "message_update":
 			var update struct {
@@ -220,6 +224,9 @@ func readMessagesLegacy(projectPath string) ([]MessageJSONLRecord, error) {
 				Reactions  json.RawMessage `json:"reactions"`
 			}
 			if err := json.Unmarshal([]byte(line), &update); err != nil {
+				continue
+			}
+			if _, ok := deletedAt[update.ID]; ok {
 				continue
 			}
 			existing, ok := messageMap[update.ID]
@@ -264,12 +271,30 @@ func readMessagesLegacy(projectPath string) ([]MessageJSONLRecord, error) {
 			if err := json.Unmarshal([]byte(line), &move); err != nil {
 				continue
 			}
+			if _, ok := deletedAt[move.MessageGUID]; ok {
+				continue
+			}
 			existing, ok := messageMap[move.MessageGUID]
 			if !ok {
 				continue
 			}
 			existing.Home = move.NewHome
 			messageMap[move.MessageGUID] = existing
+		case "message_delete":
+			var record struct {
+				ID string `json:"id"`
+				TS int64  `json:"ts"`
+			}
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			if record.ID == "" {
+				continue
+			}
+			deletedAt[record.ID] = record.TS
+			if existing, ok := messageMap[record.ID]; ok {
+				messageMap[record.ID] = applyMessageDelete(existing, record.TS)
+			}
 		}
 	}
 
@@ -312,7 +337,7 @@ func readMessagesMerged(projectPath string) ([]MessageJSONLRecord, error) {
 	messageMap := make(map[string]MessageJSONLRecord)
 	order := make([]string, 0)
 	seen := make(map[string]struct{})
-	deleted := make(map[string]struct{})
+	deletedAt := make(map[string]int64)
 	pendingUpdates := make(map[string][]string)
 	pendingMoves := make(map[string][]MessageMoveJSONLRecord)
 
@@ -334,23 +359,26 @@ func readMessagesMerged(projectPath string) ([]MessageJSONLRecord, error) {
 				seen[record.ID] = struct{}{}
 				order = append(order, record.ID)
 			}
-			if _, ok := deleted[record.ID]; ok {
-				continue
+			deletedTS, deleted := deletedAt[record.ID]
+			if deleted {
+				record = applyMessageDelete(record, deletedTS)
 			}
 			messageMap[record.ID] = record
-			if updates, ok := pendingUpdates[record.ID]; ok {
-				for _, updateLine := range updates {
-					messageMap[record.ID] = applyMessageUpdate(messageMap[record.ID], []byte(updateLine))
+			if !deleted {
+				if updates, ok := pendingUpdates[record.ID]; ok {
+					for _, updateLine := range updates {
+						messageMap[record.ID] = applyMessageUpdate(messageMap[record.ID], []byte(updateLine))
+					}
+					delete(pendingUpdates, record.ID)
 				}
-				delete(pendingUpdates, record.ID)
-			}
-			if moves, ok := pendingMoves[record.ID]; ok {
-				for _, move := range moves {
-					msg := messageMap[record.ID]
-					msg.Home = move.NewHome
-					messageMap[record.ID] = msg
+				if moves, ok := pendingMoves[record.ID]; ok {
+					for _, move := range moves {
+						msg := messageMap[record.ID]
+						msg.Home = move.NewHome
+						messageMap[record.ID] = msg
+					}
+					delete(pendingMoves, record.ID)
 				}
-				delete(pendingMoves, record.ID)
 			}
 		case "message_update":
 			var update struct {
@@ -362,7 +390,7 @@ func readMessagesMerged(projectPath string) ([]MessageJSONLRecord, error) {
 			if update.ID == "" {
 				continue
 			}
-			if _, ok := deleted[update.ID]; ok {
+			if _, ok := deletedAt[update.ID]; ok {
 				continue
 			}
 			existing, ok := messageMap[update.ID]
@@ -376,7 +404,7 @@ func readMessagesMerged(projectPath string) ([]MessageJSONLRecord, error) {
 			if err := json.Unmarshal([]byte(event.Line), &move); err != nil {
 				continue
 			}
-			if _, ok := deleted[move.MessageGUID]; ok {
+			if _, ok := deletedAt[move.MessageGUID]; ok {
 				continue
 			}
 			existing, ok := messageMap[move.MessageGUID]
@@ -389,6 +417,7 @@ func readMessagesMerged(projectPath string) ([]MessageJSONLRecord, error) {
 		case "message_delete":
 			var record struct {
 				ID string `json:"id"`
+				TS int64  `json:"ts"`
 			}
 			if err := json.Unmarshal([]byte(event.Line), &record); err != nil {
 				continue
@@ -396,16 +425,17 @@ func readMessagesMerged(projectPath string) ([]MessageJSONLRecord, error) {
 			if record.ID == "" {
 				continue
 			}
-			deleted[record.ID] = struct{}{}
-			delete(messageMap, record.ID)
+			deletedAt[record.ID] = record.TS
+			if existing, ok := messageMap[record.ID]; ok {
+				messageMap[record.ID] = applyMessageDelete(existing, record.TS)
+			}
+			delete(pendingUpdates, record.ID)
+			delete(pendingMoves, record.ID)
 		}
 	}
 
 	messages := make([]MessageJSONLRecord, 0, len(order))
 	for _, id := range order {
-		if _, ok := deleted[id]; ok {
-			continue
-		}
 		record, ok := messageMap[id]
 		if !ok {
 			continue
@@ -479,6 +509,12 @@ func applyMessageUpdate(existing MessageJSONLRecord, updateLine []byte) MessageJ
 			existing.Reactions = normalizeReactionsLegacy(reactions)
 		}
 	}
+	return existing
+}
+
+func applyMessageDelete(existing MessageJSONLRecord, deletedAt int64) MessageJSONLRecord {
+	existing.Body = "[deleted]"
+	existing.ArchivedAt = &deletedAt
 	return existing
 }
 
@@ -1103,6 +1139,7 @@ func readThreadsLegacy(projectPath string) ([]ThreadJSONLRecord, []threadSubscri
 	threadMap := make(map[string]ThreadJSONLRecord)
 	order := make([]string, 0)
 	seen := make(map[string]struct{})
+	deletedAt := make(map[string]int64)
 
 	subEvents := make([]threadSubscriptionEvent, 0)
 	msgEvents := make([]threadMessageEvent, 0)
@@ -1128,10 +1165,16 @@ func readThreadsLegacy(projectPath string) ([]ThreadJSONLRecord, []threadSubscri
 				seen[record.GUID] = struct{}{}
 				order = append(order, record.GUID)
 			}
+			if _, ok := deletedAt[record.GUID]; ok {
+				record = applyThreadDelete(record)
+			}
 			threadMap[record.GUID] = record
 		case "thread_update":
 			var update ThreadUpdateJSONLRecord
 			if err := json.Unmarshal([]byte(line), &update); err != nil {
+				continue
+			}
+			if _, ok := deletedAt[update.GUID]; ok {
 				continue
 			}
 			existing, ok := threadMap[update.GUID]
@@ -1160,6 +1203,26 @@ func readThreadsLegacy(projectPath string) ([]ThreadJSONLRecord, []threadSubscri
 				existing.LastActivityAt = update.LastActivityAt
 			}
 			threadMap[update.GUID] = existing
+		case "thread_delete":
+			var record struct {
+				ThreadID string `json:"thread_id"`
+				GUID     string `json:"guid"`
+				TS       int64  `json:"ts"`
+			}
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			threadID := record.ThreadID
+			if threadID == "" {
+				threadID = record.GUID
+			}
+			if threadID == "" {
+				continue
+			}
+			deletedAt[threadID] = record.TS
+			if existing, ok := threadMap[threadID]; ok {
+				threadMap[threadID] = applyThreadDelete(existing)
+			}
 		case "thread_subscribe":
 			var event ThreadSubscribeJSONLRecord
 			if err := json.Unmarshal([]byte(line), &event); err != nil {
@@ -1248,7 +1311,7 @@ func readThreadsMerged(projectPath string) ([]ThreadJSONLRecord, []threadSubscri
 	threadMap := make(map[string]ThreadJSONLRecord)
 	order := make([]string, 0)
 	seen := make(map[string]struct{})
-	deleted := make(map[string]struct{})
+	deletedAt := make(map[string]int64)
 	pendingUpdates := make(map[string][]ThreadUpdateJSONLRecord)
 
 	subEvents := make([]threadSubscriptionEvent, 0)
@@ -1272,22 +1335,25 @@ func readThreadsMerged(projectPath string) ([]ThreadJSONLRecord, []threadSubscri
 				seen[record.GUID] = struct{}{}
 				order = append(order, record.GUID)
 			}
-			if _, ok := deleted[record.GUID]; ok {
-				continue
+			_, deleted := deletedAt[record.GUID]
+			if deleted {
+				record = applyThreadDelete(record)
 			}
 			threadMap[record.GUID] = record
-			if updates, ok := pendingUpdates[record.GUID]; ok {
-				for _, update := range updates {
-					threadMap[record.GUID] = applyThreadUpdate(threadMap[record.GUID], update)
+			if !deleted {
+				if updates, ok := pendingUpdates[record.GUID]; ok {
+					for _, update := range updates {
+						threadMap[record.GUID] = applyThreadUpdate(threadMap[record.GUID], update)
+					}
+					delete(pendingUpdates, record.GUID)
 				}
-				delete(pendingUpdates, record.GUID)
 			}
 		case "thread_update":
 			var update ThreadUpdateJSONLRecord
 			if err := json.Unmarshal([]byte(event.Line), &update); err != nil {
 				continue
 			}
-			if _, ok := deleted[update.GUID]; ok {
+			if _, ok := deletedAt[update.GUID]; ok {
 				continue
 			}
 			existing, ok := threadMap[update.GUID]
@@ -1300,6 +1366,7 @@ func readThreadsMerged(projectPath string) ([]ThreadJSONLRecord, []threadSubscri
 			var record struct {
 				ThreadID string `json:"thread_id"`
 				GUID     string `json:"guid"`
+				TS       int64  `json:"ts"`
 			}
 			if err := json.Unmarshal([]byte(event.Line), &record); err != nil {
 				continue
@@ -1311,8 +1378,11 @@ func readThreadsMerged(projectPath string) ([]ThreadJSONLRecord, []threadSubscri
 			if threadID == "" {
 				continue
 			}
-			deleted[threadID] = struct{}{}
-			delete(threadMap, threadID)
+			deletedAt[threadID] = record.TS
+			if existing, ok := threadMap[threadID]; ok {
+				threadMap[threadID] = applyThreadDelete(existing)
+			}
+			delete(pendingUpdates, threadID)
 		case "thread_subscribe":
 			var eventRecord ThreadSubscribeJSONLRecord
 			if err := json.Unmarshal([]byte(event.Line), &eventRecord); err != nil {
@@ -1364,9 +1434,6 @@ func readThreadsMerged(projectPath string) ([]ThreadJSONLRecord, []threadSubscri
 
 	threads := make([]ThreadJSONLRecord, 0, len(order))
 	for _, guid := range order {
-		if _, ok := deleted[guid]; ok {
-			continue
-		}
 		record, ok := threadMap[guid]
 		if !ok {
 			continue
@@ -1455,6 +1522,11 @@ func applyThreadUpdate(existing ThreadJSONLRecord, update ThreadUpdateJSONLRecor
 	if update.LastActivityAt != nil {
 		existing.LastActivityAt = update.LastActivityAt
 	}
+	return existing
+}
+
+func applyThreadDelete(existing ThreadJSONLRecord) ThreadJSONLRecord {
+	existing.Status = string(types.ThreadStatusArchived)
 	return existing
 }
 
@@ -1959,13 +2031,27 @@ func readGhostCursorsLegacy(projectPath string) ([]GhostCursorJSONLRecord, error
 			continue
 		}
 
-		if envelope.Type == "ghost_cursor" {
+		switch envelope.Type {
+		case "ghost_cursor":
 			var record GhostCursorJSONLRecord
 			if err := json.Unmarshal([]byte(line), &record); err != nil {
 				continue
 			}
 			key := cursorKey{agentID: record.AgentID, home: record.Home}
 			cursorMap[key] = record
+		case "cursor_clear":
+			var record struct {
+				AgentID string `json:"agent_id"`
+				Home    string `json:"home"`
+			}
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			if record.AgentID == "" || record.Home == "" {
+				continue
+			}
+			key := cursorKey{agentID: record.AgentID, home: record.Home}
+			delete(cursorMap, key)
 		}
 	}
 
@@ -2176,6 +2262,23 @@ func readFavesLegacy(projectPath string) ([]FaveEvent, error) {
 				ItemGUID:  record.ItemGUID,
 				UnfavedAt: record.UnfavedAt,
 			})
+		case "fave_remove":
+			var record struct {
+				AgentID  string `json:"agent_id"`
+				ItemType string `json:"item_type"`
+				ItemGUID string `json:"item_guid"`
+				TS       int64  `json:"ts"`
+			}
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			events = append(events, FaveEvent{
+				Type:      "fave_remove",
+				AgentID:   record.AgentID,
+				ItemType:  record.ItemType,
+				ItemGUID:  record.ItemGUID,
+				UnfavedAt: record.TS,
+			})
 		}
 	}
 	return events, nil
@@ -2343,6 +2446,21 @@ func readRolesLegacy(projectPath string) ([]roleEvent, error) {
 				AgentID:   record.AgentID,
 				RoleName:  record.RoleName,
 				StoppedAt: record.StoppedAt,
+			})
+		case "role_release":
+			var record struct {
+				AgentID  string `json:"agent_id"`
+				RoleName string `json:"role_name"`
+				TS       int64  `json:"ts"`
+			}
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				continue
+			}
+			events = append(events, roleEvent{
+				Type:      "role_release",
+				AgentID:   record.AgentID,
+				RoleName:  record.RoleName,
+				DroppedAt: record.TS,
 			})
 		}
 	}
