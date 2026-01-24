@@ -18,10 +18,12 @@ import (
 const (
 	messagesFile      = "messages.jsonl"
 	agentsFile        = "agents.jsonl"
+	agentStateFile    = "agent-state.jsonl"
 	questionsFile     = "questions.jsonl"
 	threadsFile       = "threads.jsonl"
 	permissionsFile   = "permissions.jsonl"
 	projectConfigFile = "fray-config.json"
+	runtimeFile       = "runtime.jsonl"
 )
 
 // MessageJSONLRecord represents a message entry in JSONL.

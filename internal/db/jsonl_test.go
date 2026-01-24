@@ -671,6 +671,134 @@ func TestReadMessagesSkipsMalformedLines(t *testing.T) {
 	}
 }
 
+func TestReadMessagesMultiMachineMergeOrdering(t *testing.T) {
+	projectDir := t.TempDir()
+
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	machinesDir := filepath.Join(projectDir, ".fray", "shared", "machines")
+	alphaDir := filepath.Join(machinesDir, "alpha")
+	betaDir := filepath.Join(machinesDir, "beta")
+	if err := os.MkdirAll(alphaDir, 0o755); err != nil {
+		t.Fatalf("mkdir alpha: %v", err)
+	}
+	if err := os.MkdirAll(betaDir, 0o755); err != nil {
+		t.Fatalf("mkdir beta: %v", err)
+	}
+
+	alphaMsg := MessageJSONLRecord{
+		Type:      "message",
+		ID:        "msg-alpha",
+		FromAgent: "alpha",
+		Body:      "hello",
+		Mentions:  []string{},
+		MsgType:   types.MessageTypeAgent,
+		TS:        100,
+	}
+	betaMsg := MessageJSONLRecord{
+		Type:      "message",
+		ID:        "msg-beta",
+		FromAgent: "beta",
+		Body:      "world",
+		Mentions:  []string{},
+		MsgType:   types.MessageTypeAgent,
+		TS:        100,
+	}
+	alphaData, _ := json.Marshal(alphaMsg)
+	betaData, _ := json.Marshal(betaMsg)
+	if err := os.WriteFile(filepath.Join(alphaDir, messagesFile), append(alphaData, '\n'), 0o644); err != nil {
+		t.Fatalf("write alpha messages: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(betaDir, messagesFile), append(betaData, '\n'), 0o644); err != nil {
+		t.Fatalf("write beta messages: %v", err)
+	}
+
+	readBack, err := ReadMessages(projectDir)
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(readBack) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(readBack))
+	}
+	if readBack[0].ID != "msg-alpha" || readBack[1].ID != "msg-beta" {
+		t.Fatalf("unexpected order: %s, %s", readBack[0].ID, readBack[1].ID)
+	}
+}
+
+func TestReadAgentsMultiMachineUsesRuntime(t *testing.T) {
+	projectDir := t.TempDir()
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	localDir := filepath.Join(projectDir, ".fray", "local")
+	if err := os.MkdirAll(localDir, 0o755); err != nil {
+		t.Fatalf("mkdir local: %v", err)
+	}
+	runtimePath := filepath.Join(localDir, "runtime.jsonl")
+
+	agent := AgentJSONLRecord{
+		Type:         "agent",
+		ID:           "usr-123",
+		AgentID:      "alice",
+		RegisteredAt: 10,
+		LastSeen:     12,
+	}
+	data, _ := json.Marshal(agent)
+	if err := os.WriteFile(runtimePath, append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("write runtime: %v", err)
+	}
+
+	readBack, err := ReadAgents(projectDir)
+	if err != nil {
+		t.Fatalf("read agents: %v", err)
+	}
+	if len(readBack) != 1 {
+		t.Fatalf("expected 1 agent, got %d", len(readBack))
+	}
+	if readBack[0].AgentID != "alice" {
+		t.Fatalf("expected alice, got %s", readBack[0].AgentID)
+	}
+}
+
+func TestReadGhostCursorsMultiMachine(t *testing.T) {
+	projectDir := t.TempDir()
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	machineDir := filepath.Join(projectDir, ".fray", "shared", "machines", "laptop")
+	if err := os.MkdirAll(machineDir, 0o755); err != nil {
+		t.Fatalf("mkdir machine: %v", err)
+	}
+
+	cursor := GhostCursorJSONLRecord{
+		Type:        "ghost_cursor",
+		AgentID:     "alice",
+		Home:        "room",
+		MessageGUID: "msg-1",
+		MustRead:    true,
+		SetAt:       99,
+	}
+	data, _ := json.Marshal(cursor)
+	if err := os.WriteFile(filepath.Join(machineDir, agentStateFile), append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("write agent-state: %v", err)
+	}
+
+	readBack, err := ReadGhostCursors(projectDir)
+	if err != nil {
+		t.Fatalf("read cursors: %v", err)
+	}
+	if len(readBack) != 1 {
+		t.Fatalf("expected 1 cursor, got %d", len(readBack))
+	}
+	if readBack[0].AgentID != "alice" || readBack[0].MessageGUID != "msg-1" {
+		t.Fatalf("unexpected cursor: %#v", readBack[0])
+	}
+}
+
 func TestAppendAndReadQuestions(t *testing.T) {
 	projectDir := t.TempDir()
 
