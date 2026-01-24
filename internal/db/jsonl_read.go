@@ -355,6 +355,9 @@ func readMessagesMerged(projectPath string) ([]MessageJSONLRecord, error) {
 			if record.Home == "" {
 				record.Home = "room"
 			}
+			if record.Origin == "" {
+				record.Origin = event.Machine
+			}
 			if _, ok := seen[record.ID]; !ok {
 				seen[record.ID] = struct{}{}
 				order = append(order, record.ID)

@@ -95,6 +95,7 @@ type Message struct {
 	ChannelID        *string                    `json:"channel_id,omitempty"`
 	Home             string                     `json:"home,omitempty"`
 	FromAgent        string                     `json:"from_agent"`
+	Origin           string                     `json:"origin,omitempty"`
 	SessionID        *string                    `json:"session_id,omitempty"`
 	Body             string                     `json:"body"`
 	Mentions         []string                   `json:"mentions"`
@@ -136,6 +137,7 @@ type MessageRow struct {
 	ChannelID        *string
 	Home             string
 	FromAgent        string
+	Origin           *string
 	Body             string
 	Mentions         string
 	Reactions        string

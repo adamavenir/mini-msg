@@ -92,6 +92,44 @@ func TestAppendMessageMultiMachineRouting(t *testing.T) {
 	}
 }
 
+func TestReadMessagesMergedSetsOrigin(t *testing.T) {
+	projectDir := t.TempDir()
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	machineDir := filepath.Join(projectDir, ".fray", "shared", "machines", "desktop")
+	if err := os.MkdirAll(machineDir, 0o755); err != nil {
+		t.Fatalf("mkdir machine: %v", err)
+	}
+
+	record := MessageJSONLRecord{
+		Type:      "message",
+		ID:        "msg-origin",
+		FromAgent: "alice",
+		Body:      "hello",
+		TS:        123,
+	}
+	data, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("marshal record: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(machineDir, messagesFile), append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("write message file: %v", err)
+	}
+
+	readBack, err := ReadMessages(projectDir)
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(readBack) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(readBack))
+	}
+	if readBack[0].Origin != "desktop" {
+		t.Fatalf("expected origin desktop, got %s", readBack[0].Origin)
+	}
+}
+
 func TestAppendAgentMultiMachineRouting(t *testing.T) {
 	projectDir := t.TempDir()
 	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {

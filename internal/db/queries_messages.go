@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,10 +13,10 @@ import (
 
 // messageColumns is the explicit column list for SELECT queries.
 // This prevents column order issues when migrations add columns via ALTER TABLE.
-const messageColumns = `guid, ts, channel_id, home, from_agent, session_id, body, mentions, fork_sessions, type, "references", surface_message, reply_to, quote_message_guid, edited_at, archived_at, reactions`
+const messageColumns = `guid, ts, channel_id, home, from_agent, origin, session_id, body, mentions, fork_sessions, type, "references", surface_message, reply_to, quote_message_guid, edited_at, archived_at, reactions`
 
 // messageColumnsAliased is the same but with m. prefix for JOINs.
-const messageColumnsAliased = `m.guid, m.ts, m.channel_id, m.home, m.from_agent, m.session_id, m.body, m.mentions, m.fork_sessions, m.type, m."references", m.surface_message, m.reply_to, m.quote_message_guid, m.edited_at, m.archived_at, m.reactions`
+const messageColumnsAliased = `m.guid, m.ts, m.channel_id, m.home, m.from_agent, m.origin, m.session_id, m.body, m.mentions, m.fork_sessions, m.type, m."references", m.surface_message, m.reply_to, m.quote_message_guid, m.edited_at, m.archived_at, m.reactions`
 
 // CreateMessage inserts a new message.
 func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
@@ -66,6 +67,16 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 		home = "room"
 	}
 
+	origin := message.Origin
+	if origin == "" {
+		origin = localMachineIDForDB(db)
+	}
+
+	var originValue any
+	if origin != "" {
+		originValue = origin
+	}
+
 	var forkSessionsStr *string
 	if forkSessionsJSON != nil {
 		s := string(forkSessionsJSON)
@@ -73,9 +84,9 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 	}
 
 	_, err = db.Exec(`
-		INSERT INTO fray_messages (guid, ts, channel_id, home, from_agent, session_id, body, mentions, fork_sessions, type, "references", surface_message, reply_to, quote_message_guid, edited_at, archived_at, reactions)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
-	`, guid, ts, channelID, home, message.FromAgent, message.SessionID, message.Body, string(mentionsJSON), forkSessionsStr, msgType, message.References, message.SurfaceMessage, message.ReplyTo, message.QuoteMessageGUID, string(reactionsJSON))
+		INSERT INTO fray_messages (guid, ts, channel_id, home, from_agent, origin, session_id, body, mentions, fork_sessions, type, "references", surface_message, reply_to, quote_message_guid, edited_at, archived_at, reactions)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+	`, guid, ts, channelID, home, message.FromAgent, originValue, message.SessionID, message.Body, string(mentionsJSON), forkSessionsStr, msgType, message.References, message.SurfaceMessage, message.ReplyTo, message.QuoteMessageGUID, string(reactionsJSON))
 	if err != nil {
 		return types.Message{}, err
 	}
@@ -89,6 +100,7 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 		ChannelID:        channelID,
 		Home:             home,
 		FromAgent:        message.FromAgent,
+		Origin:           origin,
 		SessionID:        message.SessionID,
 		Body:             message.Body,
 		Mentions:         message.Mentions,
@@ -102,6 +114,20 @@ func CreateMessage(db *sql.DB, message types.Message) (types.Message, error) {
 		EditedAt:         nil,
 		ArchivedAt:       nil,
 	}, nil
+}
+
+func localMachineIDForDB(db *sql.DB) string {
+	row := db.QueryRow("SELECT file FROM pragma_database_list WHERE name = 'main'")
+	var file string
+	if err := row.Scan(&file); err != nil || file == "" {
+		return ""
+	}
+	frayDir := resolveFrayDir(file)
+	if filepath.Base(frayDir) == "local" {
+		frayDir = filepath.Dir(frayDir)
+	}
+	projectRoot := filepath.Dir(frayDir)
+	return GetLocalMachineID(projectRoot)
 }
 
 // loadReactionsForMessages loads reactions from fray_reactions table into the messages.
@@ -711,6 +737,7 @@ type messageRow struct {
 	ChannelID        sql.NullString
 	Home             sql.NullString
 	FromAgent        string
+	Origin           sql.NullString
 	SessionID        sql.NullString
 	Body             string
 	Mentions         string
@@ -762,6 +789,10 @@ func (row messageRow) toMessage() (types.Message, error) {
 	if row.Home.Valid && row.Home.String != "" {
 		home = row.Home.String
 	}
+	origin := ""
+	if row.Origin.Valid {
+		origin = row.Origin.String
+	}
 
 	return types.Message{
 		ID:               row.GUID,
@@ -769,6 +800,7 @@ func (row messageRow) toMessage() (types.Message, error) {
 		ChannelID:        nullStringPtr(row.ChannelID),
 		Home:             home,
 		FromAgent:        row.FromAgent,
+		Origin:           origin,
 		SessionID:        nullStringPtr(row.SessionID),
 		Body:             row.Body,
 		Mentions:         mentions,
@@ -833,7 +865,7 @@ func scanMessages(rows *sql.Rows) ([]types.Message, error) {
 
 func scanMessage(scanner interface{ Scan(dest ...any) error }) (types.Message, error) {
 	var row messageRow
-	if err := scanner.Scan(&row.GUID, &row.TS, &row.ChannelID, &row.Home, &row.FromAgent, &row.SessionID, &row.Body, &row.Mentions, &row.ForkSessions, &row.MsgType, &row.References, &row.SurfaceMessage, &row.ReplyTo, &row.QuoteMessageGUID, &row.EditedAt, &row.ArchivedAt, &row.Reactions); err != nil {
+	if err := scanner.Scan(&row.GUID, &row.TS, &row.ChannelID, &row.Home, &row.FromAgent, &row.Origin, &row.SessionID, &row.Body, &row.Mentions, &row.ForkSessions, &row.MsgType, &row.References, &row.SurfaceMessage, &row.ReplyTo, &row.QuoteMessageGUID, &row.EditedAt, &row.ArchivedAt, &row.Reactions); err != nil {
 		return types.Message{}, err
 	}
 	return row.toMessage()
@@ -862,7 +894,7 @@ func GetUnreadCountForAgent(db *sql.DB, agentID string) (int, error) {
 func GetRecentMessages(db *sql.DB, sinceSeconds int) ([]types.Message, error) {
 	cutoff := time.Now().Unix() - int64(sinceSeconds)
 	rows, err := db.Query(`
-		SELECT guid, ts, channel_id, home, from_agent, body, mentions, type, "references", surface_message, reply_to, quote_message_guid, edited_at, archived_at, reactions
+		SELECT `+messageColumns+`
 		FROM fray_messages
 		WHERE ts >= ?
 		AND archived_at IS NULL
@@ -890,4 +922,36 @@ func GetMessagesBySession(db *sql.DB, sessionID string, limit int) ([]types.Mess
 	defer rows.Close()
 
 	return scanMessagesWithReactions(db, rows)
+}
+
+// GetDistinctOriginsForAgent returns the unique origins that have posted as the agent.
+func GetDistinctOriginsForAgent(db *sql.DB, agentID string) ([]string, error) {
+	rows, err := db.Query(`
+		SELECT DISTINCT origin
+		FROM fray_messages
+		WHERE from_agent = ?
+		AND origin IS NOT NULL
+		AND origin != ''
+		ORDER BY origin ASC
+	`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var origins []string
+	for rows.Next() {
+		var origin string
+		if err := rows.Scan(&origin); err != nil {
+			return nil, err
+		}
+		if origin == "" {
+			continue
+		}
+		origins = append(origins, origin)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return origins, nil
 }

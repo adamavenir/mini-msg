@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS fray_messages (
   channel_id TEXT,                     -- channel GUID for multi-channel support
   home TEXT DEFAULT 'room',            -- "room" or thread guid
   from_agent TEXT NOT NULL,            -- full agent address
+  origin TEXT,                         -- machine id (multi-machine)
   session_id TEXT,                     -- session that posted this message
   body TEXT NOT NULL,                  -- message content (markdown)
   mentions TEXT NOT NULL DEFAULT '[]', -- JSON array of mentioned addresses
@@ -606,6 +607,7 @@ func migrateSchema(db DBTX) error {
 				channel_id TEXT,
 				home TEXT DEFAULT 'room',
 				from_agent TEXT NOT NULL,
+				origin TEXT,
 				body TEXT NOT NULL,
 				mentions TEXT NOT NULL DEFAULT '[]',
 				type TEXT DEFAULT 'agent',
@@ -657,14 +659,15 @@ func migrateSchema(db DBTX) error {
 
 			if _, err := db.Exec(`
 				INSERT INTO fray_messages_new (
-					guid, ts, channel_id, home, from_agent, body, mentions, type, "references", surface_message, reply_to, edited_at, archived_at, reactions
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					guid, ts, channel_id, home, from_agent, origin, body, mentions, type, "references", surface_message, reply_to, edited_at, archived_at, reactions
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`,
 				idToGUID[msg.ID],
 				msg.TS,
 				nil,
 				"room",
 				msg.FromAgent,
+				nil,
 				msg.Body,
 				msg.Mentions,
 				msgType,
@@ -687,6 +690,11 @@ func migrateSchema(db DBTX) error {
 		}
 	}
 	if len(messageColumns) > 0 && !needsMessageMigration {
+		if !hasColumn(messageColumns, "origin") {
+			if _, err := db.Exec("ALTER TABLE fray_messages ADD COLUMN origin TEXT"); err != nil {
+				return err
+			}
+		}
 		if !hasColumn(messageColumns, "reactions") {
 			if _, err := db.Exec("ALTER TABLE fray_messages ADD COLUMN reactions TEXT NOT NULL DEFAULT '{}'"); err != nil {
 				return err

@@ -192,6 +192,7 @@ type Model struct {
 	agentDisplayPresence map[string]types.PresenceState // presence currently being displayed
 	agentActualPresence  map[string]types.PresenceState // actual presence from last poll
 	agentPresenceChanged map[string]time.Time      // when actual presence last changed
+	agentOrigins         map[string]map[string]struct{} // cached origins per agent for display
 	// Animation frame counter for spawn cycle (incremented every activity poll)
 	animationFrame       int
 	// New message notification state (when user has scrolled up)
@@ -382,6 +383,7 @@ func NewModel(opts Options) (*Model, error) {
 		agentDisplayPresence:  make(map[string]types.PresenceState),
 		agentActualPresence:   make(map[string]types.PresenceState),
 		agentPresenceChanged:  make(map[string]time.Time),
+		agentOrigins:          make(map[string]map[string]struct{}),
 		expandedJobClusters:   make(map[string]bool),
 		managedAgents:         managedAgents,
 		agentTokenUsage:       agentTokenUsage,
@@ -765,7 +767,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						// User has scrolled up - track new message authors instead of scrolling
 						m.refreshViewport(false)
 						for _, incomingMsg := range incoming {
-							m.addNewMessageAuthor(incomingMsg.FromAgent)
+							m.addNewMessageAuthor(m.displayAgentLabel(incomingMsg))
 						}
 					}
 					// Mark as read since user is viewing the room

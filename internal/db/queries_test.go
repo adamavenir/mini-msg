@@ -135,6 +135,62 @@ func TestGetMessagesWithMentionUnread(t *testing.T) {
 	}
 }
 
+func TestGetDistinctOriginsForAgent(t *testing.T) {
+	db := openTestDB(t)
+	requireSchema(t, db)
+
+	_, err := CreateMessage(db, types.Message{
+		FromAgent: "alice",
+		Origin:    "laptop",
+		Body:      "hello",
+		Mentions:  []string{},
+		Type:      types.MessageTypeAgent,
+	})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	_, err = CreateMessage(db, types.Message{
+		FromAgent: "alice",
+		Origin:    "server",
+		Body:      "second",
+		Mentions:  []string{},
+		Type:      types.MessageTypeAgent,
+	})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	_, err = CreateMessage(db, types.Message{
+		FromAgent: "alice",
+		Body:      "no origin",
+		Mentions:  []string{},
+		Type:      types.MessageTypeAgent,
+	})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	_, err = CreateMessage(db, types.Message{
+		FromAgent: "bob",
+		Origin:    "laptop",
+		Body:      "other",
+		Mentions:  []string{},
+		Type:      types.MessageTypeAgent,
+	})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+
+	origins, err := GetDistinctOriginsForAgent(db, "alice")
+	if err != nil {
+		t.Fatalf("get origins: %v", err)
+	}
+	if len(origins) != 2 {
+		t.Fatalf("expected 2 origins, got %d", len(origins))
+	}
+	if !(origins[0] == "laptop" && origins[1] == "server") && !(origins[0] == "server" && origins[1] == "laptop") {
+		t.Fatalf("unexpected origins: %v", origins)
+	}
+}
+
 func TestClaimsConflicts(t *testing.T) {
 	db := openTestDB(t)
 	requireSchema(t, db)

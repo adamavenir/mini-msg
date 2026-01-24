@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"database/sql"
 	"fmt"
 	"regexp"
 	"sort"
@@ -92,7 +93,7 @@ func (m *Model) formatMessage(msg types.Message, prefixLength int, readToMap map
 
 	// Mark byline as zone for copying whole message
 	// Avatar rendering disabled per fray-i2cq (deemed too busy)
-	bylineText := renderByline(msg.FromAgent, "", color)
+	bylineText := renderByline(m.displayAgentLabel(msg), "", color)
 	sender := m.zoneManager.Mark("byline-"+msg.ID, bylineText)
 
 	body := highlightCodeBlocks(msg.Body)
@@ -185,18 +186,58 @@ func (m *Model) formatMessage(msg types.Message, prefixLength int, readToMap map
 	return strings.Join(lines, "\n")
 }
 
+func (m *Model) displayAgentLabel(msg types.Message) string {
+	label := msg.FromAgent
+	if msg.Origin == "" {
+		return label
+	}
+	if m.agentHasMultipleOrigins(msg.FromAgent, msg.Origin) {
+		return fmt.Sprintf("%s@%s", msg.FromAgent, msg.Origin)
+	}
+	return label
+}
+
+func (m *Model) agentHasMultipleOrigins(agentID, origin string) bool {
+	if agentID == "" {
+		return false
+	}
+	if m.agentOrigins == nil {
+		m.agentOrigins = make(map[string]map[string]struct{})
+	}
+	origins, ok := m.agentOrigins[agentID]
+	if !ok {
+		list, err := db.GetDistinctOriginsForAgent(m.db, agentID)
+		origins = make(map[string]struct{}, len(list))
+		if err == nil {
+			for _, item := range list {
+				if item == "" {
+					continue
+				}
+				origins[item] = struct{}{}
+			}
+		}
+	}
+	if origin != "" {
+		origins[origin] = struct{}{}
+	}
+	m.agentOrigins[agentID] = origins
+	return len(origins) > 1
+}
+
 func (m *Model) replyContext(replyTo string, prefixLength int) string {
 	row := m.db.QueryRow(`
-		SELECT from_agent, body FROM fray_messages WHERE guid = ?
+		SELECT from_agent, origin, body FROM fray_messages WHERE guid = ?
 	`, replyTo)
 	var fromAgent string
+	var origin sql.NullString
 	var body string
-	if err := row.Scan(&fromAgent, &body); err != nil {
+	if err := row.Scan(&fromAgent, &origin, &body); err != nil {
 		prefix := core.GetGUIDPrefix(replyTo, prefixLength)
 		return lipgloss.NewStyle().Foreground(metaColor).Render(fmt.Sprintf("↪ Reply to #%s", prefix))
 	}
+	display := m.displayAgentLabel(types.Message{FromAgent: fromAgent, Origin: origin.String})
 	preview := truncatePreview(body, 50)
-	return lipgloss.NewStyle().Foreground(metaColor).Render(fmt.Sprintf("↪ Reply to @%s: %s", fromAgent, preview))
+	return lipgloss.NewStyle().Foreground(metaColor).Render(fmt.Sprintf("↪ Reply to @%s: %s", display, preview))
 }
 
 func (m *Model) formatQuestionStatus(msgID string) string {
