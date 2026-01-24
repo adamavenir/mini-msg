@@ -103,6 +103,7 @@ func NewRootCmd(version string) *cobra.Command {
 		NewMigrateCmd(),
 		NewRoleCmd(),
 		NewRolesCmd(),
+		NewCollisionsCmd(),
 		NewRebuildCmd(),
 		NewRunCmd(),
 		NewHeartbeatCmd(),

@@ -3,6 +3,7 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -157,6 +158,9 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	if IsMultiMachineMode(projectPath) {
 		if err := validateChecksums(projectPath); err != nil {
 			return err
+		}
+		if err := updateCollisionLog(projectPath); err != nil {
+			log.Printf("warning: collision log update failed: %v", err)
 		}
 	}
 
