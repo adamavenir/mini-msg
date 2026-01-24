@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -22,6 +23,14 @@ func readJSONLLines(filePath string) ([]string, error) {
 	}
 	defer file.Close()
 
+	truncated := false
+	if info, err := file.Stat(); err == nil && info.Size() > 0 {
+		buf := make([]byte, 1)
+		if _, err := file.ReadAt(buf, info.Size()-1); err == nil {
+			truncated = buf[0] != '\n'
+		}
+	}
+
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 10*1024*1024)
@@ -36,6 +45,10 @@ func readJSONLLines(filePath string) ([]string, error) {
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
+	}
+	if truncated && len(lines) > 0 {
+		log.Printf("warning: truncated JSONL line skipped in %s", filePath)
+		lines = lines[:len(lines)-1]
 	}
 	return lines, nil
 }

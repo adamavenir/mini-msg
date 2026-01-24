@@ -737,6 +737,32 @@ func TestReadMessagesSkipsMalformedLines(t *testing.T) {
 	}
 }
 
+func TestReadMessagesSkipsTruncatedFinalLine(t *testing.T) {
+	projectDir := t.TempDir()
+	frayDir := filepath.Join(projectDir, ".fray")
+	if err := os.MkdirAll(frayDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	path := filepath.Join(frayDir, messagesFile)
+
+	good, _ := json.Marshal(map[string]any{"type": "message", "id": "msg-good", "mentions": []string{}})
+	contents := string(good) + "\n" + "{\"type\":\"message\",\"id\":\"msg-bad\""
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	readBack, err := ReadMessages(projectDir)
+	if err != nil {
+		t.Fatalf("read messages: %v", err)
+	}
+	if len(readBack) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(readBack))
+	}
+	if readBack[0].ID != "msg-good" {
+		t.Fatalf("unexpected id: %s", readBack[0].ID)
+	}
+}
+
 func TestReadMessagesMultiMachineMergeOrdering(t *testing.T) {
 	projectDir := t.TempDir()
 
