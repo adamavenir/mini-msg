@@ -154,6 +154,12 @@ func ReadProjectConfig(projectPath string) (*ProjectConfig, error) {
 
 // RebuildDatabaseFromJSONL resets the SQLite cache using JSONL sources.
 func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
+	if IsMultiMachineMode(projectPath) {
+		if err := validateChecksums(projectPath); err != nil {
+			return err
+		}
+	}
+
 	messages, err := ReadMessages(projectPath)
 	if err != nil {
 		return err

@@ -24,6 +24,18 @@ func appendJSONLine(filePath string, record any) error {
 	return atomicAppend(filePath, data)
 }
 
+func appendSharedJSONLine(projectPath, filePath string, record any) error {
+	if err := appendJSONLine(filePath, record); err != nil {
+		return err
+	}
+	if IsMultiMachineMode(projectPath) {
+		if err := updateChecksum(projectPath, filePath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func atomicAppend(path string, data []byte) error {
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -128,7 +140,7 @@ func AppendMessage(projectPath string, message types.Message) error {
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -142,7 +154,7 @@ func AppendMessageUpdate(projectPath string, update MessageUpdateJSONLRecord) er
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, update); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -337,7 +349,7 @@ func AppendQuestion(projectPath string, question types.Question) error {
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -351,7 +363,7 @@ func AppendQuestionUpdate(projectPath string, update QuestionUpdateJSONLRecord) 
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, update); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -377,7 +389,7 @@ func AppendThread(projectPath string, thread types.Thread, subscribed []string) 
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -391,7 +403,7 @@ func AppendThreadUpdate(projectPath string, update ThreadUpdateJSONLRecord) erro
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, update); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -405,7 +417,7 @@ func AppendThreadSubscribe(projectPath string, event ThreadSubscribeJSONLRecord)
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -419,7 +431,7 @@ func AppendThreadUnsubscribe(projectPath string, event ThreadUnsubscribeJSONLRec
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -433,7 +445,7 @@ func AppendThreadMessage(projectPath string, event ThreadMessageJSONLRecord) err
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -447,7 +459,7 @@ func AppendThreadMessageRemove(projectPath string, event ThreadMessageRemoveJSON
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -468,7 +480,7 @@ func AppendMessagePin(projectPath string, event MessagePinJSONLRecord) error {
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -489,7 +501,7 @@ func AppendMessageUnpin(projectPath string, event MessageUnpinJSONLRecord) error
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -503,7 +515,7 @@ func AppendMessageMove(projectPath string, event MessageMoveJSONLRecord) error {
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -517,7 +529,7 @@ func AppendThreadPin(projectPath string, event ThreadPinJSONLRecord) error {
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -531,7 +543,7 @@ func AppendThreadUnpin(projectPath string, event ThreadUnpinJSONLRecord) error {
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -545,7 +557,7 @@ func AppendThreadMute(projectPath string, event ThreadMuteJSONLRecord) error {
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -559,7 +571,7 @@ func AppendThreadUnmute(projectPath string, event ThreadUnmuteJSONLRecord) error
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, event); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -580,7 +592,7 @@ func AppendGhostCursor(projectPath string, cursor types.GhostCursor) error {
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -600,7 +612,7 @@ func AppendReaction(projectPath, messageGUID, agentID, emoji string, reactedAt i
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -620,7 +632,7 @@ func AppendAgentFave(projectPath, agentID, itemType, itemGUID string, favedAt in
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -640,7 +652,7 @@ func AppendAgentUnfave(projectPath, agentID, itemType, itemGUID string, unfavedA
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -659,7 +671,7 @@ func AppendRoleHold(projectPath, agentID, roleName string, assignedAt int64) err
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -678,7 +690,7 @@ func AppendRoleDrop(projectPath, agentID, roleName string, droppedAt int64) erro
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -698,7 +710,7 @@ func AppendRolePlay(projectPath, agentID, roleName string, sessionID *string, st
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -717,7 +729,7 @@ func AppendRoleStop(projectPath, agentID, roleName string, stoppedAt int64) erro
 	if err != nil {
 		return err
 	}
-	if err := appendJSONLine(filePath, record); err != nil {
+	if err := appendSharedJSONLine(projectPath, filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
