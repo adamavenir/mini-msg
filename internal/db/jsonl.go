@@ -33,6 +33,8 @@ type MessageJSONLRecord struct {
 	ChannelID        *string             `json:"channel_id"`
 	Home             string              `json:"home,omitempty"`
 	FromAgent        string              `json:"from_agent"`
+	Origin           string              `json:"origin,omitempty"`
+	Seq              int64               `json:"seq,omitempty"`
 	SessionID        *string             `json:"session_id,omitempty"`
 	Body             string              `json:"body"`
 	Mentions         []string            `json:"mentions"`

@@ -38,9 +38,36 @@ func appendJSONLine(filePath string, record any) error {
 	return nil
 }
 
+func sharedMachinePath(projectPath, fileName string) (string, error) {
+	if !IsMultiMachineMode(projectPath) {
+		frayDir := resolveFrayDir(projectPath)
+		return filepath.Join(frayDir, fileName), nil
+	}
+	dir := GetLocalMachineDir(projectPath)
+	if dir == "" {
+		return "", fmt.Errorf("local machine id not set")
+	}
+	return filepath.Join(dir, fileName), nil
+}
+
+func agentStatePath(projectPath string) (string, error) {
+	if !IsMultiMachineMode(projectPath) {
+		frayDir := resolveFrayDir(projectPath)
+		return filepath.Join(frayDir, agentsFile), nil
+	}
+	return sharedMachinePath(projectPath, agentStateFile)
+}
+
+func runtimePath(projectPath string) string {
+	if IsMultiMachineMode(projectPath) {
+		return GetLocalRuntimePath(projectPath)
+	}
+	frayDir := resolveFrayDir(projectPath)
+	return filepath.Join(frayDir, agentsFile)
+}
+
 // AppendMessage appends a message record to JSONL.
 func AppendMessage(projectPath string, message types.Message) error {
-	frayDir := resolveFrayDir(projectPath)
 	home := message.Home
 	if home == "" {
 		home = "room"
@@ -69,7 +96,24 @@ func AppendMessage(projectPath string, message types.Message) error {
 		ArchivedAt:       message.ArchivedAt,
 	}
 
-	if err := appendJSONLine(filepath.Join(frayDir, messagesFile), record); err != nil {
+	if IsMultiMachineMode(projectPath) {
+		origin := GetLocalMachineID(projectPath)
+		if origin == "" {
+			return fmt.Errorf("local machine id not set")
+		}
+		seq, err := GetNextSequence(projectPath)
+		if err != nil {
+			return err
+		}
+		record.Origin = origin
+		record.Seq = seq
+	}
+
+	filePath, err := sharedMachinePath(projectPath, messagesFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -78,9 +122,12 @@ func AppendMessage(projectPath string, message types.Message) error {
 
 // AppendMessageUpdate appends an update record to JSONL.
 func AppendMessageUpdate(projectPath string, update MessageUpdateJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	update.Type = "message_update"
-	if err := appendJSONLine(filepath.Join(frayDir, messagesFile), update); err != nil {
+	filePath, err := sharedMachinePath(projectPath, messagesFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -89,7 +136,6 @@ func AppendMessageUpdate(projectPath string, update MessageUpdateJSONLRecord) er
 
 // AppendAgent appends an agent record to JSONL.
 func AppendAgent(projectPath string, agent types.Agent) error {
-	frayDir := resolveFrayDir(projectPath)
 	config, err := ReadProjectConfig(projectPath)
 	if err != nil {
 		return err
@@ -139,7 +185,7 @@ func AppendAgent(projectPath string, agent types.Agent) error {
 		record.HomeChannel = &channelID
 	}
 
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -148,9 +194,8 @@ func AppendAgent(projectPath string, agent types.Agent) error {
 
 // AppendAgentUpdate appends an agent update record to JSONL.
 func AppendAgentUpdate(projectPath string, update AgentUpdateJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	update.Type = "agent_update"
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), update); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -159,7 +204,6 @@ func AppendAgentUpdate(projectPath string, update AgentUpdateJSONLRecord) error 
 
 // AppendSessionStart appends a session start event to JSONL.
 func AppendSessionStart(projectPath string, event types.SessionStart) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := SessionStartJSONLRecord{
 		Type:        "session_start",
 		AgentID:     event.AgentID,
@@ -168,7 +212,7 @@ func AppendSessionStart(projectPath string, event types.SessionStart) error {
 		ThreadGUID:  event.ThreadGUID,
 		StartedAt:   event.StartedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -177,7 +221,6 @@ func AppendSessionStart(projectPath string, event types.SessionStart) error {
 
 // AppendSessionEnd appends a session end event to JSONL.
 func AppendSessionEnd(projectPath string, event types.SessionEnd) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := SessionEndJSONLRecord{
 		Type:       "session_end",
 		AgentID:    event.AgentID,
@@ -186,7 +229,7 @@ func AppendSessionEnd(projectPath string, event types.SessionEnd) error {
 		DurationMs: event.DurationMs,
 		EndedAt:    event.EndedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -195,7 +238,6 @@ func AppendSessionEnd(projectPath string, event types.SessionEnd) error {
 
 // AppendSessionShutdown appends a graceful shutdown event to JSONL.
 func AppendSessionShutdown(projectPath string, event types.SessionShutdown) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := SessionShutdownJSONLRecord{
 		Type:            "session_shutdown",
 		AgentID:         event.AgentID,
@@ -205,7 +247,7 @@ func AppendSessionShutdown(projectPath string, event types.SessionShutdown) erro
 		ShutdownAt:      event.ShutdownAt,
 		ShutdownReason:  event.ShutdownReason,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -215,7 +257,6 @@ func AppendSessionShutdown(projectPath string, event types.SessionShutdown) erro
 // AppendUsageSnapshot appends a usage snapshot event to JSONL.
 // Called on session end to persist token usage for durability.
 func AppendUsageSnapshot(projectPath string, snapshot types.UsageSnapshot) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := UsageSnapshotJSONLRecord{
 		Type:           "usage_snapshot",
 		AgentID:        snapshot.AgentID,
@@ -229,7 +270,7 @@ func AppendUsageSnapshot(projectPath string, snapshot types.UsageSnapshot) error
 		ContextPercent: snapshot.ContextPercent,
 		CapturedAt:     snapshot.CapturedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -238,7 +279,6 @@ func AppendUsageSnapshot(projectPath string, snapshot types.UsageSnapshot) error
 
 // AppendSessionHeartbeat appends a session heartbeat event to JSONL.
 func AppendSessionHeartbeat(projectPath string, event types.SessionHeartbeat) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := SessionHeartbeatJSONLRecord{
 		Type:      "session_heartbeat",
 		AgentID:   event.AgentID,
@@ -246,7 +286,7 @@ func AppendSessionHeartbeat(projectPath string, event types.SessionHeartbeat) er
 		Status:    string(event.Status),
 		At:        event.At,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -255,9 +295,8 @@ func AppendSessionHeartbeat(projectPath string, event types.SessionHeartbeat) er
 
 // AppendPresenceEvent appends a presence state transition to JSONL for audit trail.
 func AppendPresenceEvent(projectPath string, event PresenceEventJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "presence_event"
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), event); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -266,7 +305,6 @@ func AppendPresenceEvent(projectPath string, event PresenceEventJSONLRecord) err
 
 // AppendQuestion appends a question record to JSONL.
 func AppendQuestion(projectPath string, question types.Question) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := QuestionJSONLRecord{
 		Type:       "question",
 		GUID:       question.GUID,
@@ -280,7 +318,11 @@ func AppendQuestion(projectPath string, question types.Question) error {
 		Options:    question.Options,
 		CreatedAt:  question.CreatedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, questionsFile), record); err != nil {
+	filePath, err := sharedMachinePath(projectPath, questionsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -289,9 +331,12 @@ func AppendQuestion(projectPath string, question types.Question) error {
 
 // AppendQuestionUpdate appends a question update record to JSONL.
 func AppendQuestionUpdate(projectPath string, update QuestionUpdateJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	update.Type = "question_update"
-	if err := appendJSONLine(filepath.Join(frayDir, questionsFile), update); err != nil {
+	filePath, err := sharedMachinePath(projectPath, questionsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -300,7 +345,6 @@ func AppendQuestionUpdate(projectPath string, update QuestionUpdateJSONLRecord) 
 
 // AppendThread appends a thread record to JSONL.
 func AppendThread(projectPath string, thread types.Thread, subscribed []string) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := ThreadJSONLRecord{
 		Type:              "thread",
 		GUID:              thread.GUID,
@@ -314,7 +358,11 @@ func AppendThread(projectPath string, thread types.Thread, subscribed []string) 
 		AnchorHidden:      thread.AnchorHidden,
 		LastActivityAt:    thread.LastActivityAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), record); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -323,9 +371,12 @@ func AppendThread(projectPath string, thread types.Thread, subscribed []string) 
 
 // AppendThreadUpdate appends a thread update record to JSONL.
 func AppendThreadUpdate(projectPath string, update ThreadUpdateJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	update.Type = "thread_update"
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), update); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, update); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -334,9 +385,12 @@ func AppendThreadUpdate(projectPath string, update ThreadUpdateJSONLRecord) erro
 
 // AppendThreadSubscribe appends a thread subscribe event to JSONL.
 func AppendThreadSubscribe(projectPath string, event ThreadSubscribeJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_subscribe"
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -345,9 +399,12 @@ func AppendThreadSubscribe(projectPath string, event ThreadSubscribeJSONLRecord)
 
 // AppendThreadUnsubscribe appends a thread unsubscribe event to JSONL.
 func AppendThreadUnsubscribe(projectPath string, event ThreadUnsubscribeJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_unsubscribe"
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -356,9 +413,12 @@ func AppendThreadUnsubscribe(projectPath string, event ThreadUnsubscribeJSONLRec
 
 // AppendThreadMessage appends a thread message membership event to JSONL.
 func AppendThreadMessage(projectPath string, event ThreadMessageJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_message"
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -367,9 +427,12 @@ func AppendThreadMessage(projectPath string, event ThreadMessageJSONLRecord) err
 
 // AppendThreadMessageRemove appends a thread message removal event to JSONL.
 func AppendThreadMessageRemove(projectPath string, event ThreadMessageRemoveJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_message_remove"
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -378,9 +441,19 @@ func AppendThreadMessageRemove(projectPath string, event ThreadMessageRemoveJSON
 
 // AppendMessagePin appends a message pin event to JSONL.
 func AppendMessagePin(projectPath string, event MessagePinJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "message_pin"
-	if err := appendJSONLine(filepath.Join(frayDir, messagesFile), event); err != nil {
+	var filePath string
+	var err error
+	if IsMultiMachineMode(projectPath) {
+		filePath, err = sharedMachinePath(projectPath, threadsFile)
+	} else {
+		frayDir := resolveFrayDir(projectPath)
+		filePath = filepath.Join(frayDir, messagesFile)
+	}
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -389,9 +462,19 @@ func AppendMessagePin(projectPath string, event MessagePinJSONLRecord) error {
 
 // AppendMessageUnpin appends a message unpin event to JSONL.
 func AppendMessageUnpin(projectPath string, event MessageUnpinJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "message_unpin"
-	if err := appendJSONLine(filepath.Join(frayDir, messagesFile), event); err != nil {
+	var filePath string
+	var err error
+	if IsMultiMachineMode(projectPath) {
+		filePath, err = sharedMachinePath(projectPath, threadsFile)
+	} else {
+		frayDir := resolveFrayDir(projectPath)
+		filePath = filepath.Join(frayDir, messagesFile)
+	}
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -400,9 +483,12 @@ func AppendMessageUnpin(projectPath string, event MessageUnpinJSONLRecord) error
 
 // AppendMessageMove appends a message move event to JSONL.
 func AppendMessageMove(projectPath string, event MessageMoveJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "message_move"
-	if err := appendJSONLine(filepath.Join(frayDir, messagesFile), event); err != nil {
+	filePath, err := sharedMachinePath(projectPath, messagesFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -411,9 +497,12 @@ func AppendMessageMove(projectPath string, event MessageMoveJSONLRecord) error {
 
 // AppendThreadPin appends a thread pin event to JSONL.
 func AppendThreadPin(projectPath string, event ThreadPinJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_pin"
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -422,9 +511,12 @@ func AppendThreadPin(projectPath string, event ThreadPinJSONLRecord) error {
 
 // AppendThreadUnpin appends a thread unpin event to JSONL.
 func AppendThreadUnpin(projectPath string, event ThreadUnpinJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_unpin"
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -433,9 +525,12 @@ func AppendThreadUnpin(projectPath string, event ThreadUnpinJSONLRecord) error {
 
 // AppendThreadMute appends a thread mute event to JSONL.
 func AppendThreadMute(projectPath string, event ThreadMuteJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_mute"
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -444,9 +539,12 @@ func AppendThreadMute(projectPath string, event ThreadMuteJSONLRecord) error {
 
 // AppendThreadUnmute appends a thread unmute event to JSONL.
 func AppendThreadUnmute(projectPath string, event ThreadUnmuteJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	event.Type = "thread_unmute"
-	if err := appendJSONLine(filepath.Join(frayDir, threadsFile), event); err != nil {
+	filePath, err := sharedMachinePath(projectPath, threadsFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, event); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -455,7 +553,6 @@ func AppendThreadUnmute(projectPath string, event ThreadUnmuteJSONLRecord) error
 
 // AppendGhostCursor appends a ghost cursor event to JSONL.
 func AppendGhostCursor(projectPath string, cursor types.GhostCursor) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := GhostCursorJSONLRecord{
 		Type:        "ghost_cursor",
 		AgentID:     cursor.AgentID,
@@ -464,7 +561,11 @@ func AppendGhostCursor(projectPath string, cursor types.GhostCursor) error {
 		MustRead:    cursor.MustRead,
 		SetAt:       cursor.SetAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -473,7 +574,6 @@ func AppendGhostCursor(projectPath string, cursor types.GhostCursor) error {
 
 // AppendReaction appends a reaction record to JSONL.
 func AppendReaction(projectPath, messageGUID, agentID, emoji string, reactedAt int64) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := ReactionJSONLRecord{
 		Type:        "reaction",
 		MessageGUID: messageGUID,
@@ -481,7 +581,11 @@ func AppendReaction(projectPath, messageGUID, agentID, emoji string, reactedAt i
 		Emoji:       emoji,
 		ReactedAt:   reactedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, messagesFile), record); err != nil {
+	filePath, err := sharedMachinePath(projectPath, messagesFile)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -490,7 +594,6 @@ func AppendReaction(projectPath, messageGUID, agentID, emoji string, reactedAt i
 
 // AppendAgentFave appends a fave record to JSONL.
 func AppendAgentFave(projectPath, agentID, itemType, itemGUID string, favedAt int64) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := AgentFaveJSONLRecord{
 		Type:     "agent_fave",
 		AgentID:  agentID,
@@ -498,7 +601,11 @@ func AppendAgentFave(projectPath, agentID, itemType, itemGUID string, favedAt in
 		ItemGUID: itemGUID,
 		FavedAt:  favedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -507,7 +614,6 @@ func AppendAgentFave(projectPath, agentID, itemType, itemGUID string, favedAt in
 
 // AppendAgentUnfave appends an unfave record to JSONL.
 func AppendAgentUnfave(projectPath, agentID, itemType, itemGUID string, unfavedAt int64) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := AgentUnfaveJSONLRecord{
 		Type:      "agent_unfave",
 		AgentID:   agentID,
@@ -515,7 +621,11 @@ func AppendAgentUnfave(projectPath, agentID, itemType, itemGUID string, unfavedA
 		ItemGUID:  itemGUID,
 		UnfavedAt: unfavedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -524,14 +634,17 @@ func AppendAgentUnfave(projectPath, agentID, itemType, itemGUID string, unfavedA
 
 // AppendRoleHold appends a role hold (persistent assignment) record to JSONL.
 func AppendRoleHold(projectPath, agentID, roleName string, assignedAt int64) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := RoleHoldJSONLRecord{
 		Type:       "role_hold",
 		AgentID:    agentID,
 		RoleName:   roleName,
 		AssignedAt: assignedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -540,14 +653,17 @@ func AppendRoleHold(projectPath, agentID, roleName string, assignedAt int64) err
 
 // AppendRoleDrop appends a role drop (removal) record to JSONL.
 func AppendRoleDrop(projectPath, agentID, roleName string, droppedAt int64) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := RoleDropJSONLRecord{
 		Type:      "role_drop",
 		AgentID:   agentID,
 		RoleName:  roleName,
 		DroppedAt: droppedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -556,7 +672,6 @@ func AppendRoleDrop(projectPath, agentID, roleName string, droppedAt int64) erro
 
 // AppendRolePlay appends a session-scoped role play record to JSONL.
 func AppendRolePlay(projectPath, agentID, roleName string, sessionID *string, startedAt int64) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := RolePlayJSONLRecord{
 		Type:      "role_play",
 		AgentID:   agentID,
@@ -564,7 +679,11 @@ func AppendRolePlay(projectPath, agentID, roleName string, sessionID *string, st
 		SessionID: sessionID,
 		StartedAt: startedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -573,14 +692,17 @@ func AppendRolePlay(projectPath, agentID, roleName string, sessionID *string, st
 
 // AppendRoleStop appends a role stop record to JSONL.
 func AppendRoleStop(projectPath, agentID, roleName string, stoppedAt int64) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := RoleStopJSONLRecord{
 		Type:      "role_stop",
 		AgentID:   agentID,
 		RoleName:  roleName,
 		StoppedAt: stoppedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	filePath, err := agentStatePath(projectPath)
+	if err != nil {
+		return err
+	}
+	if err := appendJSONLine(filePath, record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -589,7 +711,6 @@ func AppendRoleStop(projectPath, agentID, roleName string, stoppedAt int64) erro
 
 // AppendWakeCondition appends a wake condition record to JSONL.
 func AppendWakeCondition(projectPath string, condition types.WakeCondition) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := WakeConditionJSONLRecord{
 		Type:           "wake_condition",
 		GUID:           condition.GUID,
@@ -609,7 +730,7 @@ func AppendWakeCondition(projectPath string, condition types.WakeCondition) erro
 		CreatedAt:      condition.CreatedAt,
 		ExpiresAt:      condition.ExpiresAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -618,13 +739,12 @@ func AppendWakeCondition(projectPath string, condition types.WakeCondition) erro
 
 // AppendWakeConditionClear appends a wake condition clear record to JSONL.
 func AppendWakeConditionClear(projectPath, agentID string) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := WakeConditionClearJSONLRecord{
 		Type:      "wake_condition_clear",
 		AgentID:   agentID,
 		ClearedAt: time.Now().Unix(),
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -633,13 +753,12 @@ func AppendWakeConditionClear(projectPath, agentID string) error {
 
 // AppendWakeConditionDelete appends a wake condition delete record to JSONL.
 func AppendWakeConditionDelete(projectPath, guid string) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := WakeConditionDeleteJSONLRecord{
 		Type:      "wake_condition_delete",
 		GUID:      guid,
 		DeletedAt: time.Now().Unix(),
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -648,13 +767,12 @@ func AppendWakeConditionDelete(projectPath, guid string) error {
 
 // AppendWakeConditionPause appends a wake condition pause record to JSONL.
 func AppendWakeConditionPause(projectPath, agentID string) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := WakeConditionPauseJSONLRecord{
 		Type:     "wake_condition_pause",
 		AgentID:  agentID,
 		PausedAt: time.Now().Unix(),
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -663,13 +781,12 @@ func AppendWakeConditionPause(projectPath, agentID string) error {
 
 // AppendWakeConditionResume appends a wake condition resume record to JSONL.
 func AppendWakeConditionResume(projectPath, agentID string) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := WakeConditionResumeJSONLRecord{
 		Type:      "wake_condition_resume",
 		AgentID:   agentID,
 		ResumedAt: time.Now().Unix(),
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -678,13 +795,12 @@ func AppendWakeConditionResume(projectPath, agentID string) error {
 
 // AppendWakeConditionClearByBye appends a wake condition clear-by-bye record to JSONL.
 func AppendWakeConditionClearByBye(projectPath, agentID string) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := WakeConditionClearByByeJSONLRecord{
 		Type:      "wake_condition_clear_by_bye",
 		AgentID:   agentID,
 		ClearedAt: time.Now().Unix(),
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -693,14 +809,13 @@ func AppendWakeConditionClearByBye(projectPath, agentID string) error {
 
 // AppendWakeConditionReset appends a wake condition reset record to JSONL.
 func AppendWakeConditionReset(projectPath, guid string, expiresAt int64) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := WakeConditionResetJSONLRecord{
 		Type:      "wake_condition_reset",
 		GUID:      guid,
 		ExpiresAt: expiresAt,
 		ResetAt:   time.Now().Unix(),
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -709,7 +824,6 @@ func AppendWakeConditionReset(projectPath, guid string, expiresAt int64) error {
 
 // AppendJobCreate appends a job creation record to JSONL.
 func AppendJobCreate(projectPath string, job types.Job) error {
-	frayDir := resolveFrayDir(projectPath)
 	record := JobCreateJSONLRecord{
 		Type:       "job_create",
 		GUID:       job.GUID,
@@ -720,7 +834,7 @@ func AppendJobCreate(projectPath string, job types.Job) error {
 		ThreadGUID: job.ThreadGUID,
 		CreatedAt:  job.CreatedAt,
 	}
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -729,9 +843,8 @@ func AppendJobCreate(projectPath string, job types.Job) error {
 
 // AppendJobUpdate appends a job update record to JSONL.
 func AppendJobUpdate(projectPath string, record JobUpdateJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	record.Type = "job_update"
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -740,9 +853,8 @@ func AppendJobUpdate(projectPath string, record JobUpdateJSONLRecord) error {
 
 // AppendJobWorkerJoin appends a worker join record to JSONL.
 func AppendJobWorkerJoin(projectPath string, record JobWorkerJoinJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	record.Type = "job_worker_join"
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)
@@ -751,9 +863,8 @@ func AppendJobWorkerJoin(projectPath string, record JobWorkerJoinJSONLRecord) er
 
 // AppendJobWorkerLeave appends a worker leave record to JSONL.
 func AppendJobWorkerLeave(projectPath string, record JobWorkerLeaveJSONLRecord) error {
-	frayDir := resolveFrayDir(projectPath)
 	record.Type = "job_worker_leave"
-	if err := appendJSONLine(filepath.Join(frayDir, agentsFile), record); err != nil {
+	if err := appendJSONLine(runtimePath(projectPath), record); err != nil {
 		return err
 	}
 	touchDatabaseFile(projectPath)

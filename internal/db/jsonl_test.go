@@ -1,6 +1,7 @@
 package db
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -44,6 +45,71 @@ func TestAppendAndReadMessages(t *testing.T) {
 	}
 	if readBack[0].ChannelID == nil || *readBack[0].ChannelID != "ch-00000000" {
 		t.Fatalf("expected channel id to roundtrip")
+	}
+}
+
+func TestAppendMessageMultiMachineRouting(t *testing.T) {
+	projectDir := t.TempDir()
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	localDir := filepath.Join(projectDir, ".fray", "local")
+	if err := os.MkdirAll(localDir, 0o755); err != nil {
+		t.Fatalf("mkdir local: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(localDir, "machine-id"), []byte(`{"id":"laptop","seq":0,"created_at":123}`), 0o644); err != nil {
+		t.Fatalf("write machine-id: %v", err)
+	}
+
+	message := types.Message{
+		ID:        "msg-routing",
+		TS:        123,
+		FromAgent: "alice",
+		Body:      "hello",
+		Mentions:  []string{},
+		Type:      types.MessageTypeAgent,
+	}
+	if err := AppendMessage(projectDir, message); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+
+	path := filepath.Join(projectDir, ".fray", "shared", "machines", "laptop", messagesFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read message file: %v", err)
+	}
+	var record MessageJSONLRecord
+	if err := json.Unmarshal(bytes.TrimSpace(data), &record); err != nil {
+		t.Fatalf("decode record: %v", err)
+	}
+	if record.Origin != "laptop" {
+		t.Fatalf("expected origin laptop, got %s", record.Origin)
+	}
+	if record.Seq != 1 {
+		t.Fatalf("expected seq 1, got %d", record.Seq)
+	}
+}
+
+func TestAppendAgentMultiMachineRouting(t *testing.T) {
+	projectDir := t.TempDir()
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	agent := types.Agent{
+		GUID:         "usr-routing",
+		AgentID:      "alice",
+		RegisteredAt: 100,
+		LastSeen:     120,
+	}
+	if err := AppendAgent(projectDir, agent); err != nil {
+		t.Fatalf("append agent: %v", err)
+	}
+
+	path := filepath.Join(projectDir, ".fray", "local", "runtime.jsonl")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected runtime.jsonl to exist: %v", err)
 	}
 }
 

@@ -535,7 +535,7 @@ func readMessagePinsLegacy(projectPath string) ([]MessagePinEvent, error) {
 }
 
 func readMessagePinsMerged(projectPath string) ([]MessagePinEvent, error) {
-	lines, err := readSharedJSONLLines(projectPath, messagesFile)
+	lines, err := readSharedJSONLLines(projectPath, threadsFile)
 	if err != nil {
 		return nil, err
 	}
