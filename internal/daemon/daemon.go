@@ -20,35 +20,41 @@ import (
 	"github.com/adamavenir/fray/internal/router"
 	"github.com/adamavenir/fray/internal/types"
 	"github.com/adamavenir/fray/internal/usage"
+	"github.com/fsnotify/fsnotify"
 	mlld "github.com/mlld-lang/mlld/sdk/go"
 )
 
 // Daemon watches for @mentions and spawns managed agents.
 type Daemon struct {
-	mu            sync.RWMutex
-	project       core.Project
-	database      *sql.DB
-	debouncer     *MentionDebouncer
-	detector      ActivityDetector
-	router        *router.Router      // mlld-based routing for mention interpretation
-	mlldClient    *mlld.Client        // mlld client for prompt template execution
-	usageWatcher  *usage.Watcher      // monitors transcript files for token usage
-	processes     map[string]*Process // agent_id -> process
-	spawning      map[string]bool     // agent_id -> true if spawn in progress (prevents races)
-	handled       map[string]bool     // agent_id -> true if exit already handled
-	cooldownUntil map[string]time.Time // agent_id -> when cooldown expires (after clean exit)
-	drivers         map[string]Driver    // driver name -> driver
-	lastSpawnTime   time.Time            // rate-limit spawns to prevent resource exhaustion
-	startedAt       time.Time            // daemon start time (for staleness gate)
-	lastDebugMsg    string               // last debug message for collapsing repeats
-	lastDebugCount  int                  // count of consecutive repeated messages
-	stopCh          chan struct{}
-	cancelFunc    context.CancelFunc // cancels spawned process contexts
-	wg            sync.WaitGroup
-	lockPath      string
-	pollInterval  time.Duration
-	debug         bool
-	force         bool
+	mu             sync.RWMutex
+	project        core.Project
+	database       *sql.DB
+	debouncer      *MentionDebouncer
+	detector       ActivityDetector
+	router         *router.Router       // mlld-based routing for mention interpretation
+	mlldClient     *mlld.Client         // mlld client for prompt template execution
+	usageWatcher   *usage.Watcher       // monitors transcript files for token usage
+	processes      map[string]*Process  // agent_id -> process
+	spawning       map[string]bool      // agent_id -> true if spawn in progress (prevents races)
+	handled        map[string]bool      // agent_id -> true if exit already handled
+	cooldownUntil  map[string]time.Time // agent_id -> when cooldown expires (after clean exit)
+	drivers        map[string]Driver    // driver name -> driver
+	lastSpawnTime  time.Time            // rate-limit spawns to prevent resource exhaustion
+	startedAt      time.Time            // daemon start time (for staleness gate)
+	lastDebugMsg   string               // last debug message for collapsing repeats
+	lastDebugCount int                  // count of consecutive repeated messages
+	stopCh         chan struct{}
+	cancelFunc     context.CancelFunc // cancels spawned process contexts
+	wg             sync.WaitGroup
+	lockPath       string
+	pollInterval   time.Duration
+	debug          bool
+	force          bool
+	watchSync      bool
+	syncWatcher    *fsnotify.Watcher
+	syncDebounce   *time.Timer
+	syncRebuildMu  sync.Mutex
+	syncRebuildFn  func() error
 }
 
 // LockInfo represents the daemon lock file contents.
@@ -62,6 +68,7 @@ type Config struct {
 	PollInterval time.Duration
 	Debug        bool
 	Force        bool // Kill existing daemon if running
+	WatchSync    bool
 }
 
 // DefaultConfig returns default daemon configuration.
@@ -101,6 +108,11 @@ func New(project core.Project, database *sql.DB, cfg Config) *Daemon {
 		pollInterval:  cfg.PollInterval,
 		debug:         cfg.Debug,
 		force:         cfg.Force,
+		watchSync:     cfg.WatchSync,
+	}
+
+	d.syncRebuildFn = func() error {
+		return db.RebuildDatabaseFromJSONL(d.database, d.project.DBPath)
 	}
 
 	// Register drivers
@@ -142,6 +154,12 @@ func (d *Daemon) Start(ctx context.Context) error {
 	d.wg.Add(1)
 	go d.watchLoop(procCtx)
 
+	if d.watchSync {
+		if err := d.startSyncWatcher(procCtx); err != nil {
+			d.debugf("failed to start sync watcher: %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -160,6 +178,11 @@ func (d *Daemon) Stop() error {
 	if d.usageWatcher != nil {
 		d.usageWatcher.Close()
 	}
+
+	if d.syncWatcher != nil {
+		_ = d.syncWatcher.Close()
+	}
+	d.stopSyncDebounce()
 
 	// Wait for all goroutines (watchLoop, usageWatchLoop, and monitorProcess) to finish
 	d.wg.Wait()
@@ -2308,7 +2331,7 @@ func (d *Daemon) updatePresence() {
 					proc.LastOutputTokens = tokenState.TotalOutput
 				}
 				proc.LastTokenCheck = time.Now() // Reset idle timer
-				continue // Skip spawn timeout check since agent is clearly working
+				continue                         // Skip spawn timeout check since agent is clearly working
 			}
 
 			// Check spawn timeout (applies to spawning state only)

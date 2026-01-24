@@ -53,11 +53,13 @@ Use Ctrl+C or SIGTERM to gracefully shut down.`,
 			}
 			debug, _ := cmd.Flags().GetBool("debug")
 			force, _ := cmd.Flags().GetBool("force")
+			watchSync, _ := cmd.Flags().GetBool("watch")
 
 			cfg := daemon.Config{
 				PollInterval: pollInterval,
 				Debug:        debug,
 				Force:        force,
+				WatchSync:    watchSync,
 			}
 
 			d := daemon.New(cmdCtx.Project, cmdCtx.DB, cfg)
@@ -115,6 +117,7 @@ Use Ctrl+C or SIGTERM to gracefully shut down.`,
 	cmd.Flags().Duration("poll-interval", 1*time.Second, "how often to poll for mentions")
 	cmd.Flags().Bool("debug", false, "enable debug logging")
 	cmd.Flags().Bool("force", false, "kill existing daemon if running")
+	cmd.Flags().Bool("watch", false, "watch shared files and rebuild on changes")
 
 	cmd.AddCommand(NewDaemonStatusCmd())
 	cmd.AddCommand(NewDaemonResetCmd())
