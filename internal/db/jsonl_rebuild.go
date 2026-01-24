@@ -70,6 +70,9 @@ func UpdateProjectConfig(projectPath string, updates ProjectConfig) (*ProjectCon
 	if updates.Version != 0 {
 		existing.Version = updates.Version
 	}
+	if updates.StorageVersion != 0 {
+		existing.StorageVersion = updates.StorageVersion
+	}
 	if updates.ChannelID != "" {
 		existing.ChannelID = updates.ChannelID
 	}

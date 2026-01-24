@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/adamavenir/fray/internal/types"
@@ -441,6 +442,71 @@ func TestUpdateProjectConfigMergesKnownAgents(t *testing.T) {
 	}
 	if config.KnownAgents["usr-bbb22222"].Name == nil || *config.KnownAgents["usr-bbb22222"].Name != "bob.1" {
 		t.Fatalf("expected second agent")
+	}
+}
+
+func TestGetStorageVersionDefaultsToLegacy(t *testing.T) {
+	projectDir := t.TempDir()
+
+	if version := GetStorageVersion(projectDir); version != 1 {
+		t.Fatalf("expected storage version 1, got %d", version)
+	}
+	if IsMultiMachineMode(projectDir) {
+		t.Fatalf("expected legacy mode")
+	}
+}
+
+func TestGetStorageVersionMultiMachine(t *testing.T) {
+	projectDir := t.TempDir()
+
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	if version := GetStorageVersion(projectDir); version != 2 {
+		t.Fatalf("expected storage version 2, got %d", version)
+	}
+	if !IsMultiMachineMode(projectDir) {
+		t.Fatalf("expected multi-machine mode")
+	}
+}
+
+func TestGetLocalMachineID(t *testing.T) {
+	projectDir := t.TempDir()
+	localDir := filepath.Join(projectDir, ".fray", "local")
+	if err := os.MkdirAll(localDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	path := filepath.Join(localDir, "machine-id")
+	if err := os.WriteFile(path, []byte(`{"id":"laptop","seq":0,"created_at":123}`), 0o644); err != nil {
+		t.Fatalf("write machine-id: %v", err)
+	}
+
+	if id := GetLocalMachineID(projectDir); id != "laptop" {
+		t.Fatalf("expected machine id laptop, got %s", id)
+	}
+}
+
+func TestGetSharedMachinesDirs(t *testing.T) {
+	projectDir := t.TempDir()
+	machinesDir := filepath.Join(projectDir, ".fray", "shared", "machines")
+	if err := os.MkdirAll(filepath.Join(machinesDir, "laptop"), 0o755); err != nil {
+		t.Fatalf("mkdir laptop: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(machinesDir, "server"), 0o755); err != nil {
+		t.Fatalf("mkdir server: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(machinesDir, "notes.txt"), []byte("ignore"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	dirs := GetSharedMachinesDirs(projectDir)
+	expected := []string{
+		filepath.Join(machinesDir, "laptop"),
+		filepath.Join(machinesDir, "server"),
+	}
+	if !reflect.DeepEqual(dirs, expected) {
+		t.Fatalf("expected %v, got %v", expected, dirs)
 	}
 }
 

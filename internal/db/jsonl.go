@@ -1,6 +1,13 @@
 package db
 
-import "github.com/adamavenir/fray/internal/types"
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"sort"
+
+	"github.com/adamavenir/fray/internal/types"
+)
 
 const (
 	messagesFile      = "messages.jsonl"
@@ -143,11 +150,11 @@ type MessagePinJSONLRecord struct {
 
 // MessageUnpinJSONLRecord represents a message unpin event.
 type MessageUnpinJSONLRecord struct {
-	Type         string `json:"type"`
-	MessageGUID  string `json:"message_guid"`
-	ThreadGUID   string `json:"thread_guid"`
-	UnpinnedBy   string `json:"unpinned_by"`
-	UnpinnedAt   int64  `json:"unpinned_at"`
+	Type        string `json:"type"`
+	MessageGUID string `json:"message_guid"`
+	ThreadGUID  string `json:"thread_guid"`
+	UnpinnedBy  string `json:"unpinned_by"`
+	UnpinnedAt  int64  `json:"unpinned_at"`
 }
 
 // MessageMoveJSONLRecord represents a message move event.
@@ -170,10 +177,10 @@ type ThreadPinJSONLRecord struct {
 
 // ThreadUnpinJSONLRecord represents a thread unpin event.
 type ThreadUnpinJSONLRecord struct {
-	Type        string `json:"type"`
-	ThreadGUID  string `json:"thread_guid"`
-	UnpinnedBy  string `json:"unpinned_by"`
-	UnpinnedAt  int64  `json:"unpinned_at"`
+	Type       string `json:"type"`
+	ThreadGUID string `json:"thread_guid"`
+	UnpinnedBy string `json:"unpinned_by"`
+	UnpinnedAt int64  `json:"unpinned_at"`
 }
 
 // ThreadMuteJSONLRecord represents a thread mute event.
@@ -298,14 +305,14 @@ type SessionHeartbeatJSONLRecord struct {
 // PresenceEventJSONLRecord represents a presence state transition in JSONL.
 // This provides an audit trail of all presence changes for debugging.
 type PresenceEventJSONLRecord struct {
-	Type    string  `json:"type"`     // "presence_event"
-	AgentID string  `json:"agent_id"` // Agent whose presence changed
-	From    string  `json:"from"`     // Previous presence state (or empty if first)
-	To      string  `json:"to"`       // New presence state
+	Type    string  `json:"type"`             // "presence_event"
+	AgentID string  `json:"agent_id"`         // Agent whose presence changed
+	From    string  `json:"from"`             // Previous presence state (or empty if first)
+	To      string  `json:"to"`               // New presence state
 	Status  *string `json:"status,omitempty"` // Agent status at time of change (for status_update events)
-	Reason  string  `json:"reason"`   // Why: spawn, bye, back, exit_ok, exit_error, signal_kill, startup_cleanup, reset, status_update
-	Source  string  `json:"source"`   // Who: daemon, command, startup, status
-	TS      int64   `json:"ts"`       // Unix timestamp of the change
+	Reason  string  `json:"reason"`           // Why: spawn, bye, back, exit_ok, exit_error, signal_kill, startup_cleanup, reset, status_update
+	Source  string  `json:"source"`           // Who: daemon, command, startup, status
+	TS      int64   `json:"ts"`               // Unix timestamp of the change
 }
 
 // GhostCursorJSONLRecord represents a ghost cursor event in JSONL.
@@ -455,11 +462,12 @@ type ProjectKnownAgent struct {
 
 // ProjectConfig represents the per-project config file.
 type ProjectConfig struct {
-	Version     int                          `json:"version"`
-	ChannelID   string                       `json:"channel_id,omitempty"`
-	ChannelName string                       `json:"channel_name,omitempty"`
-	CreatedAt   string                       `json:"created_at,omitempty"`
-	KnownAgents map[string]ProjectKnownAgent `json:"known_agents,omitempty"`
+	Version        int                          `json:"version"`
+	StorageVersion int                          `json:"storage_version,omitempty"`
+	ChannelID      string                       `json:"channel_id,omitempty"`
+	ChannelName    string                       `json:"channel_name,omitempty"`
+	CreatedAt      string                       `json:"created_at,omitempty"`
+	KnownAgents    map[string]ProjectKnownAgent `json:"known_agents,omitempty"`
 }
 
 // JobCreateJSONLRecord represents a job creation event in JSONL.
@@ -520,10 +528,80 @@ type PermissionJSONLRecord struct {
 
 // PermissionUpdateJSONLRecord represents a permission response entry in JSONL.
 type PermissionUpdateJSONLRecord struct {
-	Type        string  `json:"type"`
-	GUID        string  `json:"guid"`
-	Status      string  `json:"status"`
-	ChosenIndex *int    `json:"chosen_index,omitempty"`
-	RespondedBy string  `json:"responded_by"`
-	RespondedAt int64   `json:"responded_at"`
+	Type        string `json:"type"`
+	GUID        string `json:"guid"`
+	Status      string `json:"status"`
+	ChosenIndex *int   `json:"chosen_index,omitempty"`
+	RespondedBy string `json:"responded_by"`
+	RespondedAt int64  `json:"responded_at"`
+}
+
+type machineIDFile struct {
+	ID        string `json:"id"`
+	Seq       int64  `json:"seq"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+// GetStorageVersion returns the storage_version from fray-config.json.
+// Defaults to 1 when config is missing or storage_version is unset.
+func GetStorageVersion(projectPath string) int {
+	config, err := ReadProjectConfig(projectPath)
+	if err != nil || config == nil || config.StorageVersion == 0 {
+		return 1
+	}
+	return config.StorageVersion
+}
+
+// IsMultiMachineMode reports whether storage_version >= 2.
+func IsMultiMachineMode(projectPath string) bool {
+	return GetStorageVersion(projectPath) >= 2
+}
+
+// GetLocalMachineID returns the ID from local/machine-id or empty string.
+func GetLocalMachineID(projectPath string) string {
+	frayDir := resolveFrayDir(projectPath)
+	path := filepath.Join(frayDir, "local", "machine-id")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	var record machineIDFile
+	if err := json.Unmarshal(data, &record); err != nil {
+		return ""
+	}
+	return record.ID
+}
+
+// GetSharedMachinesDirs returns paths to all shared machine directories.
+func GetSharedMachinesDirs(projectPath string) []string {
+	frayDir := resolveFrayDir(projectPath)
+	machinesRoot := filepath.Join(frayDir, "shared", "machines")
+	entries, err := os.ReadDir(machinesRoot)
+	if err != nil {
+		return nil
+	}
+	dirs := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, filepath.Join(machinesRoot, entry.Name()))
+		}
+	}
+	sort.Strings(dirs)
+	return dirs
+}
+
+// GetLocalMachineDir returns the shared directory for the local machine.
+func GetLocalMachineDir(projectPath string) string {
+	localID := GetLocalMachineID(projectPath)
+	if localID == "" {
+		return ""
+	}
+	frayDir := resolveFrayDir(projectPath)
+	return filepath.Join(frayDir, "shared", "machines", localID)
+}
+
+// GetLocalRuntimePath returns the local runtime.jsonl path.
+func GetLocalRuntimePath(projectPath string) string {
+	frayDir := resolveFrayDir(projectPath)
+	return filepath.Join(frayDir, "local", "runtime.jsonl")
 }
