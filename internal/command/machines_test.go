@@ -33,8 +33,8 @@ func TestMachinesCommandListsMachines(t *testing.T) {
 	if !strings.Contains(output, "laptop") || !strings.Contains(output, "local") {
 		t.Fatalf("expected laptop local in output: %s", output)
 	}
-	if !strings.Contains(output, "server") || !strings.Contains(output, "synced") {
-		t.Fatalf("expected server synced in output: %s", output)
+	if !strings.Contains(output, "server") || !strings.Contains(output, "remote") {
+		t.Fatalf("expected server remote in output: %s", output)
 	}
 	if !strings.Contains(output, "opus") || !strings.Contains(output, "designer") {
 		t.Fatalf("expected agents in output: %s", output)

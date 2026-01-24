@@ -58,7 +58,7 @@ func NewMachinesCmd() *cobra.Command {
 			infos := make([]machineInfo, 0, len(machineDirs))
 			for _, dir := range machineDirs {
 				machineID := filepath.Base(dir)
-				status := "synced"
+				status := "remote"
 				if localID != "" && machineID == localID {
 					status = "local"
 				}
