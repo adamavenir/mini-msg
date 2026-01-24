@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/types"
 )
 
@@ -179,6 +181,12 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	agents, err := ReadAgents(projectPath)
 	if err != nil {
 		return err
+	}
+	if IsMultiMachineMode(projectPath) {
+		agents, err = mergeAgentsFromMessages(agents, messages)
+		if err != nil {
+			return err
+		}
 	}
 	ghostCursors, err := ReadGhostCursors(projectPath)
 	if err != nil {
@@ -735,6 +743,67 @@ func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
 	}
 
 	return nil
+}
+
+type agentStats struct {
+	firstSeen int64
+	lastSeen  int64
+}
+
+func mergeAgentsFromMessages(agents []AgentJSONLRecord, messages []MessageJSONLRecord) ([]AgentJSONLRecord, error) {
+	existing := make(map[string]AgentJSONLRecord, len(agents))
+	for _, agent := range agents {
+		if agent.AgentID == "" {
+			continue
+		}
+		existing[agent.AgentID] = agent
+	}
+
+	stats := make(map[string]agentStats)
+	for _, msg := range messages {
+		if msg.FromAgent == "" {
+			continue
+		}
+		ts := normalizeTimestamp(msg.TS)
+		entry, ok := stats[msg.FromAgent]
+		if !ok {
+			stats[msg.FromAgent] = agentStats{firstSeen: ts, lastSeen: ts}
+			continue
+		}
+		if ts < entry.firstSeen {
+			entry.firstSeen = ts
+		}
+		if ts > entry.lastSeen {
+			entry.lastSeen = ts
+		}
+		stats[msg.FromAgent] = entry
+	}
+
+	missing := make([]string, 0)
+	for agentID := range stats {
+		if _, ok := existing[agentID]; !ok {
+			missing = append(missing, agentID)
+		}
+	}
+	sort.Strings(missing)
+
+	for _, agentID := range missing {
+		guid, err := core.GenerateGUID("usr")
+		if err != nil {
+			return nil, err
+		}
+		stat := stats[agentID]
+		agents = append(agents, AgentJSONLRecord{
+			Type:         "agent",
+			ID:           guid,
+			Name:         agentID,
+			AgentID:      agentID,
+			RegisteredAt: stat.firstSeen,
+			LastSeen:     stat.lastSeen,
+		})
+	}
+
+	return agents, nil
 }
 
 // topoSortThreads sorts threads so parents appear before children.

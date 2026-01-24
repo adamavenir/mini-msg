@@ -1102,3 +1102,50 @@ func TestRebuildDatabaseFromJSONL(t *testing.T) {
 		t.Fatalf("expected bob unsubscribed after rebuild")
 	}
 }
+
+func TestRebuildDatabaseFromJSONLMultiMachine(t *testing.T) {
+	projectDir := t.TempDir()
+	if _, err := UpdateProjectConfig(projectDir, ProjectConfig{StorageVersion: 2}); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	machineDir := filepath.Join(projectDir, ".fray", "shared", "machines", "laptop")
+	if err := os.MkdirAll(machineDir, 0o755); err != nil {
+		t.Fatalf("mkdir machine: %v", err)
+	}
+
+	message := MessageJSONLRecord{
+		Type:      "message",
+		ID:        "msg-multi",
+		FromAgent: "remote",
+		Body:      "hello",
+		Mentions:  []string{},
+		MsgType:   types.MessageTypeAgent,
+		TS:        100,
+	}
+	data, _ := json.Marshal(message)
+	if err := os.WriteFile(filepath.Join(machineDir, messagesFile), append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("write message: %v", err)
+	}
+
+	dbConn := openTestDB(t)
+	if err := RebuildDatabaseFromJSONL(dbConn, projectDir); err != nil {
+		t.Fatalf("rebuild: %v", err)
+	}
+
+	got, err := GetMessage(dbConn, message.ID)
+	if err != nil {
+		t.Fatalf("get message: %v", err)
+	}
+	if got == nil || got.Body != "hello" {
+		t.Fatalf("expected message body hello, got %#v", got)
+	}
+
+	agent, err := GetAgent(dbConn, "remote")
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	if agent == nil {
+		t.Fatalf("expected agent for remote")
+	}
+}
