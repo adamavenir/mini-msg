@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/adamavenir/fray/internal/core"
@@ -20,23 +21,26 @@ func appendJSONLine(filePath string, record any) error {
 	if err != nil {
 		return err
 	}
+	return atomicAppend(filePath, data)
+}
 
-	f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+func atomicAppend(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+
 	if _, err := f.Write(append(data, '\n')); err != nil {
 		return err
 	}
 
-	// Sync to ensure data is flushed to disk before returning success
-	if err := f.Sync(); err != nil {
-		return err
-	}
-
-	return nil
+	return f.Sync()
 }
 
 func sharedMachinePath(projectPath, fileName string) (string, error) {
