@@ -29,7 +29,7 @@ Messages: @triggerMsgIDs
 Generate a standup report and clean up your session (longterm closeout):
 
 1. Post a brief standup to the room summarizing what you did
-2. Review session notes - ensure all balls land somewhere (beads, handoff, or delete)
+2. Review session notes - ensure all balls land somewhere (tickets, handoff, or delete)
 3. Update your notes thread in fray at meta/@agent/notes with handoff context (Suggested Next Steps are SUGGESTIONS - may become stale)
 4. Commit code (your work only)
 5. Update changelog if user-facing changes

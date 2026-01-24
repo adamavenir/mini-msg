@@ -15,9 +15,9 @@ allowed-tools: Bash, Read, Edit, TodoWrite
 ## Principles
 
 - **Capture first, condense later**: Write detailed handoff while context is fresh, then trim after closeout tasks create references to point to
-- **Grounded citations**: Cite specific IDs (msg, bead, file:line) rather than summarizing content
+- **Grounded citations**: Cite specific IDs (msg, ticket, file:line) rather than summarizing content
 - **Confidence calibration**: For things you *think* are true but aren't certain, state confidence 0-1
-- **DRY breadcrumbs**: Point to references (beads, messages, files) rather than duplicating; trust other agents to explore
+- **DRY breadcrumbs**: Point to references (tickets, messages, files) rather than duplicating; trust other agents to explore
 - **Pragmatic judgment**: Progress through tasks making good decisions, but raise to user if you hit significant ambiguity or feel painted into a corner
 
 ## Closeout Sequence
@@ -82,24 +82,24 @@ Pinned messages show up in `fray get <thread> --pinned`, helping the next agent 
 ### 4. Tidy Notes
 
 Review your existing notes (`fray get meta/$ARGUMENTS/notes`):
-- Delete notes you made in this session that are now captured in beads, commits, or handoff, **ensuring that all critical nuance and details are captured**
+- Delete notes you made in this session that are now captured in tickets, commits, or handoff, **ensuring that all critical nuance and details are captured**
 - Move evergreen agent-specific info into `meta/$ARGUMENTS` (only if needed beyond meta)
 - Most agents only need `# Handoff` - meta thread handles shared context
 
-### 5. Close Completed Beads
+### 5. Close Completed Tickets
 
 ```bash
-bd list --status in_progress
-bd close <id1> <id2> ... --reason "..."
+tk list --status in_progress
+tk close <id1> <id2> ... --reason "..."
 ```
 
 If there's any work you completed that was not marked in_progress when you started it, mark those as completed, too.
 
-### 6. Create Beads for Discovered Work
+### 6. Create Tickets for Discovered Work
 
 For work identified but not done, including any work or ideas users shared with you:
 ```bash
-bd create "..." --type task
+tk create "..." --type task
 # Add --label discuss if it needs design input
 # Add --label idea if it seemed to be an idea user was floating
 ```
@@ -137,10 +137,10 @@ If you committed user-facing changes (features, fixes, behavior changes), add th
 
 ### 11. Condense Handoff
 
-"Condensing" means letting beads, messages, and threads carry the detail while you link to them. It does NOT mean reducing top-of-mind nuance.
+"Condensing" means letting tickets, messages, and threads carry the detail while you link to them. It does NOT mean reducing top-of-mind nuance.
 
 **Replace with references:**
-- Descriptions of completed work → link to beads, commits
+- Descriptions of completed work → link to tickets, commits
 - Discussion details → link to thread IDs
 - Anything now captured in source material
 

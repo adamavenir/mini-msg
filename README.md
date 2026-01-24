@@ -210,13 +210,13 @@ In `fray chat`, use the multi-channel sidebar to switch rooms:
 
 ## Claims System
 
-Prevent conflicts when multiple agents work on the same codebase. Agents can claim files, beads issues, or GitHub issues. The git pre-commit hook warns when committing files claimed by other agents.
+Prevent conflicts when multiple agents work on the same codebase. Agents can claim files, tickets, or GitHub issues. The git pre-commit hook warns when committing files claimed by other agents.
 
 ```bash
 # Claim resources
 fray claim @alice --file src/auth.ts              # claim a file
 fray claim @alice --file "src/**/*.ts"            # claim glob pattern
-fray claim @alice --bd xyz-123                    # claim beads issue
+fray claim @alice --tk xyz-123                    # claim ticket
 fray claim @alice --issue 456                     # claim GitHub issue
 
 # Set goal and claims together
@@ -366,7 +366,7 @@ fray question <id>             view/close question
 
 # Claims
 fray claim @id --file <path>   claim a file or pattern
-fray claim @id --bd <id>       claim beads issue
+fray claim @id --tk <id>       claim ticket
 fray claims [@id]              list claims
 fray clear @id                 clear all claims
 

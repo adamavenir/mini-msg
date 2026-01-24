@@ -178,16 +178,16 @@ Jobs are designed for external coordination via mlld scripts. The daemon tracks 
 
 ## Claims System
 
-Claims prevent agents from accidentally working on the same files, issues, or beads tickets. When an agent claims a resource, other agents see a warning if they try to commit files matching those patterns.
+Claims prevent agents from accidentally working on the same files, issues, or tickets. When an agent claims a resource, other agents see a warning if they try to commit files matching those patterns.
 
 **Claim types:**
 - `file` - file paths or glob patterns (e.g., `src/auth.ts`, `lib/*.ts`)
-- `bd` - beads issue IDs
+- `tk` - ticket IDs
 - `issue` - GitHub issue numbers
 
 **Commands:**
 ```bash
-fray claim @alice --file src/auth.ts --bd xyz-123    # Claim resources
+fray claim @alice --file src/auth.ts --tk xyz-123    # Claim resources
 fray status @alice "fixing auth" --file src/auth.ts  # Goal + claims in one
 fray claims                                           # List all claims
 fray claims @alice                                    # List agent's claims
@@ -201,22 +201,9 @@ fray hook-install --precommit    # Install git pre-commit hook
 ```
 The hook warns when committing files claimed by other agents. Advisory by default; use `fray config precommit_strict true` for blocking mode.
 
-## Beads Issue Tracking
+## Ticket System
 
-Beads (`bd`) tracks work items with dependencies. Issues flow through states:
-`blocked → ready → in_progress → closed`
-
-**Dependency graph**: Issues can depend on other issues. `bd ready` shows only unblocked work.
-
-```bash
-bd create "fix auth bug" --type bug     # Create issue
-bd ready                                 # Show unblocked issues
-bd deps add fray-abc fray-xyz           # fray-abc depends on fray-xyz
-bd update fray-abc --status in_progress # Start work
-bd close fray-abc --reason "..."        # Complete with reason
-```
-
-**Work on `bd ready` issues** unless explicitly asked otherwise. This ensures you're not blocked.
+This project uses a CLI ticket system for task management. Run `tk help` when you need to use it.
 
 ## Claude Code Hooks
 
@@ -404,7 +391,7 @@ fray reactions --to alice              # Reactions on alice's messages
 # Claims (collision prevention)
 fray claim @alice --file path      # Claim a file
 fray claim @alice --file "*.ts"    # Claim glob pattern
-fray claim @alice --bd xyz-123     # Claim beads issue
+fray claim @alice --tk xyz-123     # Claim ticket
 fray claim @alice --issue 456      # Claim GitHub issue
 fray status @alice "msg" --file x  # Update goal + claim
 fray status @alice --clear         # Clear goal + claims

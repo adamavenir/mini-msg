@@ -2,7 +2,7 @@
 
 ## Overview
 
-FRAY uses a GUID-based architecture inspired by beads, enabling:
+FRAY uses a GUID-based architecture enabling:
 - Multi-machine coordination (git-mergeable)
 - Cross-channel operations via a global channel registry
 - Stable identifiers (GUIDs) with short display prefixes in UI

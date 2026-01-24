@@ -12,8 +12,8 @@ Use `--as $ARGUMENTS` and `@$ARGUMENTS` throughout.
 
 ## First: Learn the Tools
 
-1. Invoke the `fray-beads` skill for coordination patterns
-2. Run `fray --help` or `bd --help` if you need command reference
+1. Invoke the `fray` skill for coordination patterns
+2. Run `fray --help` or `tk help` if you need command reference
 
 ## Join and Get Your Assignment
 
@@ -37,7 +37,7 @@ fray get meta                    # project-wide shared context
 ## Gather Additional Context
 
 ```bash
-bd ready                   # unblocked issues (for context, not reassignment)
+tk ready                   # unblocked tickets (for context, not reassignment)
 fray @$ARGUMENTS           # mentions (FYI unless blocking/human question)
 fray questions             # open questions you might answer
 ```
@@ -65,9 +65,9 @@ Claims auto-clear when you `fray bye`, or clear manually with `fray clear @$ARGU
 
 ## As You Work
 
-- **Track work in beads**: `bd update <id> --status in_progress` when starting an issue
-- **Close issues when done**: `bd close <id> --reason "..."` with what you implemented
-- **Create issues for discovered work**: `bd create "..." --type task`
+- **Track work in tickets**: `tk update <id> --status in_progress` when starting a ticket
+- **Close tickets when done**: `tk close <id> --reason "..."` with what you implemented
+- **Create tickets for discovered work**: `tk create "..." --type task`
 
 ## Write Notes Throughout Your Session
 
@@ -110,7 +110,7 @@ Answer questions with: `fray answer <question-id> "answer text" --as $ARGUMENTS`
 ## ID Convention: Always Use `#`
 
 When referencing IDs in messages, **always prefix with `#`**:
-- `#fray-abc123` - beads issues
+- `#fray-abc123` - tickets
 - `#msg-xyz789` - messages
 - `#thrd-12345` - threads
 - `#123` - github issue IDs
@@ -133,7 +133,7 @@ These become **bold+underlined** in chat and are **double-click to copy** (copie
 {issue-system}:{issue-id}-debug      # debugging session
 ```
 
-Issue system: two-letter abbreviation (bd, gh, tk). Examples: `bd:ab2f-review` `gh:134-design`
+Issue system: two-letter abbreviation (tk, gh). Examples: `tk:ab2f-review` `gh:134-design`
 
 For epics: `{issue-system}:epic-{epic-id}-{name}/{feature-id}-{type}`
 
@@ -155,10 +155,10 @@ fray post --as $ARGUMENTS --reply-to msg-abc123 "Agreed, and also..."
 
 ## Work Startup
 
-When starting work on a bead:
-1. Ensure bead exists (`bd show` or `bd create`)
-2. Create thread if needed: `fray thread {bead-id}-design "Anchor summary" --as $ARGUMENTS`
-3. Post to thread, not room: `fray post {bead-id}-design "..." --as $ARGUMENTS`
+When starting work on a ticket:
+1. Ensure ticket exists (`tk show` or `tk create`)
+2. Create thread if needed: `fray thread {ticket-id}-design "Anchor summary" --as $ARGUMENTS`
+3. Post to thread, not room: `fray post {ticket-id}-design "..." --as $ARGUMENTS`
 4. Don't @mention until action needed (avoids waking idle agents)
 
 ## Manage Your Tokens

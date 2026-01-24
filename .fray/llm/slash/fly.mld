@@ -10,7 +10,7 @@ var @notes = @fray(`get meta/@agent/notes`)
 var @meta = @fray(`get meta`)
 var @mentions = @fray(`@$@agent`)
 var @claimsData = @fray(`claims @$@agent`)
-var @ready = cmd { bd ready }
+var @ready = cmd { tk ready }
 
 >> Extract arrays with fallbacks
 var @notesList = @safe(@notes, "messages")
@@ -41,7 +41,7 @@ var @context = `**You are @at(@agent).** Check fray for context.
 - @c.resource
 /end
 
-## Ready Work (bd ready)
+## Ready Work (tk ready)
 /for @i in @readyList
 - [@i.id] @i.title
 /end

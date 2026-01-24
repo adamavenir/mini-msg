@@ -194,7 +194,7 @@ func buildHookSessionContext(event, agentID, agentBase string, roomMessages, men
 	// Add resume tickler with key principles
 	if event == "resume" {
 		builder.WriteString("• Claim files before editing: fray claim @" + agentID + " --file <path>\n")
-		builder.WriteString("• Close beads when done: bd close <id>\n")
+		builder.WriteString("• Close tickets when done: tk close <id>\n")
 		builder.WriteString("• Check mentions: fray @" + agentBase + "\n")
 	}
 	builder.WriteString("\n")

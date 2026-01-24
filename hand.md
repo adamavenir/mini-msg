@@ -14,7 +14,7 @@ Your name for this session: **$ARGUMENTS**
 
 - **Explicit continuation** - you KNOW the specific next steps, not just ideas
 - **Preserve working context** - don't condense, the next session needs the raw details
-- **Ensure all balls land somewhere** - beads for discovered work, notes for context
+- **Ensure all balls land somewhere** - tickets for discovered work, notes for context
 
 ## Handoff Sequence
 
@@ -34,16 +34,16 @@ fray get meta/$ARGUMENTS/notes
 ```
 
 Ensure all "balls in the air" from your notes land somewhere:
-- Work items → create beads
+- Work items → create tickets
 - Key context → keep in handoff
 - Ephemeral scratch → can be deleted if captured elsewhere
 
 ### 3. Capture Discovered Work
 
-Create beads for anything identified but not done:
+Create tickets for anything identified but not done:
 
 ```bash
-bd create "..." --type task
+tk create "..." --type task
 # Add --label idea if it was a floating idea
 ```
 
@@ -126,7 +126,7 @@ The critical distinction: **/hand knows the explicit next work** (directly passi
 Both /hand and /land:
 - Commit code
 - Update changelog
-- Create beads for discovered work
+- Create tickets for discovered work
 - Update handoff notes
 
 But /hand frames "Next Steps" as an **assignment**, while /land frames them as **suggestions**.

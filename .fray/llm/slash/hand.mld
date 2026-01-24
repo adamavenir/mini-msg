@@ -29,8 +29,8 @@ Messages: @triggerMsgIDs
 Hand off to fresh context (you KNOW the explicit next steps):
 
 1. Post brief "handing off" message to room
-2. Review session notes - ensure all balls land somewhere (beads, handoff, or delete)
-3. Create beads for any discovered work: bd create "..." --type task
+2. Review session notes - ensure all balls land somewhere (tickets, handoff, or delete)
+3. Create tickets for any discovered work: tk create "..." --type task
 4. Update your notes thread in fray at meta/@agent/notes with EXPLICIT next steps (not suggestions - the assignment)
 5. Commit code (your work only)
 6. Update changelog if user-facing changes
