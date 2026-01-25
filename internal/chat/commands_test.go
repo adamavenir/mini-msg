@@ -97,9 +97,9 @@ func TestParsePruneArgs(t *testing.T) {
 
 func TestRewriteClickThenCommand(t *testing.T) {
 	tests := []struct {
-		input    string
-		want     string
-		wantOK   bool
+		input  string
+		want   string
+		wantOK bool
 	}{
 		// Valid click-then-command patterns
 		{"#msg-abc123 /mv meta", "/mv #msg-abc123 meta", true},
@@ -145,8 +145,8 @@ func TestParseThreadArgs(t *testing.T) {
 		{"/t design \"This is the anchor\"", "design", "This is the anchor", false},
 		{"/subthread sub-name", "sub-name", "", false},
 		{"/st sub-name \"sub anchor\"", "sub-name", "sub anchor", false},
-		{"/thread", "", "", true},           // no name
-		{"/t", "", "", true},                 // no name
+		{"/thread", "", "", true},                 // no name
+		{"/t", "", "", true},                      // no name
 		{"/thread \"just anchor\"", "", "", true}, // no name before quote
 	}
 

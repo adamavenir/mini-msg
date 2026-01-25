@@ -31,6 +31,20 @@ var agentPalette = []lipgloss.Color{
 	lipgloss.Color("214"), // golden yellow
 }
 
+var (
+	userColor     = lipgloss.Color("249")
+	statusColor   = lipgloss.Color("241")
+	metaColor     = lipgloss.Color("242")
+	inputBg       = lipgloss.Color("236")
+	editColor     = lipgloss.Color("203") // bright red text for edit mode
+	peekBg        = lipgloss.Color("24")  // blue background for peek mode statusline
+	caretColor    = lipgloss.Color("243")
+	reactionColor = lipgloss.Color("220") // yellow for reaction input
+	replyColor    = lipgloss.Color("75")  // blue for reply input
+	textColor     = lipgloss.Color("255")
+	blurText      = lipgloss.Color("248")
+)
+
 func buildColorMap(dbConn *sql.DB, lookback int, includeArchived bool) (map[string]lipgloss.Color, error) {
 	messages, err := db.GetMessages(dbConn, &types.MessageQueryOptions{Limit: lookback, IncludeArchived: includeArchived})
 	if err != nil {
@@ -87,6 +101,10 @@ func colorForAgent(agentID string, colorMap map[string]lipgloss.Color) lipgloss.
 	_, _ = h.Write([]byte(base))
 	idx := int(h.Sum32()) % len(agentPalette)
 	return agentPalette[idx]
+}
+
+func (m *Model) colorForAgent(agentID string) lipgloss.Color {
+	return colorForAgent(agentID, m.colorMap)
 }
 
 func contrastTextColor(color lipgloss.Color) lipgloss.Color {

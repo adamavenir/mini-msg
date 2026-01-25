@@ -24,8 +24,8 @@ func TestFuzzyMatch(t *testing.T) {
 		{"archive", "ar", true},
 		{"archive", "arc", true},
 		{"archive", "arv", true}, // a-r-chi-v-e
-		{"rename", "rn", true},  // r-e-n-ame
-		{"rename", "rm", true},  // r-ena-m-e (fuzzy: r then m)
+		{"rename", "rn", true},   // r-e-n-ame
+		{"rename", "rm", true},   // r-ena-m-e (fuzzy: r then m)
 		// No match
 		{"fave", "x", false},
 		{"fave", "vf", false}, // out of order
@@ -52,7 +52,7 @@ func TestBuildCommandSuggestions(t *testing.T) {
 		{"", "/quit", 8},
 		// Prefix filters
 		{"q", "/quit", 1},
-		{"f", "/fave", 2}, // fave, follow
+		{"f", "/fave", 2},    // fave, follow
 		{"un", "/unfave", 3}, // unfave, unfollow, unmute
 		// Fuzzy matching
 		{"uf", "/unfave", 1},

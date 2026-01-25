@@ -11,6 +11,23 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+func newInputModel() textarea.Model {
+	input := textarea.New()
+	input.CharLimit = 0
+	input.ShowLineNumbers = false
+	input.MaxHeight = inputMaxHeight
+	input.Cursor.SetChar("▍")
+	input.SetPromptFunc(2, func(lineIdx int) string {
+		if lineIdx == 0 {
+			return "› "
+		}
+		return "  "
+	})
+	applyInputStyles(&input, textColor, blurText)
+	input.Focus()
+	return input
+}
+
 func (m *Model) insertInputText(text string) {
 	if text == "" {
 		return
