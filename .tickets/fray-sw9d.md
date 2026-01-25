@@ -1,6 +1,6 @@
 ---
 id: fray-sw9d
-status: open
+status: closed
 deps: [fray-eg25]
 links: []
 created: 2025-12-31T23:53:43.098075-08:00

@@ -1,6 +1,6 @@
 ---
 id: fray-kd0g
-status: open
+status: closed
 deps: [fray-eg25]
 links: []
 created: 2025-12-31T23:53:42.957607-08:00

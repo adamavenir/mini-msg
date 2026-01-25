@@ -1,6 +1,6 @@
 ---
 id: fray-eg25
-status: open
+status: closed
 deps: []
 links: []
 created: 2025-12-31T23:53:30.767432-08:00

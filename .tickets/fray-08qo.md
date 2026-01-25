@@ -1,6 +1,6 @@
 ---
 id: fray-08qo
-status: open
+status: closed
 deps: [fray-eg25]
 links: []
 created: 2025-12-31T23:53:42.814054-08:00
