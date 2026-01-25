@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -157,8 +158,35 @@ func ReadProjectConfig(projectPath string) (*ProjectConfig, error) {
 	return &config, nil
 }
 
+// TxStarter is implemented by *sql.DB to start transactions.
+type TxStarter interface {
+	Begin() (*sql.Tx, error)
+}
+
 // RebuildDatabaseFromJSONL resets the SQLite cache using JSONL sources.
+// If db supports transactions (*sql.DB), the entire rebuild is wrapped in a
+// transaction to prevent other queries from seeing partial state during rebuild.
 func RebuildDatabaseFromJSONL(db DBTX, projectPath string) error {
+	// If db supports transactions, wrap the entire rebuild in a transaction.
+	// This prevents other queries (e.g., daemon watermark checks) from seeing
+	// partial state between DROP TABLE and INSERT operations.
+	if txStarter, ok := db.(TxStarter); ok {
+		tx, err := txStarter.Begin()
+		if err != nil {
+			return fmt.Errorf("begin rebuild transaction: %w", err)
+		}
+		if err := rebuildDatabaseFromJSONLWith(tx, projectPath); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		return tx.Commit()
+	}
+	// Already in a transaction (db is *sql.Tx), just run directly
+	return rebuildDatabaseFromJSONLWith(db, projectPath)
+}
+
+// rebuildDatabaseFromJSONLWith does the actual rebuild work.
+func rebuildDatabaseFromJSONLWith(db DBTX, projectPath string) error {
 	if IsMultiMachineMode(projectPath) {
 		if err := validateChecksums(projectPath); err != nil {
 			return err

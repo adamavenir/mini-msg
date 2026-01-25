@@ -718,6 +718,16 @@ func (d *Daemon) checkMentions(ctx context.Context, agent types.Agent) {
 			continue
 		}
 
+		// Skip direct addresses if agent already replied to them.
+		// Safety net: prevents infinite spawn loops when watermark regresses during DB rebuild.
+		if isDirectAddress && AgentAlreadyReplied(d.database, msg.ID, agent.AgentID) {
+			d.debugf("    %s: skip (agent already replied to direct address)", msg.ID)
+			if !hasQueued && !spawned {
+				lastProcessedID = msg.ID
+			}
+			continue
+		}
+
 		// FYI patterns (fyi @agent, cc @agent, etc) are informational - skip entirely
 		if IsFYIPattern(msg) {
 			d.debugf("    %s: skip (FYI pattern)", msg.ID)
