@@ -2797,3 +2797,7 @@
 {"type":"thread_subscribe","thread_guid":"thrd-v6yaicmq","agent_id":"architect","subscribed_at":1769311197}
 {"type":"thread_subscribe","thread_guid":"thrd-v6yaicmq","agent_id":"clank","subscribed_at":1769311202}
 {"type":"thread_subscribe","thread_guid":"thrd-v6yaicmq","agent_id":"dev","subscribed_at":1769311202}
+{"type":"thread_subscribe","thread_guid":"thrd-v6yaicmq","agent_id":"gpt52","subscribed_at":1769345399}
+{"type":"thread_subscribe","thread_guid":"thrd-v6yaicmq","agent_id":"gpt52","subscribed_at":1769345405}
+{"type":"thread_subscribe","thread_guid":"thrd-v6yaicmq","agent_id":"gpt52","subscribed_at":1769345477}
+{"type":"thread_subscribe","thread_guid":"thrd-v6yaicmq","agent_id":"gpt52","subscribed_at":1769345484}
