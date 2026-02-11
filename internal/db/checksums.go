@@ -199,6 +199,11 @@ func computeChecksum(path string) (string, int64, int64, error) {
 	return hex.EncodeToString(hash.Sum(nil)), lines, info.ModTime().UnixMilli(), nil
 }
 
+// ComputeChecksum exposes the checksum helper for sync tooling.
+func ComputeChecksum(path string) (string, int64, int64, error) {
+	return computeChecksum(path)
+}
+
 func readChecksums(file *os.File) (checksumIndex, error) {
 	if _, err := file.Seek(0, 0); err != nil {
 		return nil, err

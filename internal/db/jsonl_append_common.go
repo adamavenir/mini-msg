@@ -32,6 +32,49 @@ func appendSharedJSONLine(projectPath, filePath string, record any) error {
 	return nil
 }
 
+// AppendSharedJSONLLines appends raw JSONL lines to a shared file and updates checksums.
+// Lines are written as-is with a newline appended.
+func AppendSharedJSONLLines(projectPath, filePath string, lines []string) error {
+	if len(lines) == 0 {
+		return nil
+	}
+	if err := ensureDir(filepath.Dir(filePath)); err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+
+	for _, line := range lines {
+		if _, err := f.WriteString(line); err != nil {
+			return err
+		}
+		if _, err := f.Write([]byte{'\n'}); err != nil {
+			return err
+		}
+	}
+
+	if err := f.Sync(); err != nil {
+		return err
+	}
+
+	if IsMultiMachineMode(projectPath) {
+		if err := updateChecksum(projectPath, filePath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func atomicAppend(path string, data []byte) error {
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {

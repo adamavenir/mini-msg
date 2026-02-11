@@ -13,8 +13,9 @@ type ProjectKnownAgent struct {
 
 // ProjectSyncConfig stores sync backend configuration for shared storage.
 type ProjectSyncConfig struct {
-	Backend string `json:"backend,omitempty"`
-	Path    string `json:"path,omitempty"`
+	Backend   string `json:"backend,omitempty"`
+	Path      string `json:"path,omitempty"`
+	HostedURL string `json:"hosted_url,omitempty"`
 }
 
 // ProjectConfig represents the per-project config file.

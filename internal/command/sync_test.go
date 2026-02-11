@@ -2,12 +2,15 @@ package command
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/adamavenir/fray/internal/core"
 	"github.com/adamavenir/fray/internal/db"
+	"github.com/adamavenir/fray/internal/hostedsync"
 )
 
 func setupSyncProject(t *testing.T, channelName string) string {
@@ -41,6 +44,25 @@ func setupSyncProject(t *testing.T, channelName string) string {
 		t.Fatalf("init schema: %v", err)
 	}
 	_ = dbConn.Close()
+
+	return projectDir
+}
+
+func setupHostedSyncProject(t *testing.T, channelName string) string {
+	t.Helper()
+
+	projectDir := setupSyncProject(t, channelName)
+
+	localDir := filepath.Join(projectDir, ".fray", "local")
+	if err := os.MkdirAll(localDir, 0o755); err != nil {
+		t.Fatalf("mkdir local: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(localDir, "machine-id"), []byte(`{"id":"laptop","seq":0,"created_at":1}`), 0o644); err != nil {
+		t.Fatalf("write machine-id: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(projectDir, ".fray", "shared", "machines", "laptop"), 0o755); err != nil {
+		t.Fatalf("mkdir machine dir: %v", err)
+	}
 
 	return projectDir
 }
@@ -162,5 +184,64 @@ func TestSyncStatusShowsConfiguration(t *testing.T) {
 	}
 	if !result.Configured || result.Backend != "path" || result.Path != "/tmp/sync/shared" {
 		t.Fatalf("unexpected status: %#v", result)
+	}
+}
+
+func TestSyncSetupHostedRegistersMachine(t *testing.T) {
+	projectDir := setupHostedSyncProject(t, "sync-hosted")
+
+	var gotReq hostedsync.RegisterMachineRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/sync/register-machine" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotReq); err != nil {
+			t.Fatalf("decode register: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"machine_id":"laptop","token":"tok-123"}`))
+	}))
+	defer server.Close()
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(projectDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
+
+	cmd := NewRootCmd("test")
+	if _, err := executeCommand(cmd, "sync", "setup", "--hosted", server.URL); err != nil {
+		t.Fatalf("sync setup hosted: %v", err)
+	}
+
+	if gotReq.ChannelID != "ch-sync" || gotReq.MachineID != "laptop" {
+		t.Fatalf("unexpected register payload: %#v", gotReq)
+	}
+
+	config, err := db.ReadProjectConfig(projectDir)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if config == nil || config.Sync == nil || config.Sync.Backend != "hosted" {
+		t.Fatalf("expected hosted sync config, got %#v", config)
+	}
+	if config.Sync.HostedURL != server.URL {
+		t.Fatalf("expected hosted url %s, got %s", server.URL, config.Sync.HostedURL)
+	}
+
+	auth, err := hostedsync.LoadAuth(projectDir)
+	if err != nil {
+		t.Fatalf("load auth: %v", err)
+	}
+	if auth == nil || auth.Token != "tok-123" {
+		t.Fatalf("expected auth token saved, got %#v", auth)
+	}
+	if auth.MachineID != "laptop" {
+		t.Fatalf("expected machine id laptop, got %q", auth.MachineID)
 	}
 }
