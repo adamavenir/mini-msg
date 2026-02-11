@@ -1,6 +1,6 @@
 ---
 id: f-fed4
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-01-25T05:38:22Z
@@ -27,3 +27,9 @@ New tests cover each Read* path and merge/legacy cases.
 Tests: go test ./internal/db/...
 Commit: test(db): add jsonl_read regression coverage
 
+
+## Notes
+
+**2026-01-25T06:03:32Z**
+
+Added jsonl_read regression tests in internal/db/jsonl_read_additional_test.go. Tests: go test ./internal/db/... Commit: test(db): add jsonl_read regression coverage (c245a19)

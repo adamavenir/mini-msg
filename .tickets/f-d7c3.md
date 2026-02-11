@@ -1,6 +1,6 @@
 ---
 id: f-d7c3
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-01-25T05:38:34Z
@@ -27,3 +27,9 @@ Integration tests validate rebuild across legacy and merged JSONL.
 Tests: go test ./internal/db/...
 Commit: test(db): add jsonl_rebuild integration tests
 
+
+## Notes
+
+**2026-01-25T06:03:43Z**
+
+Added rebuild integration tests in internal/db/jsonl_rebuild_extra_test.go. Tests: go test ./internal/db/... Commit: test(db): add jsonl_rebuild integration tests (197da4b)

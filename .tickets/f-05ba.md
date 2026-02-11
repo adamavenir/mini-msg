@@ -1,6 +1,6 @@
 ---
 id: f-05ba
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-01-25T05:38:40Z
@@ -27,3 +27,9 @@ New daemon tests cover lock, spawn decision, presence cleanup, usage snapshot pa
 Tests: go test ./internal/daemon/...
 Commit: test(daemon): add split safety net
 
+
+## Notes
+
+**2026-01-25T06:03:47Z**
+
+Added daemon prereq tests in internal/daemon/daemon_prereq_test.go. Tests: go test ./internal/daemon/... Commit: test(daemon): add split safety net (fa29c85)
